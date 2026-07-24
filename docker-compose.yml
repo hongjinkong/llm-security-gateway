@@ -1,0 +1,13 @@
+services:
+  target-app:
+    image: mintplexlabs/anythingllm@sha256:9a87bca983e688db2a11a0ed3290daa16c4b67556617ae77325c9d12c6a37c25
+    container_name: target-anythingllm
+    ports:
+      - "8000:3001"
+    environment:
+      - STORAGE_DIR=/app/server/storage
+    volumes:
+      - ./target/storage:/app/server/storage
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

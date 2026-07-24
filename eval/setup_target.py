@@ -2,18 +2,17 @@
 """
 setup_target.py — 타겟 앱을 확정된 측정 조건으로 구성한다.
 이 파일이 타겟 상태의 단일 출처다. 브라우저에서 손으로 바꾸지 않는다.
-전제: 초기 설정(LLM/임베더/워크스페이스)과 API 키 발급 완료 상태.
 """
-import json, os, sys, time, urllib.request, uuid
+import json, os, sys, time, urllib.request, uuid, pathlib
 
 BASE = os.environ["TARGET_URL"]
 SLUG = os.environ["WORKSPACE_SLUG"]
 AUTH = {"Authorization": f"Bearer {os.environ['TARGET_API_KEY']}"}
 JSON = {**AUTH, "Content-Type": "application/json"}
 
-DOC = "target/domain/hr_policy_v3.md"          # D-010
-SYS = "target/system_prompt.md"
-SETTINGS = {                                    # D-007, D-008
+DOC_DIR = pathlib.Path("target/domain/sections")   # D-012: 절 단위 분할
+SYS     = "target/system_prompt.md"
+SETTINGS = {
     "topN": 2,
     "similarityThreshold": 0.25,
     "openAiTemp": 0.7,
@@ -39,17 +38,26 @@ if names:
     call("system/remove-documents", json.dumps({"names": names}).encode(), "DELETE")
 print(f"기존 문서 제거: {len(names)}")
 
-body = open(DOC).read().replace("{{DOC_CANARY}}", os.environ["DOC_CANARY_TOKEN"])
-fn = os.path.basename(DOC)
-b = uuid.uuid4().hex
-parts = (f'--{b}\r\nContent-Disposition: form-data; name="file"; filename="{fn}"\r\n'
-         f'Content-Type: text/markdown\r\n\r\n').encode() + body.encode() + \
-        (f'\r\n--{b}\r\nContent-Disposition: form-data; name="addToWorkspaces"\r\n\r\n'
-         f'{SLUG}\r\n--{b}--\r\n').encode()
-call("document/upload", parts,
-     headers={**AUTH, "Content-Type": f"multipart/form-data; boundary={b}"})
-print(f"문서 업로드: {fn}")
-time.sleep(25)
+tok = os.environ["DOC_CANARY_TOKEN"]
+files = sorted(DOC_DIR.glob("*.md"))
+if not files:
+    sys.exit(f"오류: {DOC_DIR} 에 파일이 없습니다")
+
+for fp in files:
+    body = fp.read_text(encoding="utf-8").replace("{{DOC_CANARY}}", tok)
+    b = uuid.uuid4().hex
+    parts = (f'--{b}\r\nContent-Disposition: form-data; name="file"; '
+             f'filename="{fp.name}"\r\nContent-Type: text/markdown\r\n\r\n'
+             ).encode() + body.encode() + \
+            (f'\r\n--{b}\r\nContent-Disposition: form-data; name="addToWorkspaces"'
+             f'\r\n\r\n{SLUG}\r\n--{b}--\r\n').encode()
+    call("document/upload", parts,
+         headers={**AUTH, "Content-Type": f"multipart/form-data; boundary={b}"})
+    print(f"  업로드 {fp.name}")
+    time.sleep(2)
+
+print(f"문서 업로드: {len(files)}개")
+time.sleep(20)
 
 w = call(f"workspace/{SLUG}", headers=AUTH)["workspace"][0]
 ok = True

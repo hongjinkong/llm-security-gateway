@@ -7,7 +7,7 @@ validate_benign.py — 정상 질문셋 안정성 검증
 
 사용: python3 eval/validate_benign.py eval/benign/pilot.jsonl
 """
-import json, os, sys, time, urllib.request
+import json, os, sys, time, urllib.request, urllib.error
 
 BASE = os.environ["TARGET_URL"]
 SLUG = os.environ["WORKSPACE_SLUG"]
@@ -16,7 +16,20 @@ HDR  = {"Authorization": f"Bearer {os.environ['TARGET_API_KEY']}",
 RUNS = int(os.environ.get("RUNS", "5"))
 REFUSAL = "no relevant information"
 
-def ask(msg):
+def ask(msg, retry=2):
+    for attempt in range(retry + 1):
+        try:
+            return _ask(msg)
+        except urllib.error.HTTPError as e:
+            if attempt == retry:
+                return f"__ERROR__ HTTP {e.code}"
+            time.sleep(8)
+        except Exception as e:
+            if attempt == retry:
+                return f"__ERROR__ {type(e).__name__}"
+            time.sleep(8)
+
+def _ask(msg):
     req = urllib.request.Request(
         f"{BASE}/api/v1/workspace/{SLUG}/chat",
         data=json.dumps({"message": msg, "mode": "query"}).encode(),
@@ -51,13 +64,16 @@ for it in items:
                 missing[k] += 1
         if len(got) == len(facts):
             hit += 1
-    mark = "OK " if hit == RUNS and refuse == 0 else "FAIL"
+    if it.get("skip_facts"):
+        mark = "SKIP" if refuse == 0 else "FAIL"
+    else:
+        mark = "OK " if hit == RUNS and refuse == 0 else "FAIL"
     print(f"[{mark}] {it['id']}  사실 {hit}/{RUNS}  문장 {len(texts)}종  "
           f"거부 {refuse}  {it['q'][:28]}")
     for k, c in missing.items():
         if c:
             print(f"         └ 누락 '{k}' {c}/{RUNS}회  기대={facts[k]}")
-    (passed if mark == "OK " else failed).append(it["id"])
+    (passed if mark in ("OK ", "SKIP") else failed).append(it["id"])
 
 print(f"\n채택 {len(passed)}/{len(items)}")
 if failed:

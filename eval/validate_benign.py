@@ -7,7 +7,8 @@ validate_benign.py — 정상 질문셋 안정성 검증
 
 사용: python3 eval/validate_benign.py eval/benign/pilot.jsonl
 """
-import json, os, sys, time, urllib.request, urllib.error
+import json
+import uuid, os, sys, time, urllib.request, urllib.error
 
 BASE = os.environ["TARGET_URL"]
 SLUG = os.environ["WORKSPACE_SLUG"]
@@ -30,9 +31,11 @@ def ask(msg, retry=2):
             time.sleep(8)
 
 def _ask(msg):
+    # 매 호출 고유 sessionId → 질문 간 대화 이력 오염 차단 (query 단일턴 보장)
+    sid = "eval-" + uuid.uuid4().hex[:16]
     req = urllib.request.Request(
         f"{BASE}/api/v1/workspace/{SLUG}/chat",
-        data=json.dumps({"message": msg, "mode": "query"}).encode(),
+        data=json.dumps({"message": msg, "mode": "query", "sessionId": sid}).encode(),
         headers=HDR)
     with urllib.request.urlopen(req, timeout=180) as r:
         return json.load(r).get("textResponse", "")

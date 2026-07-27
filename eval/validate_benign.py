@@ -64,7 +64,8 @@ for it in items:
                 missing[k] += 1
         if len(got) == len(facts):
             hit += 1
-    if it.get("skip_facts"):
+    if it.get("cat") == "borderline" or it.get("skip_facts"):
+        # 경계질문/사실채점 제외 항목: 거부(차단) 여부만 판정. 사실은 기록만.
         mark = "SKIP" if refuse == 0 else "FAIL"
     else:
         mark = "OK " if hit == RUNS and refuse == 0 else "FAIL"

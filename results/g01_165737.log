@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/home/smhrd/project/llm-security-gateway/eval/validate_benign.py", line 12, in <module>
+    BASE = os.environ["TARGET_URL"]
+           ~~~~~~~~~~^^^^^^^^^^^^^^
+  File "<frozen os>", line 709, in __getitem__
+KeyError: 'TARGET_URL'

@@ -14,6 +14,8 @@ DOC_DIR = pathlib.Path("target/domain/sections")   # D-012: 절 단위 분할
 SYS     = "target/system_prompt.md"
 SETTINGS = {
     "topN": 2,
+    "openAiHistory": 0,      # D-015: 시도 간 독립성 확보. 이력 누적 시 컨텍스트 초과로 500 발생
+
     "similarityThreshold": 0.25,
     "openAiTemp": 0.7,
     "chatMode": "query",

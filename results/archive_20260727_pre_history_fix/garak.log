@@ -1,0 +1,737 @@
+2026-07-27 07:16:57,121  INFO  invoked
+2026-07-27 07:16:57,121  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-27 07:16:57,132  DEBUG  args - raw argument string received: ['--target_type', 'rest', '-G', '/work/anythingllm_rest.json', '--probes', 'test.Test', '--generations', '1', '--verbose']
+2026-07-27 07:16:57,133  DEBUG  args - full argparse: Namespace(verbose=1, report_prefix=None, narrow_output=False, parallel_requests=False, parallel_attempts=False, skip_unknown=False, seed=None, deprefix=True, eval_threshold=0.5, generations=1, config=None, target_type='rest', target_name=None, probes='test.Test', probe_tags=None, detectors='auto', extended_detectors=False, buffs=None, buff_option_file=None, buff_options=None, detector_option_file=None, detector_options=None, generator_option_file='/work/anythingllm_rest.json', generator_options=None, harness_option_file=None, harness_options=None, probe_option_file=None, probe_options=None, taxonomy=None, confidence_interval_method=None, bootstrap_num_iterations=None, bootstrap_confidence_level=None, bootstrap_min_sample_size=None, plugin_info=None, list_probes=False, list_detectors=False, list_generators=False, list_buffs=False, list_config=False, version=False, report=None, interactive=False, fix=False)
+2026-07-27 07:16:57,379  DEBUG  no site config found at: /root/.config/garak/garak.site.json, /root/.config/garak/garak.site.yaml, or /root/.config/garak/garak.site.yml
+2026-07-27 07:16:57,379  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-27 07:16:57,379  DEBUG  Skipping already-loaded config: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-27 07:16:57,380  DEBUG  args - cli_args&commands stored: Namespace(target_type='rest', generator_option_file='/work/anythingllm_rest.json', probes='test.Test', generations=1, verbose=1, list_detectors=False, list_probes=False, list_generators=False, list_buffs=False, list_config=False, plugin_info=None, interactive=False, report=None, version=False, fix=False)
+2026-07-27 07:16:57,380  DEBUG  non-config params: [('generator_option_file', '/work/anythingllm_rest.json'), ('probes', 'test.Test'), ('list_detectors', False), ('list_probes', False), ('list_generators', False), ('list_buffs', False), ('list_config', False), ('plugin_info', None), ('report', None), ('version', False), ('fix', False)]
+2026-07-27 07:16:57,472  DEBUG  Detector metrics file not found at /root/.local/share/garak/data/detectors_eval/detector_metrics_summary.json. Using default metrics (Se=1.0, Sp=1.0).
+2026-07-27 07:16:57,518  INFO  generator init: <garak.generators.rest.RestGenerator object at 0x732d621e2a50>
+2026-07-27 07:16:57,518  INFO  ⚠️  This run can be sped up 🥳 Generator 'REST target-anythingllm' supports parallelism! Consider using `--parallel_attempts 16` (or more) to greatly accelerate your run. 🐌
+2026-07-27 07:16:57,518  INFO  run started at 2026-07-27T07:16:57.100397
+2026-07-27 07:16:57,518  DEBUG  relative report dir provided
+2026-07-27 07:16:57,519  INFO  reporting to /root/.local/share/garak/garak_runs/garak.b6a13b20-455c-4e4f-91b1-e5f55907d1b5.report.jsonl
+2026-07-27 07:16:57,522  INFO  service import: garak.langservice
+2026-07-27 07:16:57,680  DEBUG  nltk_data location not found using project cache location
+2026-07-27 07:16:57,686  INFO  harness init: <garak.harnesses.probewise.ProbewiseHarness object at 0x732d93dfea50>
+2026-07-27 07:16:57,686  INFO  probe queue: probes.test.Test
+2026-07-27 07:16:57,687  INFO  probe init: <garak.probes.test.Test object at 0x732d6163cf80>
+2026-07-27 07:16:57,687  DEBUG  langauge provision service: en,en
+2026-07-27 07:16:57,688  INFO  detector init: <garak.detectors.always.Pass object at 0x732d61fc6ab0>
+2026-07-27 07:16:57,688  DEBUG  harness: probe start for garak.probes.test.Test
+2026-07-27 07:16:57,688  DEBUG  probe execute: <garak.probes.test.Test object at 0x732d6163cf80>
+2026-07-27 07:16:57,706  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:16:57,724  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 400 133
+2026-07-27 07:19:06,164  INFO  invoked
+2026-07-27 07:19:06,164  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-27 07:19:06,170  DEBUG  args - raw argument string received: ['--target_type', 'rest', '-G', '/work/anythingllm_rest.json', '--probes', 'encoding.InjectBase64', '--generations', '1']
+2026-07-27 07:19:06,170  DEBUG  args - full argparse: Namespace(verbose=0, report_prefix=None, narrow_output=False, parallel_requests=False, parallel_attempts=False, skip_unknown=False, seed=None, deprefix=True, eval_threshold=0.5, generations=1, config=None, target_type='rest', target_name=None, probes='encoding.InjectBase64', probe_tags=None, detectors='auto', extended_detectors=False, buffs=None, buff_option_file=None, buff_options=None, detector_option_file=None, detector_options=None, generator_option_file='/work/anythingllm_rest.json', generator_options=None, harness_option_file=None, harness_options=None, probe_option_file=None, probe_options=None, taxonomy=None, confidence_interval_method=None, bootstrap_num_iterations=None, bootstrap_confidence_level=None, bootstrap_min_sample_size=None, plugin_info=None, list_probes=False, list_detectors=False, list_generators=False, list_buffs=False, list_config=False, version=False, report=None, interactive=False, fix=False)
+2026-07-27 07:19:06,393  DEBUG  no site config found at: /root/.config/garak/garak.site.json, /root/.config/garak/garak.site.yaml, or /root/.config/garak/garak.site.yml
+2026-07-27 07:19:06,393  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-27 07:19:06,393  DEBUG  Skipping already-loaded config: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-27 07:19:06,394  DEBUG  args - cli_args&commands stored: Namespace(target_type='rest', generator_option_file='/work/anythingllm_rest.json', probes='encoding.InjectBase64', generations=1, verbose=0, list_detectors=False, list_probes=False, list_generators=False, list_buffs=False, list_config=False, plugin_info=None, interactive=False, report=None, version=False, fix=False)
+2026-07-27 07:19:06,394  DEBUG  non-config params: [('generator_option_file', '/work/anythingllm_rest.json'), ('probes', 'encoding.InjectBase64'), ('list_detectors', False), ('list_probes', False), ('list_generators', False), ('list_buffs', False), ('list_config', False), ('plugin_info', None), ('report', None), ('version', False), ('fix', False)]
+2026-07-27 07:19:06,474  DEBUG  Detector metrics file not found at /root/.local/share/garak/data/detectors_eval/detector_metrics_summary.json. Using default metrics (Se=1.0, Sp=1.0).
+2026-07-27 07:19:06,528  INFO  generator init: <garak.generators.rest.RestGenerator object at 0x76ee9e395f10>
+2026-07-27 07:19:06,528  INFO  ⚠️  This run can be sped up 🥳 Generator 'REST target-anythingllm' supports parallelism! Consider using `--parallel_attempts 16` (or more) to greatly accelerate your run. 🐌
+2026-07-27 07:19:06,528  INFO  run started at 2026-07-27T07:19:06.157463
+2026-07-27 07:19:06,529  DEBUG  relative report dir provided
+2026-07-27 07:19:06,529  INFO  reporting to /root/.local/share/garak/garak_runs/garak.66b94620-1fb0-4e1a-b4e4-3cbe7517ce29.report.jsonl
+2026-07-27 07:19:06,530  INFO  service import: garak.langservice
+2026-07-27 07:19:06,644  DEBUG  nltk_data location not found using project cache location
+2026-07-27 07:19:06,650  INFO  harness init: <garak.harnesses.probewise.ProbewiseHarness object at 0x76ee9c18b5f0>
+2026-07-27 07:19:06,650  INFO  probe queue: probes.encoding.InjectBase64
+2026-07-27 07:19:06,701  INFO  probe init: <garak.probes.encoding.InjectBase64 object at 0x76ee6971c980>
+2026-07-27 07:19:06,701  DEBUG  langauge provision service: en,en
+2026-07-27 07:19:06,701  DEBUG  payload scan: /usr/local/lib/python3.12/site-packages/garak/data/payloads
+2026-07-27 07:19:06,715  DEBUG  payload: Loading payload text_en from /usr/local/lib/python3.12/site-packages/garak/data/payloads/text_en.json
+2026-07-27 07:19:06,717  DEBUG  payload: Loading payload web_html_js from /usr/local/lib/python3.12/site-packages/garak/data/payloads/web_html_js.json
+2026-07-27 07:19:06,720  DEBUG  payload: Loading payload slur_terms_en from /usr/local/lib/python3.12/site-packages/garak/data/payloads/slur_terms_en.json
+2026-07-27 07:19:06,725  INFO  detector init: <garak.detectors.encoding.DecodeMatch object at 0x76ee9eb4ec00>
+2026-07-27 07:19:06,726  INFO  detector init: <garak.detectors.encoding.DecodeApprox object at 0x76ee690ef8f0>
+2026-07-27 07:19:06,726  DEBUG  harness: probe start for garak.probes.encoding.InjectBase64
+2026-07-27 07:19:06,726  DEBUG  probe execute: <garak.probes.encoding.InjectBase64 object at 0x76ee6971c980>
+2026-07-27 07:19:06,748  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:09,801  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2614
+2026-07-27 07:19:09,807  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:13,654  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3224
+2026-07-27 07:19:13,675  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:18,565  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2700
+2026-07-27 07:19:18,570  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:22,643  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3330
+2026-07-27 07:19:22,649  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:24,972  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3335
+2026-07-27 07:19:24,976  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:27,163  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3329
+2026-07-27 07:19:27,169  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:34,716  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3376
+2026-07-27 07:19:34,722  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:40,124  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2518
+2026-07-27 07:19:40,141  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:46,838  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2541
+2026-07-27 07:19:46,861  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:53,035  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3615
+2026-07-27 07:19:53,049  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:19:56,450  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3431
+2026-07-27 07:19:56,456  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:00,287  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3404
+2026-07-27 07:20:00,313  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:09,551  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2765
+2026-07-27 07:20:09,591  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:13,296  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3580
+2026-07-27 07:20:13,301  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:15,309  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3492
+2026-07-27 07:20:15,315  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:18,617  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2595
+2026-07-27 07:20:18,622  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:29,629  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2983
+2026-07-27 07:20:29,640  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:36,904  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2480
+2026-07-27 07:20:36,916  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:39,788  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3220
+2026-07-27 07:20:39,813  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:20:58,278  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3196
+2026-07-27 07:20:58,405  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:21:28,933  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:21:29,044  INFO  Backing off _call_model(...) for 0.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:21:29,302  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:21:29,556  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:21:29,556  INFO  Backing off _call_model(...) for 1.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:21:30,546  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:21:30,559  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:21:30,559  INFO  Backing off _call_model(...) for 0.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:21:31,348  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:21:31,572  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:21:31,573  INFO  Backing off _call_model(...) for 0.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:21:31,613  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:21:32,174  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:21:32,175  INFO  Backing off _call_model(...) for 4.5s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:21:36,719  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:00,834  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2714
+2026-07-27 07:22:00,870  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:02,985  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3300
+2026-07-27 07:22:02,991  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:04,913  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3217
+2026-07-27 07:22:04,919  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:06,828  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2725
+2026-07-27 07:22:06,843  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:09,126  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2591
+2026-07-27 07:22:09,131  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:10,940  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2520
+2026-07-27 07:22:10,944  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:13,981  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2707
+2026-07-27 07:22:13,992  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:18,435  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2527
+2026-07-27 07:22:18,760  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:23,980  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3190
+2026-07-27 07:22:23,986  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:26,074  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2671
+2026-07-27 07:22:26,091  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:29,611  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2744
+2026-07-27 07:22:29,694  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:33,073  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2499
+2026-07-27 07:22:33,239  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:36,443  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3217
+2026-07-27 07:22:36,452  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:44,376  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3525
+2026-07-27 07:22:44,435  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:47,179  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2739
+2026-07-27 07:22:47,200  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:22:51,330  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2502
+2026-07-27 07:22:51,425  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:01,209  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:23:01,236  INFO  Backing off _call_model(...) for 0.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:23:01,269  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:01,515  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:23:01,515  INFO  Backing off _call_model(...) for 0.9s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:23:02,389  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:02,423  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:23:02,424  INFO  Backing off _call_model(...) for 0.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:23:03,100  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:03,148  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:23:03,149  INFO  Backing off _call_model(...) for 0.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:23:03,151  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:03,171  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:23:03,175  INFO  Backing off _call_model(...) for 3.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:23:06,957  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:31,020  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3231
+2026-07-27 07:23:31,055  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:33,795  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3488
+2026-07-27 07:23:33,804  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:36,475  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3538
+2026-07-27 07:23:36,481  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:38,889  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2630
+2026-07-27 07:23:38,897  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:41,740  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2677
+2026-07-27 07:23:41,750  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:43,884  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3210
+2026-07-27 07:23:43,910  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:46,426  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3437
+2026-07-27 07:23:46,434  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:48,358  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2539
+2026-07-27 07:23:48,367  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:53,070  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3175
+2026-07-27 07:23:53,158  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:55,895  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2543
+2026-07-27 07:23:56,131  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:23:59,909  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2494
+2026-07-27 07:23:59,923  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:24:04,344  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2764
+2026-07-27 07:24:04,372  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:24:08,885  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2963
+2026-07-27 07:24:08,891  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:24:12,189  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3369
+2026-07-27 07:24:12,195  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:24:15,291  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3202
+2026-07-27 07:24:15,301  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:26:15,951  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3290
+2026-07-27 07:26:16,227  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:26:23,478  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3373
+2026-07-27 07:26:23,613  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:26:35,196  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:26:35,258  INFO  Backing off _call_model(...) for 0.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:26:35,477  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:26:35,721  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:26:35,722  INFO  Backing off _call_model(...) for 0.3s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:26:35,976  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:26:35,999  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:26:36,000  INFO  Backing off _call_model(...) for 0.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:26:36,668  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:26:36,697  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:26:36,698  INFO  Backing off _call_model(...) for 0.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:26:37,378  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:26:37,457  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:26:37,458  INFO  Backing off _call_model(...) for 3.1s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:26:40,584  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:03,192  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2535
+2026-07-27 07:27:03,246  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:05,201  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2526
+2026-07-27 07:27:05,211  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:07,163  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2981
+2026-07-27 07:27:07,214  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:09,256  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2674
+2026-07-27 07:27:09,287  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:11,721  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2955
+2026-07-27 07:27:13,684  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:16,314  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3453
+2026-07-27 07:27:16,320  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:18,911  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2545
+2026-07-27 07:27:18,919  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:21,738  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2571
+2026-07-27 07:27:21,744  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:26,970  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2962
+2026-07-27 07:27:27,051  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:31,521  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3251
+2026-07-27 07:27:31,552  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:34,744  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2529
+2026-07-27 07:27:34,771  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:37,584  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3196
+2026-07-27 07:27:37,589  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:39,687  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3227
+2026-07-27 07:27:39,692  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:42,315  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3256
+2026-07-27 07:27:42,322  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:47,577  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3204
+2026-07-27 07:27:47,588  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:27:54,120  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3314
+2026-07-27 07:27:54,228  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:08,630  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:28:08,660  INFO  Backing off _call_model(...) for 0.4s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:28:09,024  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:09,251  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:28:09,252  INFO  Backing off _call_model(...) for 0.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:28:09,953  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:09,978  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:28:09,978  INFO  Backing off _call_model(...) for 1.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:28:11,833  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:11,844  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:28:11,845  INFO  Backing off _call_model(...) for 2.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:28:14,561  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:34,871  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2769
+2026-07-27 07:28:34,892  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:36,991  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2492
+2026-07-27 07:28:37,001  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:38,788  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2906
+2026-07-27 07:28:38,798  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:41,172  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2643
+2026-07-27 07:28:41,182  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:43,180  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3323
+2026-07-27 07:28:43,199  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:45,136  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3285
+2026-07-27 07:28:45,141  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:46,954  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3297
+2026-07-27 07:28:46,959  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:48,893  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3472
+2026-07-27 07:28:48,898  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:51,376  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3466
+2026-07-27 07:28:51,381  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:53,722  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2968
+2026-07-27 07:28:53,742  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:57,378  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3524
+2026-07-27 07:28:57,389  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:28:59,991  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3565
+2026-07-27 07:28:59,999  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:03,590  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3323
+2026-07-27 07:29:03,598  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:07,344  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3023
+2026-07-27 07:29:07,363  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:11,155  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3298
+2026-07-27 07:29:11,185  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:13,429  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3327
+2026-07-27 07:29:13,440  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:15,657  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2514
+2026-07-27 07:29:15,661  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:19,999  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2853
+2026-07-27 07:29:20,015  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:22,057  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2520
+2026-07-27 07:29:22,062  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:27,358  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3328
+2026-07-27 07:29:27,379  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:30,105  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2535
+2026-07-27 07:29:30,157  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:34,438  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:29:34,452  INFO  Backing off _call_model(...) for 0.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:29:35,272  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:35,494  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:29:35,495  INFO  Backing off _call_model(...) for 0.4s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:29:35,848  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:35,866  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:29:35,866  INFO  Backing off _call_model(...) for 0.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:29:35,911  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:35,924  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:29:35,924  INFO  Backing off _call_model(...) for 3.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:29:38,899  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:29:59,856  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3292
+2026-07-27 07:29:59,873  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:01,702  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3315
+2026-07-27 07:30:01,708  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:03,504  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2568
+2026-07-27 07:30:03,510  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:05,098  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2716
+2026-07-27 07:30:05,107  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:07,469  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2592
+2026-07-27 07:30:07,479  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:09,388  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3354
+2026-07-27 07:30:09,413  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:11,555  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3362
+2026-07-27 07:30:11,561  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:14,248  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3207
+2026-07-27 07:30:14,262  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:16,251  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2703
+2026-07-27 07:30:16,257  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:19,226  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3419
+2026-07-27 07:30:19,241  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:23,077  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3381
+2026-07-27 07:30:23,085  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:26,209  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2841
+2026-07-27 07:30:26,219  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:29,061  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2639
+2026-07-27 07:30:29,071  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:32,890  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3347
+2026-07-27 07:30:32,907  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:34,821  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2500
+2026-07-27 07:30:34,829  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:37,117  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2760
+2026-07-27 07:30:37,203  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:39,722  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3237
+2026-07-27 07:30:39,761  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:42,901  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3380
+2026-07-27 07:30:42,906  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:30:45,336  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2930
+2026-07-27 07:30:45,355  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:10,833  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:31:10,983  INFO  Backing off _call_model(...) for 0.9s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:31:11,851  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:12,113  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:31:12,113  INFO  Backing off _call_model(...) for 0.4s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:31:12,564  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:12,581  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:31:12,581  INFO  Backing off _call_model(...) for 0.4s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:31:13,007  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:13,022  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:31:13,022  INFO  Backing off _call_model(...) for 1.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:31:14,745  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:36,930  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3479
+2026-07-27 07:31:36,956  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:38,752  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3428
+2026-07-27 07:31:38,758  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:40,698  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3328
+2026-07-27 07:31:40,703  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:42,860  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3329
+2026-07-27 07:31:42,866  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:44,837  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2551
+2026-07-27 07:31:44,842  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:46,779  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2761
+2026-07-27 07:31:46,784  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:48,680  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2839
+2026-07-27 07:31:48,687  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:50,889  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2689
+2026-07-27 07:31:50,897  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:31:54,987  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2701
+2026-07-27 07:31:55,253  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:01,843  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3353
+2026-07-27 07:32:02,131  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:06,243  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3284
+2026-07-27 07:32:06,252  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:09,019  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2811
+2026-07-27 07:32:09,026  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:11,786  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3312
+2026-07-27 07:32:11,811  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:15,920  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3345
+2026-07-27 07:32:15,934  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:18,420  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2776
+2026-07-27 07:32:18,472  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:31,901  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:32:31,936  INFO  Backing off _call_model(...) for 0.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:32:32,679  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:32,968  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:32:32,968  INFO  Backing off _call_model(...) for 0.5s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:32:33,501  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:33,523  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:32:33,523  INFO  Backing off _call_model(...) for 0.1s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:32:33,657  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:33,672  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:32:33,673  INFO  Backing off _call_model(...) for 2.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:32:35,832  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:57,300  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3296
+2026-07-27 07:32:57,362  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:32:59,276  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3331
+2026-07-27 07:32:59,287  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:01,808  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3450
+2026-07-27 07:33:01,817  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:03,696  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2536
+2026-07-27 07:33:03,701  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:05,810  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3382
+2026-07-27 07:33:05,854  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:08,865  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3496
+2026-07-27 07:33:08,871  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:11,454  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3294
+2026-07-27 07:33:11,485  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:14,710  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3348
+2026-07-27 07:33:14,721  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:18,657  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2665
+2026-07-27 07:33:18,696  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:22,834  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3292
+2026-07-27 07:33:22,874  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:26,315  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2523
+2026-07-27 07:33:26,335  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:29,126  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2613
+2026-07-27 07:33:29,140  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:36,038  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3391
+2026-07-27 07:33:36,061  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:39,558  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3081
+2026-07-27 07:33:39,588  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:42,243  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2581
+2026-07-27 07:33:42,269  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:33:47,641  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2849
+2026-07-27 07:33:48,464  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:07,796  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:34:07,976  INFO  Backing off _call_model(...) for 0.9s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:34:08,864  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:09,137  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:34:09,137  INFO  Backing off _call_model(...) for 0.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:34:09,798  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:09,820  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:34:09,821  INFO  Backing off _call_model(...) for 0.3s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:34:10,160  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:10,175  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:34:10,175  INFO  Backing off _call_model(...) for 2.1s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:34:12,289  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:34,385  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3304
+2026-07-27 07:34:34,434  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:36,371  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2552
+2026-07-27 07:34:36,377  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:38,330  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2595
+2026-07-27 07:34:38,336  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:40,530  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2641
+2026-07-27 07:34:40,539  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:42,779  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3079
+2026-07-27 07:34:42,786  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:45,013  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2811
+2026-07-27 07:34:45,031  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:47,635  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2817
+2026-07-27 07:34:47,654  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:50,325  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3382
+2026-07-27 07:34:50,336  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:52,970  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3344
+2026-07-27 07:34:52,990  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:34:57,183  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2802
+2026-07-27 07:34:57,190  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:01,019  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3253
+2026-07-27 07:35:01,089  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:06,527  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3629
+2026-07-27 07:35:06,545  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:09,180  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3260
+2026-07-27 07:35:09,184  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:12,284  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3268
+2026-07-27 07:35:12,293  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:16,721  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2816
+2026-07-27 07:35:16,876  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:29,173  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:35:29,196  INFO  Backing off _call_model(...) for 0.4s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:35:29,591  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:29,835  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:35:29,835  INFO  Backing off _call_model(...) for 0.6s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:35:30,456  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:30,466  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:35:30,466  INFO  Backing off _call_model(...) for 0.9s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:35:31,347  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:31,365  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:35:31,365  INFO  Backing off _call_model(...) for 1.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:35:32,390  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:32,405  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:35:32,406  INFO  Backing off _call_model(...) for 3.5s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:35:35,909  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:54,127  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3379
+2026-07-27 07:35:54,150  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:56,161  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3718
+2026-07-27 07:35:56,170  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:35:58,353  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3442
+2026-07-27 07:35:58,362  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:00,256  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2580
+2026-07-27 07:36:00,264  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:02,447  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2820
+2026-07-27 07:36:02,453  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:04,875  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3382
+2026-07-27 07:36:04,879  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:06,798  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3363
+2026-07-27 07:36:06,835  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:09,009  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2809
+2026-07-27 07:36:09,015  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:13,543  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3321
+2026-07-27 07:36:13,578  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:17,447  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3445
+2026-07-27 07:36:17,453  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:19,442  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2773
+2026-07-27 07:36:19,448  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:22,043  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2807
+2026-07-27 07:36:22,060  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:27,517  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3382
+2026-07-27 07:36:27,540  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:30,633  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2813
+2026-07-27 07:36:30,641  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:32,885  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2731
+2026-07-27 07:36:32,954  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:37,850  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3459
+2026-07-27 07:36:38,093  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:43,282  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:36:43,331  INFO  Backing off _call_model(...) for 0.1s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:36:43,442  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:43,884  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:36:43,884  INFO  Backing off _call_model(...) for 0.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:36:44,731  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:44,744  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:36:44,745  INFO  Backing off _call_model(...) for 0.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:36:44,925  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:36:44,941  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:36:44,941  INFO  Backing off _call_model(...) for 2.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:36:47,788  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:08,969  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2558
+2026-07-27 07:37:08,981  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:11,354  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3349
+2026-07-27 07:37:11,379  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:13,548  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2617
+2026-07-27 07:37:14,908  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:16,791  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2568
+2026-07-27 07:37:16,796  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:18,844  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3359
+2026-07-27 07:37:18,860  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:21,535  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2920
+2026-07-27 07:37:21,539  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:23,566  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3351
+2026-07-27 07:37:23,571  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:26,094  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2544
+2026-07-27 07:37:26,108  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:28,713  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2607
+2026-07-27 07:37:28,745  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:32,679  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2793
+2026-07-27 07:37:32,701  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:36,682  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3457
+2026-07-27 07:37:36,698  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:39,939  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3537
+2026-07-27 07:37:39,962  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:42,102  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2752
+2026-07-27 07:37:42,113  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:46,105  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2978
+2026-07-27 07:37:46,230  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:37:49,693  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2546
+2026-07-27 07:37:49,711  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:00,810  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:38:00,826  INFO  Backing off _call_model(...) for 0.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:38:01,566  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:01,844  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:38:01,844  INFO  Backing off _call_model(...) for 0.5s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:38:02,313  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:02,348  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:38:02,349  INFO  Backing off _call_model(...) for 1.1s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:38:03,414  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:03,437  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:38:03,438  INFO  Backing off _call_model(...) for 2.4s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:38:05,842  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:27,354  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2795
+2026-07-27 07:38:27,373  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:29,503  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3313
+2026-07-27 07:38:29,511  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:31,332  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2948
+2026-07-27 07:38:31,340  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:33,207  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3382
+2026-07-27 07:38:33,221  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:35,205  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3288
+2026-07-27 07:38:35,210  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:37,069  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2508
+2026-07-27 07:38:37,074  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:39,837  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2695
+2026-07-27 07:38:39,843  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:42,275  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2497
+2026-07-27 07:38:42,371  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:46,710  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3565
+2026-07-27 07:38:46,932  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:51,498  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2967
+2026-07-27 07:38:51,525  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:55,369  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2501
+2026-07-27 07:38:55,399  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:38:58,135  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3335
+2026-07-27 07:38:58,147  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:02,415  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3507
+2026-07-27 07:39:02,426  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:05,472  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2515
+2026-07-27 07:39:05,485  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:09,196  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3723
+2026-07-27 07:39:09,516  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:18,898  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:39:18,921  INFO  Backing off _call_model(...) for 0.9s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:39:19,815  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:20,052  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:39:20,053  INFO  Backing off _call_model(...) for 0.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:39:20,817  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:20,843  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:39:20,843  INFO  Backing off _call_model(...) for 1.1s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:39:21,943  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:21,959  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:39:21,959  INFO  Backing off _call_model(...) for 1.5s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:39:23,503  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:44,149  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2573
+2026-07-27 07:39:44,179  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:46,057  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2513
+2026-07-27 07:39:46,065  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:48,847  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3505
+2026-07-27 07:39:48,853  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:51,626  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3183
+2026-07-27 07:39:51,632  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:53,510  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3407
+2026-07-27 07:39:53,517  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:55,363  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3640
+2026-07-27 07:39:55,373  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:57,376  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3391
+2026-07-27 07:39:57,390  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:39:59,463  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2536
+2026-07-27 07:39:59,472  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:01,710  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2504
+2026-07-27 07:40:01,726  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:04,913  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2811
+2026-07-27 07:40:04,928  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:09,888  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2498
+2026-07-27 07:40:10,059  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:14,104  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3609
+2026-07-27 07:40:14,122  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:17,223  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2747
+2026-07-27 07:40:17,242  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:21,046  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3468
+2026-07-27 07:40:21,086  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:24,843  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2998
+2026-07-27 07:40:24,906  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:30,138  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3355
+2026-07-27 07:40:30,146  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:32,502  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2529
+2026-07-27 07:40:32,527  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:35,868  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:40:35,892  INFO  Backing off _call_model(...) for 0.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:40:36,133  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:36,366  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:40:36,366  INFO  Backing off _call_model(...) for 0.7s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:40:37,099  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:37,119  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:40:37,119  INFO  Backing off _call_model(...) for 0.3s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:40:37,443  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:40:37,462  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:40:37,463  INFO  Backing off _call_model(...) for 1.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:40:39,236  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:01,763  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3425
+2026-07-27 07:41:01,781  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:03,455  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3714
+2026-07-27 07:41:03,461  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:05,755  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3521
+2026-07-27 07:41:05,764  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:07,352  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3316
+2026-07-27 07:41:07,364  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:09,607  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2911
+2026-07-27 07:41:09,628  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:11,195  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3328
+2026-07-27 07:41:11,199  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:13,441  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3408
+2026-07-27 07:41:13,447  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:15,598  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3298
+2026-07-27 07:41:15,611  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:18,334  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3344
+2026-07-27 07:41:18,352  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:22,315  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2672
+2026-07-27 07:41:22,802  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:26,398  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3367
+2026-07-27 07:41:26,435  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:30,414  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3755
+2026-07-27 07:41:30,419  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:33,905  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2523
+2026-07-27 07:41:33,931  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:37,556  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3520
+2026-07-27 07:41:37,574  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:41,382  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2531
+2026-07-27 07:41:41,402  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:41:45,910  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2682
+2026-07-27 07:41:45,960  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:03,377  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 285
+2026-07-27 07:42:03,431  INFO  Backing off _call_model(...) for 0.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:42:03,641  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:03,882  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:42:03,883  INFO  Backing off _call_model(...) for 0.6s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:42:04,526  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:04,541  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:42:04,541  INFO  Backing off _call_model(...) for 1.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:42:05,527  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:05,540  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:42:05,540  INFO  Backing off _call_model(...) for 1.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:42:06,531  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:06,542  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-27 07:42:06,542  INFO  Backing off _call_model(...) for 0.3s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-27 07:42:06,831  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:29,045  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3323
+2026-07-27 07:42:29,077  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:31,127  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2832
+2026-07-27 07:42:31,135  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:33,165  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3338
+2026-07-27 07:42:33,171  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:35,054  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2539
+2026-07-27 07:42:35,060  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:37,782  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3447
+2026-07-27 07:42:37,791  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:39,828  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3372
+2026-07-27 07:42:39,836  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:42,003  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2904
+2026-07-27 07:42:42,019  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:44,849  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2643
+2026-07-27 07:42:44,881  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:48,544  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2730
+2026-07-27 07:42:48,559  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:52,226  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3300
+2026-07-27 07:42:52,235  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:42:55,112  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3370
+2026-07-27 07:42:55,215  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:43:00,923  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 2545
+2026-07-27 07:43:00,933  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:43:04,976  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3741
+2026-07-27 07:43:04,982  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:43:07,397  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3349
+2026-07-27 07:43:07,403  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-27 07:43:10,463  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3335
+2026-07-27 07:43:10,473  DEBUG  Starting new HTTP connection (1): target-app:3001

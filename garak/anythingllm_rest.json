@@ -1,0 +1,20 @@
+{
+  "rest": {
+    "RestGenerator": {
+      "name": "target-anythingllm",
+      "uri": "http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat",
+      "method": "post",
+      "headers": {
+        "Authorization": "Bearer $KEY",
+        "Content-Type": "application/json"
+      },
+      "req_template_json_object": {
+        "message": "$INPUT",
+        "mode": "query"
+      },
+      "response_json": true,
+      "response_json_field": "$.textResponse",
+      "request_timeout": 180
+    }
+  }
+}

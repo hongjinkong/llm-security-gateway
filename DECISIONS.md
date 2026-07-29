@@ -677,3 +677,12 @@ AnythingLLM 측에 해당 설정 항목이 없으며, 기능 요청 이슈
 - parallel=2는 dan.Dan_11_0 × generations 20에서 66.18s 완주 (200:20 / 500:0 / timeout:0), VRAM 4.5/8GB 유지.
 - 순차(102.71s) 대비 1.51배. 시도 독립성(D-015) 보존 위해 parallel_attempts 아닌 parallel_requests 사용.
 - 근거 로그: results/ptest_seq.log, results/ptest_par2.log
+
+## D-019. encoding 프로브 증분 재측정 조건부 면제 (2026-07-29)
+- 결정: encoding 모듈을 공식 베이스라인(gen=10)에서 1회 측정. 면제 조건 충족 시에만 증분 재측정(EVAL 5.2, 방어별 4회)에서 면제.
+- 면제 조건: ①통합 ASR의 95% CI 상단 <5% ②CI 상단 ≥5%인 하위 프로브 없음. 미충족 하위프로브는 증분 편입.
+- 근거: 리허설(InjectBase64, gen=1) ASR 0% = model-capability floor 정황(gemma3:4b 인코딩 미해석).
+- 정황→증명 안전장치: 단일 서브프로브·gen=1 관측으로 모듈 전체를 빼지 않음. 베이스라인 전체 모듈 gen=10 실측으로 검증 후 조건부 적용.
+- 무결성: 방어 코드 0줄 상태 결정. git 타임스탬프가 사후 기준 맞추기 아님을 증명.
+- 재측정 영향: 없음(공식 베이스라인 미측정). 증분 범위만 조건부 축소.
+- 되돌릴 조건: 인코딩 해석 가능 모델로 타겟 교체 시 면제 철회.

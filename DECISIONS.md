@@ -671,3 +671,9 @@ AnythingLLM 측에 해당 설정 항목이 없으며, 기능 요청 이슈
 - 측정 중 `ollama ps` 에서 UNTIL 이 `Forever` 가 아닌 것이 관측되면
   해당 측정 구간을 무효 처리한다.
 - 측정 종료 후 핑 프로세스를 종료한다.
+
+## D-018: 병렬 실행값 parallel_requests=2 채택 (2026-07-29)
+- parallel=4는 180초 read timeout으로 실패, 타겟 앱/WSL 재시작 유발. 8GB VRAM 머신에 과부하.
+- parallel=2는 dan.Dan_11_0 × generations 20에서 66.18s 완주 (200:20 / 500:0 / timeout:0), VRAM 4.5/8GB 유지.
+- 순차(102.71s) 대비 1.51배. 시도 독립성(D-015) 보존 위해 parallel_attempts 아닌 parallel_requests 사용.
+- 근거 로그: results/ptest_seq.log, results/ptest_par2.log

@@ -1,0 +1,128 @@
+Preparing prompts:   0%|[38;2;0;243;180m          [0m| 0/1 [00:00<?, ?it/s]                                                        garak LLM vulnerability scanner v0.15.1 ( https://github.com/NVIDIA/garak ) at 2026-07-29T00:26:11.419650
+📜 logging to /root/.local/share/garak/garak.log
+🦜 loading [1m[95mgenerator[0m: REST: target-anythingllm
+📜 reporting to /root/.local/share/garak/garak_runs/garak.9e6cc40f-1eae-463a-981d-87571a6a9f31.report.jsonl
+🕵️  queue of [1m[93mprobes:[0m dan.Dan_11_0
+  0%|          | 0/1 [00:00<?, ?it/s]probes.dan.Dan_11_0:   0%|          | 0/1 [00:00<?, ?it/s]
+  0%|[38;2;192;97;203m          [0m| 0/20 [00:00<?, ?it/s][A
+REST target-anythingllm:   0%|[38;2;192;97;203m          [0m| 0/20 [00:00<?, ?it/s][A
+REST target-anythingllm:   5%|[38;2;192;97;203m▌         [0m| 1/20 [00:19<06:01, 19.03s/it][A
+REST target-anythingllm:  10%|[38;2;192;97;203m█         [0m| 2/20 [00:19<02:23,  7.99s/it][A
+REST target-anythingllm:  15%|[38;2;192;97;203m█▌        [0m| 3/20 [00:19<01:15,  4.45s/it][A
+REST target-anythingllm:  20%|[38;2;192;97;203m██        [0m| 4/20 [00:19<00:44,  2.77s/it][A
+REST target-anythingllm:  25%|[38;2;192;97;203m██▌       [0m| 5/20 [02:52<14:13, 56.89s/it][A
+REST target-anythingllm:  30%|[38;2;192;97;203m███       [0m| 6/20 [02:53<08:48, 37.77s/it][A
+REST target-anythingllm:  35%|[38;2;192;97;203m███▌      [0m| 7/20 [02:53<05:31, 25.53s/it][A                                                          multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/urllib3/connectionpool.py", line 534, in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/urllib3/connection.py", line 571, in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/http/client.py", line 1450, in getresponse
+    response.begin()
+  File "/usr/local/lib/python3.12/http/client.py", line 336, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/http/client.py", line 297, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/socket.py", line 720, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+TimeoutError: timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/requests/adapters.py", line 696, in send
+    resp = conn.urlopen(
+           ^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/urllib3/connectionpool.py", line 842, in urlopen
+    retries = retries.increment(
+              ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/urllib3/util/retry.py", line 498, in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/urllib3/util/util.py", line 39, in reraise
+    raise value
+  File "/usr/local/lib/python3.12/site-packages/urllib3/connectionpool.py", line 788, in urlopen
+    response = self._make_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/urllib3/connectionpool.py", line 536, in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+  File "/usr/local/lib/python3.12/site-packages/urllib3/connectionpool.py", line 367, in _raise_timeout
+    raise ReadTimeoutError(
+urllib3.exceptions.ReadTimeoutError: HTTPConnectionPool(host='target-app', port=3001): Read timed out. (read timeout=180)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/backoff/_sync.py", line 105, in retry
+    ret = target(*args, **kwargs)
+          ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/garak/generators/rest.py", line 326, in _call_model
+    resp = self.http_function(self.uri, **req_kArgs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/requests/api.py", line 134, in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/requests/api.py", line 71, in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/requests/sessions.py", line 651, in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/requests/sessions.py", line 784, in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/requests/adapters.py", line 742, in send
+    raise ReadTimeout(e, request=request)
+requests.exceptions.ReadTimeout: HTTPConnectionPool(host='target-app', port=3001): Read timed out. (read timeout=180)
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/local/lib/python3.12/site-packages/garak/__main__.py", line 14, in <module>
+    main()
+  File "/usr/local/lib/python3.12/site-packages/garak/__main__.py", line 9, in main
+    cli.main(sys.argv[1:])
+  File "/usr/local/lib/python3.12/site-packages/garak/cli.py", line 697, in main
+    command.probewise_run(
+  File "/usr/local/lib/python3.12/site-packages/garak/command.py", line 339, in probewise_run
+    probewise_h.run(generator, probe_names, evaluator, buffs)
+  File "/usr/local/lib/python3.12/site-packages/garak/harnesses/probewise.py", line 110, in run
+    super().run(model, [probe], detectors, evaluator, announce_probe=False)
+  File "/usr/local/lib/python3.12/site-packages/garak/harnesses/base.py", line 189, in run
+    attempt_results = probe.probe(model)
+                      ^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/garak/probes/dan.py", line 105, in probe
+    return garak.probes.Probe.probe(self, generator)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/garak/probes/base.py", line 454, in probe
+    attempts_completed = self._execute_all(attempts_todo)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/garak/probes/base.py", line 365, in _execute_all
+    result = self._execute_attempt(this_attempt)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/garak/probes/base.py", line 302, in _execute_attempt
+    this_attempt.outputs = self.generator.generate(
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/garak/generators/base.py", line 212, in generate
+    raise (o)
+  File "/usr/local/lib/python3.12/site-packages/garak/generators/base.py", line 200, in generate
+    for result in pool.imap_unordered(
+                  ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/multiprocessing/pool.py", line 873, in next
+    raise value
+requests.exceptions.ReadTimeout: None: Read timed out. (read timeout=180)
+
+                                                                       [A

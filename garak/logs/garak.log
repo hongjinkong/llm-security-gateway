@@ -2126,3 +2126,258 @@
 2026-07-28 03:43:12,234  DEBUG  harness: probe list iteration completed
 2026-07-28 03:43:12,242  INFO  run complete, ending
 2026-07-28 03:43:13,217  INFO  garak run complete in 5216.05s
+2026-07-29 00:24:24,044  INFO  invoked
+2026-07-29 00:24:24,046  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 00:24:24,055  DEBUG  args - raw argument string received: ['--target_type', 'rest', '-G', '/work/anythingllm_rest.json', '--probes', 'dan.Dan_11_0', '--generations', '20', '--parallel_requests', '1']
+2026-07-29 00:24:24,055  DEBUG  args - full argparse: Namespace(verbose=0, report_prefix=None, narrow_output=False, parallel_requests=1, parallel_attempts=False, skip_unknown=False, seed=None, deprefix=True, eval_threshold=0.5, generations=20, config=None, target_type='rest', target_name=None, probes='dan.Dan_11_0', probe_tags=None, detectors='auto', extended_detectors=False, buffs=None, buff_option_file=None, buff_options=None, detector_option_file=None, detector_options=None, generator_option_file='/work/anythingllm_rest.json', generator_options=None, harness_option_file=None, harness_options=None, probe_option_file=None, probe_options=None, taxonomy=None, confidence_interval_method=None, bootstrap_num_iterations=None, bootstrap_confidence_level=None, bootstrap_min_sample_size=None, plugin_info=None, list_probes=False, list_detectors=False, list_generators=False, list_buffs=False, list_config=False, version=False, report=None, interactive=False, fix=False)
+2026-07-29 00:24:24,525  DEBUG  no site config found at: /root/.config/garak/garak.site.json, /root/.config/garak/garak.site.yaml, or /root/.config/garak/garak.site.yml
+2026-07-29 00:24:24,525  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 00:24:24,526  DEBUG  Skipping already-loaded config: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 00:24:24,526  DEBUG  args - cli_args&commands stored: Namespace(target_type='rest', generator_option_file='/work/anythingllm_rest.json', probes='dan.Dan_11_0', generations=20, parallel_requests=1, verbose=0, list_detectors=False, list_probes=False, list_generators=False, list_buffs=False, list_config=False, plugin_info=None, interactive=False, report=None, version=False, fix=False)
+2026-07-29 00:24:24,526  DEBUG  non-config params: [('generator_option_file', '/work/anythingllm_rest.json'), ('probes', 'dan.Dan_11_0'), ('list_detectors', False), ('list_probes', False), ('list_generators', False), ('list_buffs', False), ('list_config', False), ('plugin_info', None), ('report', None), ('version', False), ('fix', False)]
+2026-07-29 00:24:24,741  DEBUG  Detector metrics file not found at /root/.local/share/garak/data/detectors_eval/detector_metrics_summary.json. Using default metrics (Se=1.0, Sp=1.0).
+2026-07-29 00:24:24,784  INFO  generator init: <garak.generators.rest.RestGenerator object at 0x75af138fb320>
+2026-07-29 00:24:24,784  INFO  ⚠️  This run can be sped up 🥳 Generator 'REST target-anythingllm' supports parallelism! Consider using `--parallel_attempts 16` (or more) to greatly accelerate your run. 🐌
+2026-07-29 00:24:24,784  INFO  run started at 2026-07-29T00:24:24.027365
+2026-07-29 00:24:24,784  DEBUG  relative report dir provided
+2026-07-29 00:24:24,785  INFO  reporting to /root/.local/share/garak/garak_runs/garak.f9da77d5-31e4-4631-88d6-0322d4f9a138.report.jsonl
+2026-07-29 00:24:24,789  INFO  service import: garak.langservice
+2026-07-29 00:24:25,010  DEBUG  nltk_data location not found using project cache location
+2026-07-29 00:24:25,021  INFO  harness init: <garak.harnesses.probewise.ProbewiseHarness object at 0x75aede146d50>
+2026-07-29 00:24:25,021  INFO  probe queue: probes.dan.Dan_11_0
+2026-07-29 00:24:25,024  INFO  probe init: <garak.probes.dan.Dan_11_0 object at 0x75aedd8fff20>
+2026-07-29 00:24:25,024  DEBUG  langauge provision service: en,en
+2026-07-29 00:24:25,025  INFO  detector init: <garak.detectors.dan.DAN object at 0x75aedd9eb740>
+2026-07-29 00:24:25,026  INFO  detector init: <garak.detectors.mitigation.MitigationBypass object at 0x75aedd8bb2c0>
+2026-07-29 00:24:25,026  DEBUG  harness: probe start for garak.probes.dan.Dan_11_0
+2026-07-29 00:24:25,026  DEBUG  probe execute: <garak.probes.dan.Dan_11_0 object at 0x75aedd8fff20>
+2026-07-29 00:24:25,041  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:24:34,310  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3894
+2026-07-29 00:24:34,315  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:24:38,461  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4284
+2026-07-29 00:24:38,467  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:24:42,257  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4150
+2026-07-29 00:24:42,262  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:24:45,599  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4048
+2026-07-29 00:24:45,604  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:24:48,816  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3820
+2026-07-29 00:24:48,820  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:24:52,439  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4008
+2026-07-29 00:24:52,444  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:24:56,650  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3826
+2026-07-29 00:24:56,654  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:01,593  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4129
+2026-07-29 00:25:01,599  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:07,132  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3895
+2026-07-29 00:25:07,136  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:10,687  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3831
+2026-07-29 00:25:10,690  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:14,583  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3890
+2026-07-29 00:25:14,588  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:23,051  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3895
+2026-07-29 00:25:23,065  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:30,466  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3938
+2026-07-29 00:25:30,473  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:37,614  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4190
+2026-07-29 00:25:37,622  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:43,767  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3996
+2026-07-29 00:25:43,775  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:47,999  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3961
+2026-07-29 00:25:48,020  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:51,458  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3924
+2026-07-29 00:25:51,467  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:25:54,776  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3949
+2026-07-29 00:25:54,780  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:00,399  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4079
+2026-07-29 00:26:00,412  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:06,594  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4125
+2026-07-29 00:26:06,675  DEBUG  probe return: <garak.probes.dan.Dan_11_0 object at 0x75aedd8fff20> with 1 attempts
+2026-07-29 00:26:06,681  DEBUG  harness: run detector garak.detectors.dan.DAN
+2026-07-29 00:26:06,685  DEBUG  harness: run detector garak.detectors.mitigation.MitigationBypass
+2026-07-29 00:26:06,703  INFO  hit log in /root/.local/share/garak/garak_runs/garak.f9da77d5-31e4-4631-88d6-0322d4f9a138.hitlog.jsonl
+2026-07-29 00:26:06,732  DEBUG  harness: probe list iteration completed
+2026-07-29 00:26:06,735  INFO  run complete, ending
+2026-07-29 00:26:07,542  INFO  garak run complete in 102.71s
+2026-07-29 00:26:11,438  INFO  invoked
+2026-07-29 00:26:11,438  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 00:26:11,457  DEBUG  args - raw argument string received: ['--target_type', 'rest', '-G', '/work/anythingllm_rest.json', '--probes', 'dan.Dan_11_0', '--generations', '20', '--parallel_requests', '4']
+2026-07-29 00:26:11,458  DEBUG  args - full argparse: Namespace(verbose=0, report_prefix=None, narrow_output=False, parallel_requests=4, parallel_attempts=False, skip_unknown=False, seed=None, deprefix=True, eval_threshold=0.5, generations=20, config=None, target_type='rest', target_name=None, probes='dan.Dan_11_0', probe_tags=None, detectors='auto', extended_detectors=False, buffs=None, buff_option_file=None, buff_options=None, detector_option_file=None, detector_options=None, generator_option_file='/work/anythingllm_rest.json', generator_options=None, harness_option_file=None, harness_options=None, probe_option_file=None, probe_options=None, taxonomy=None, confidence_interval_method=None, bootstrap_num_iterations=None, bootstrap_confidence_level=None, bootstrap_min_sample_size=None, plugin_info=None, list_probes=False, list_detectors=False, list_generators=False, list_buffs=False, list_config=False, version=False, report=None, interactive=False, fix=False)
+2026-07-29 00:26:12,055  DEBUG  no site config found at: /root/.config/garak/garak.site.json, /root/.config/garak/garak.site.yaml, or /root/.config/garak/garak.site.yml
+2026-07-29 00:26:12,055  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 00:26:12,055  DEBUG  Skipping already-loaded config: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 00:26:12,056  DEBUG  args - cli_args&commands stored: Namespace(target_type='rest', generator_option_file='/work/anythingllm_rest.json', probes='dan.Dan_11_0', generations=20, parallel_requests=4, verbose=0, list_detectors=False, list_probes=False, list_generators=False, list_buffs=False, list_config=False, plugin_info=None, interactive=False, report=None, version=False, fix=False)
+2026-07-29 00:26:12,056  DEBUG  non-config params: [('generator_option_file', '/work/anythingllm_rest.json'), ('probes', 'dan.Dan_11_0'), ('list_detectors', False), ('list_probes', False), ('list_generators', False), ('list_buffs', False), ('list_config', False), ('plugin_info', None), ('report', None), ('version', False), ('fix', False)]
+2026-07-29 00:26:12,330  DEBUG  Detector metrics file not found at /root/.local/share/garak/data/detectors_eval/detector_metrics_summary.json. Using default metrics (Se=1.0, Sp=1.0).
+2026-07-29 00:26:12,393  INFO  generator init: <garak.generators.rest.RestGenerator object at 0x74a0dc3feba0>
+2026-07-29 00:26:12,393  INFO  ⚠️  This run can be sped up 🥳 Generator 'REST target-anythingllm' supports parallelism! Consider using `--parallel_attempts 16` (or more) to greatly accelerate your run. 🐌
+2026-07-29 00:26:12,393  INFO  run started at 2026-07-29T00:26:11.419650
+2026-07-29 00:26:12,393  DEBUG  relative report dir provided
+2026-07-29 00:26:12,394  INFO  reporting to /root/.local/share/garak/garak_runs/garak.9e6cc40f-1eae-463a-981d-87571a6a9f31.report.jsonl
+2026-07-29 00:26:12,400  INFO  service import: garak.langservice
+2026-07-29 00:26:12,736  DEBUG  nltk_data location not found using project cache location
+2026-07-29 00:26:12,751  INFO  harness init: <garak.harnesses.probewise.ProbewiseHarness object at 0x74a0a7f3a990>
+2026-07-29 00:26:12,752  INFO  probe queue: probes.dan.Dan_11_0
+2026-07-29 00:26:12,754  INFO  probe init: <garak.probes.dan.Dan_11_0 object at 0x74a0a75357f0>
+2026-07-29 00:26:12,754  DEBUG  langauge provision service: en,en
+2026-07-29 00:26:12,756  INFO  detector init: <garak.detectors.dan.DAN object at 0x74a0a7536720>
+2026-07-29 00:26:12,757  INFO  detector init: <garak.detectors.mitigation.MitigationBypass object at 0x74a0a77b4b00>
+2026-07-29 00:26:12,757  DEBUG  harness: probe start for garak.probes.dan.Dan_11_0
+2026-07-29 00:26:12,757  DEBUG  probe execute: <garak.probes.dan.Dan_11_0 object at 0x74a0a75357f0>
+2026-07-29 00:26:12,806  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:12,807  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:12,811  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:12,814  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:31,781  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4005
+2026-07-29 00:26:31,804  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:32,052  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3986
+2026-07-29 00:26:32,062  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:32,284  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4071
+2026-07-29 00:26:32,293  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:26:32,479  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4041
+2026-07-29 00:26:32,487  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:29:05,302  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3934
+2026-07-29 00:29:05,358  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:29:05,906  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3983
+2026-07-29 00:29:05,998  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:29:06,309  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3961
+2026-07-29 00:29:06,335  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:30:54,877  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:53:52,837  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:53:52,908  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:53:52,919  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:53:52,919  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:34,783  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 153
+2026-07-29 00:55:34,779  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 153
+2026-07-29 00:55:34,789  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 153
+2026-07-29 00:55:34,796  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 153
+2026-07-29 00:55:34,830  INFO  Backing off _call_model(...) for 0.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:34,831  INFO  Backing off _call_model(...) for 0.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:34,830  INFO  Backing off _call_model(...) for 0.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:34,841  INFO  Backing off _call_model(...) for 0.6s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:35,064  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:35,086  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:35,489  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:35,594  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:35,595  INFO  Backing off _call_model(...) for 0.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:35,605  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:35,675  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:35,675  INFO  Backing off _call_model(...) for 0.9s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:35,699  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:35,700  INFO  Backing off _call_model(...) for 0.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:35,717  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:35,717  INFO  Backing off _call_model(...) for 0.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:35,759  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:35,788  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:35,788  INFO  Backing off _call_model(...) for 0.5s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:35,799  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:35,831  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:35,831  INFO  Backing off _call_model(...) for 0.0s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:35,864  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:35,888  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:35,888  INFO  Backing off _call_model(...) for 1.5s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:36,274  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:36,349  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:36,349  INFO  Backing off _call_model(...) for 2.3s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:36,451  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:36,505  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:36,506  INFO  Backing off _call_model(...) for 1.4s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:36,606  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:36,620  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:36,620  INFO  Backing off _call_model(...) for 1.4s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:37,387  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:37,399  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:37,400  INFO  Backing off _call_model(...) for 1.8s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:37,888  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:37,902  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:37,902  INFO  Backing off _call_model(...) for 1.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:38,047  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:38,056  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 500 172
+2026-07-29 00:55:38,057  INFO  Backing off _call_model(...) for 2.2s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 - Internal Server Error, uri: http://target-app:3001/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat)
+2026-07-29 00:55:38,681  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:39,091  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:39,232  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:55:40,246  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:56:30,382  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3827
+2026-07-29 00:56:30,848  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4065
+2026-07-29 00:56:30,940  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:56:31,394  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:56:31,467  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4005
+2026-07-29 00:56:31,666  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:56:31,889  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4894
+2026-07-29 00:56:32,280  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 00:57:20,249  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3937
+2026-07-29 00:57:20,304  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3894
+2026-07-29 00:57:20,536  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3976
+2026-07-29 00:57:20,575  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3951
+2026-07-29 01:03:07,662  INFO  invoked
+2026-07-29 01:03:07,662  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 01:03:07,676  DEBUG  args - raw argument string received: ['--target_type', 'rest', '-G', '/work/anythingllm_rest.json', '--probes', 'dan.Dan_11_0', '--generations', '20', '--parallel_requests', '2']
+2026-07-29 01:03:07,676  DEBUG  args - full argparse: Namespace(verbose=0, report_prefix=None, narrow_output=False, parallel_requests=2, parallel_attempts=False, skip_unknown=False, seed=None, deprefix=True, eval_threshold=0.5, generations=20, config=None, target_type='rest', target_name=None, probes='dan.Dan_11_0', probe_tags=None, detectors='auto', extended_detectors=False, buffs=None, buff_option_file=None, buff_options=None, detector_option_file=None, detector_options=None, generator_option_file='/work/anythingllm_rest.json', generator_options=None, harness_option_file=None, harness_options=None, probe_option_file=None, probe_options=None, taxonomy=None, confidence_interval_method=None, bootstrap_num_iterations=None, bootstrap_confidence_level=None, bootstrap_min_sample_size=None, plugin_info=None, list_probes=False, list_detectors=False, list_generators=False, list_buffs=False, list_config=False, version=False, report=None, interactive=False, fix=False)
+2026-07-29 01:03:08,823  DEBUG  no site config found at: /root/.config/garak/garak.site.json, /root/.config/garak/garak.site.yaml, or /root/.config/garak/garak.site.yml
+2026-07-29 01:03:08,823  DEBUG  Loading configs from: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 01:03:08,823  DEBUG  Skipping already-loaded config: /usr/local/lib/python3.12/site-packages/garak/resources/garak.core.yaml
+2026-07-29 01:03:08,824  DEBUG  args - cli_args&commands stored: Namespace(target_type='rest', generator_option_file='/work/anythingllm_rest.json', probes='dan.Dan_11_0', generations=20, parallel_requests=2, verbose=0, list_detectors=False, list_probes=False, list_generators=False, list_buffs=False, list_config=False, plugin_info=None, interactive=False, report=None, version=False, fix=False)
+2026-07-29 01:03:08,824  DEBUG  non-config params: [('generator_option_file', '/work/anythingllm_rest.json'), ('probes', 'dan.Dan_11_0'), ('list_detectors', False), ('list_probes', False), ('list_generators', False), ('list_buffs', False), ('list_config', False), ('plugin_info', None), ('report', None), ('version', False), ('fix', False)]
+2026-07-29 01:03:09,414  DEBUG  Detector metrics file not found at /root/.local/share/garak/data/detectors_eval/detector_metrics_summary.json. Using default metrics (Se=1.0, Sp=1.0).
+2026-07-29 01:03:09,465  INFO  generator init: <garak.generators.rest.RestGenerator object at 0x75af79b2fa40>
+2026-07-29 01:03:09,465  INFO  ⚠️  This run can be sped up 🥳 Generator 'REST target-anythingllm' supports parallelism! Consider using `--parallel_attempts 16` (or more) to greatly accelerate your run. 🐌
+2026-07-29 01:03:09,465  INFO  run started at 2026-07-29T01:03:07.631168
+2026-07-29 01:03:09,465  DEBUG  relative report dir provided
+2026-07-29 01:03:09,465  INFO  reporting to /root/.local/share/garak/garak_runs/garak.d27a4238-97ea-46ae-aeb7-170185731aed.report.jsonl
+2026-07-29 01:03:09,470  INFO  service import: garak.langservice
+2026-07-29 01:03:09,830  DEBUG  nltk_data location not found using project cache location
+2026-07-29 01:03:09,848  INFO  harness init: <garak.harnesses.probewise.ProbewiseHarness object at 0x75af79b2f170>
+2026-07-29 01:03:09,848  INFO  probe queue: probes.dan.Dan_11_0
+2026-07-29 01:03:09,852  INFO  probe init: <garak.probes.dan.Dan_11_0 object at 0x75af792d8620>
+2026-07-29 01:03:09,852  DEBUG  langauge provision service: en,en
+2026-07-29 01:03:09,854  INFO  detector init: <garak.detectors.dan.DAN object at 0x75af7966df70>
+2026-07-29 01:03:09,854  INFO  detector init: <garak.detectors.mitigation.MitigationBypass object at 0x75af790eb560>
+2026-07-29 01:03:09,854  DEBUG  harness: probe start for garak.probes.dan.Dan_11_0
+2026-07-29 01:03:09,854  DEBUG  probe execute: <garak.probes.dan.Dan_11_0 object at 0x75af792d8620>
+2026-07-29 01:03:09,912  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:09,913  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:23,037  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3924
+2026-07-29 01:03:23,045  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:23,188  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3979
+2026-07-29 01:03:23,194  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:29,724  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3748
+2026-07-29 01:03:29,728  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:30,192  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3994
+2026-07-29 01:03:30,196  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:34,298  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3740
+2026-07-29 01:03:34,302  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:34,445  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3839
+2026-07-29 01:03:34,450  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:39,859  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3949
+2026-07-29 01:03:39,864  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:43,147  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4555
+2026-07-29 01:03:43,152  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:46,204  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3963
+2026-07-29 01:03:46,209  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:49,010  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4096
+2026-07-29 01:03:49,015  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:51,489  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4086
+2026-07-29 01:03:51,494  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:54,493  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4229
+2026-07-29 01:03:54,498  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:56,633  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4033
+2026-07-29 01:03:56,647  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:03:59,238  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3893
+2026-07-29 01:03:59,243  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:04:01,923  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4064
+2026-07-29 01:04:01,928  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:04:04,216  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3877
+2026-07-29 01:04:04,220  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:04:06,229  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3795
+2026-07-29 01:04:06,233  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:04:09,975  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3903
+2026-07-29 01:04:09,979  DEBUG  Starting new HTTP connection (1): target-app:3001
+2026-07-29 01:04:12,552  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 4070
+2026-07-29 01:04:13,736  DEBUG  http://target-app:3001 "POST /api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat HTTP/1.1" 200 3899
+2026-07-29 01:04:13,778  DEBUG  probe return: <garak.probes.dan.Dan_11_0 object at 0x75af792d8620> with 1 attempts
+2026-07-29 01:04:13,781  DEBUG  harness: run detector garak.detectors.dan.DAN
+2026-07-29 01:04:13,784  DEBUG  harness: run detector garak.detectors.mitigation.MitigationBypass
+2026-07-29 01:04:13,798  INFO  hit log in /root/.local/share/garak/garak_runs/garak.d27a4238-97ea-46ae-aeb7-170185731aed.hitlog.jsonl
+2026-07-29 01:04:13,808  DEBUG  harness: probe list iteration completed
+2026-07-29 01:04:13,808  INFO  run complete, ending
+2026-07-29 01:04:14,035  INFO  garak run complete in 66.18s

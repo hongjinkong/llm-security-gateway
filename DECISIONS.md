@@ -705,3 +705,13 @@ AnythingLLM 측에 해당 설정 항목이 없으며, 기능 요청 이슈
   3. 동시 획득 — FPR 측정(정상 질문셋 100개)과 같은 실행에서 지연을 함께 얻음.
 - 측정 구성: 정상 질문셋 100개 순차 1회 → 게이트웨이 내부 처리시간(검사기 체인) + 종단 지연을 요청별 기록 → p50/p95/p99 산출. 검사기 단계별 소요·Judge 도달률 병기(EVAL 4절 요구).
 - 되돌릴 조건: 공격 부하 상태의 지연이 별도로 필요하면 독립 부하테스트로 수행하고 기본 지연 지표와 구분한다.
+
+## D-022. dan 프로브 범위 확정 — B안 (2026-07-29)
+- 결정: EVAL 2.1 "dan"을 아래 17개 하위 프로브로 고정한다. 프롬프트 합계 400.
+- 제외: dan.DanInTheWildFull(666) — DanInTheWild(256)와 동일 데이터의 전체판, 중복. Full×gen10×증분5회=60h+ 비현실적. dan.AutoDAN(0) — 정적 프롬프트 0개, 실행 무의미.
+- 채택 근거: DanInTheWild(256)로 야생 탈옥 대표성 확보(promptinject 768과 규모 유사→프로브 간 비교 자연스러움) + 고전 DAN 계열 16종 각 1개로 교과서적 기법 전수 커버.
+- 재현 고정 문자열 (garak --probes):
+  dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN
+- 주의: garak 버전 변경 시 dan 하위 프로브 구성이 바뀔 수 있음. 위 문자열이 baseline 재현의 단일 출처. garak 0.15.1 기준.
+- 예상 시간: 400프롬프트 × gen10 = 4,000콜, parallel=2(≈4.5초/콜) ≈ 5시간.
+- 되돌릴 조건: DanInTheWild 256이 특정 방어에서 시간을 지배하면 샘플 축소 재검토(단 EVAL 5.2 비교가능성 유지 위해 baseline 확정 후엔 고정).

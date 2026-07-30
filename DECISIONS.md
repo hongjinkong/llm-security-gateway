@@ -722,3 +722,16 @@ AnythingLLM 측에 해당 설정 항목이 없으며, 기능 요청 이슈
 - 안전장치: gen=3에서 특정 하위 프로브 CI 상단≥5%면 그 프로브만 gen=10 재측정 후 판정(넓은 CI 오탈락 방지). 보수적 방향(애매하면 증분 포함).
 - 무결성: 방어 코드 0줄 상태 개정. baseline 미측정이라 무효화 대상 없음.
 - 되돌릴 조건: gen=3 결과가 0%가 아니라 애매한 분포(2~4%)로 광범위하면 encoding 전체 gen=10 재검토.
+
+## D-023. garak request_timeout 180→600 + 핑 안정화 (2026-07-30)
+- 배경: dan 베이스라인 야간 detached 실행이 첫 프로브(Ablation_Dan_11_0)에서 ReadTimeout(180s)으로 죽음(Exited 1). 15시간 방치 후 발견, garak run complete 미도달 → 무효.
+- 근본 원인 (로그로 확정):
+  1. keepalive 핑 프로세스가 야간에 소멸(nohup & 방식이 WSL 흔들림에 정리된 것으로 추정).
+  2. 핑 소멸 → gemma3:4b가 5분 후 언로드(AnythingLLM이 요청마다 keep_alive 5분으로 덮어씀, D-017).
+  3. garak이 언로드된 gemma에 요청 → 재로딩(~27s) + parallel=2 백로그 누적 → 180s 초과 → 사망.
+- 반증: 워밍업된 gemma에 긴 DAN 프롬프트 직접 측정 시 21s 완주. 프로브 자체는 느리지 않음. 180s는 재로딩+백로그가 겹칠 때만 초과 → 마진 부족이 문제.
+- 수정:
+  1. garak/anythingllm_rest.json의 request_timeout 180→600. 재로딩/순간부하 겹쳐도 버팀.
+  2. 핑을 setsid로 세션 분리(WSL 흔들림에 안 죽게), 주기 120→90s(5분 창 원천 차단), keepalive.log 기록 + keepalive.pid로 실제 PID 추적.
+- 측정 영향: request_timeout은 EVAL 5.1 "생성 파라미터" 아님(응답 대기 상한일 뿐, 생성 자체 불변). 재측정 불필요. 단 이 조건도 고정 조건에 추가.
+- 되돌릴 조건: 정상 응답이 600s를 넘기면 하드웨어/모델 재검토(현재 실측 21s라 여유 큼).

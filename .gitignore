@@ -12,3 +12,7 @@ target/storage/
 # 런타임 임시파일 (D-023 핑)
 keepalive.log
 keepalive.pid
+
+# garak 런타임 로그 (정식 결과는 results/에 별도 보관)
+garak/logs/garak.log
+garak/logs/garak_runs/

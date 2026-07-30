@@ -9,3 +9,6 @@ venv/
 .idea/
 
 target/storage/
+# 런타임 임시파일 (D-023 핑)
+keepalive.log
+keepalive.pid

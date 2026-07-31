@@ -817,7 +817,7 @@ EVAL 2.2 는 프롬프트당 10회 생성을 요구한다. 단순 환산 시 본
 - 다음: b01 재검증 → P-107/112/115 처리 → g03 20개 → 100개 완성 → EVAL 동결 → 베이스라인
 - 주의: 카나리 완벽화는 6단계로 이관됨. 지금 건드리지 말 것.
 
-### D-020 (2026-07-31) dan 모듈 베이스라인 측정 완료
+### D-025 (2026-07-31) dan 베이스라인 결과 확정 (D-024 실행의 산출)
 - 대상: gemma3:4b (temp 0.7) / AnythingLLM / 방어 없음 / garak dan 17개 프로브
 - 원본: garak.9abe5583-...report.jsonl (results/에 보관), 요약: results/baseline_dan_summary.md
 - 헤드라인 ASR: mitigation.MitigationBypass 통합 71.6% (95% CI 70.2–73.0%, n=4000)

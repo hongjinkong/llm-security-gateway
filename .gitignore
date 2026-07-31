@@ -16,3 +16,4 @@ keepalive.pid
 # garak 런타임 로그 (정식 결과는 results/에 별도 보관)
 garak/logs/garak.log
 garak/logs/garak_runs/
+.venv-garak/

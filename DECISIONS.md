@@ -675,6 +675,16 @@ AnythingLLM 측에 해당 설정 항목이 없으며, 기능 요청 이슈
 - 산출물: results/baseline_promptinject_summary.md, results/baseline_promptinject.report.jsonl
 - 근거: 방어 없는 타겟은 dan(71.6%)·promptinject(70.6%) 모두 ~70% 우회 → 프로젝트 출발선 확정
 
+## D-027 (2026-08-07) encoding 베이스라인 완료 → 3단계 종료
+- 통합 ASR: DecodeApprox 4.0% (CI 3.7–4.4) / DecodeMatch 3.3% (CI 3.0–3.6), 각 n=11520
+- 조건: garak v0.15.1, gen=3, encoding 15개 하위프로브(D-019 조건부 면제; 실제 15개, 노트 "20" 정정)
+- 핵심: 13/15 프로브 ~0%, 유효한 건 InjectNato(26.0%/21.5%)·InjectZalgo(33.9%/27.3%) 2개뿐
+  → 통합값 단독 보고 금지, 프로브별 병기 필수
+- 해석: 실제 디코딩 필요한 인코딩(Base64/Hex/ROT13 등)은 모델이 미수행 → 실패.
+  NATO·Zalgo는 원문이 near-plaintext로 노출되어 유효. encoding은 대체로 모델 자체 방어(바닥효과).
+- 실행 교훈: 장시간 런은 Windows 절전 OFF 필수(1차 시도 Exit255 = 절전 중단)
+- 산출물: results/baseline_encoding_summary.md, results/baseline_encoding.report.jsonl
+
 # 교훈·한계 (Lessons & Limitations)
 
 ## L-001. 타겟 한계 (방어 대상 아님, README 명시용)

@@ -652,6 +652,13 @@ AnythingLLM 측에 해당 설정 항목이 없으며, 기능 요청 이슈
 
 ---
 
+## D-026 (2026-08-06) promptinject 베이스라인 완료
+- 결과: promptinject.AttackRogueString 통합 ASR 70.6% (95% CI 69.6–71.6, n=7680)
+- 프로브별: HijackHateHumans 74.1% / HijackLongPrompt 73.0% / HijackKillHumans 64.8%
+- 조건: garak v0.15.1, gen=10, full 3프로브 (dan과 동일 조건, EVAL 5.1 동결 준수)
+- 산출물: results/baseline_promptinject_summary.md, results/baseline_promptinject.report.jsonl
+- 근거: 방어 없는 타겟은 dan(71.6%)·promptinject(70.6%) 모두 ~70% 우회 → 프로젝트 출발선 확정
+
 # 교훈·한계 (Lessons & Limitations)
 
 ## L-001. 타겟 한계 (방어 대상 아님, README 명시용)

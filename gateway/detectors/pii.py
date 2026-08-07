@@ -1,4 +1,11 @@
-"""PII 탐지기 — 4-D. **탐지만 한다.** 요청을 바꾸지도 막지도 않는다(항상 ALLOW).
+"""PII 탐지기 — 4-D(탐지) / 4-E(마스킹). mode로 나뉜다.
+
+  mode="detect"  탐지만 한다. 판정은 항상 ALLOW. (검사기 이름 `pii`)
+  mode="mask"    찾은 값을 토큰으로 치환한다. 판정은 TRANSFORM. (검사기 이름 `pii_mask`)
+
+차단(BLOCK)은 쓰지 않는다. SCOPE 2절의 위협은 "외부 API 로그에 민감정보 잔존"이고
+마스킹으로 이미 해소된다. 또 FPR 5% 예산은 5단계 인젝션 탐지기와 나눠 써야 한다.
+정상 질문셋 13문항이 PII를 담고 있어, 차단을 택하면 그것만으로 FPR 13%가 된다.
 
 왜 탐지와 조치를 나누는가:
   마스킹/차단 정책을 먼저 정하면 "얼마나 잘 잡는지"를 모르는 채로 정하게 된다.
@@ -13,11 +20,13 @@
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from datetime import date
 
 from gateway.detectors.base import Detector, Inspection, Verdict
+from gateway.vault import TokenVault
 
 # --- 패턴 --------------------------------------------------------------------
 # 앞뒤에 숫자나 하이픈이 붙어 있으면 매치하지 않는다.
@@ -125,20 +134,56 @@ def find_all(text: str) -> list[Finding]:
     return sorted(taken, key=lambda f: f.start)
 
 
+def session_of(body: bytes, fallback: str) -> str:
+    """마스킹 매핑을 묶을 키. AnythingLLM의 sessionId를 쓴다(D-013).
+
+    sessionId가 없으면 요청 단위로 격리한다. 남의 세션 토큰이 섞이는 것보다
+    복원이 안 되는 쪽이 안전하다.
+    """
+    try:
+        obj = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        return fallback
+    if isinstance(obj, dict):
+        sid = obj.get("sessionId")
+        if isinstance(sid, str) and sid:
+            return sid
+    return fallback
+
+
+ALL_KINDS = ("rrn", "card", "phone", "email")
+
+
 class PIIDetector(Detector):
-    """4-D 시점에는 판정이 항상 ALLOW다. 발견 사실만 meta에 실어 감사 로그로 보낸다."""
-
-    name = "pii"
-
-    def __init__(self, kinds: tuple[str, ...] = ("rrn", "card", "phone", "email")) -> None:
+    def __init__(self, mode: str = "detect", kinds: tuple[str, ...] = ALL_KINDS,
+                 vault: TokenVault | None = None) -> None:
+        if mode not in ("detect", "mask"):
+            raise ValueError(f"mode는 detect 또는 mask여야 한다: {mode!r}")
+        self.mode = mode
         self.kinds = kinds
+        self.name = "pii" if mode == "detect" else "pii_mask"
+        self.vault = vault or TokenVault()
 
     async def inspect(self, insp: Inspection) -> Verdict:
         text = insp.body.decode("utf-8", errors="ignore")
         found = [f for f in find_all(text) if f.kind in self.kinds]
         if not found:
             return Verdict.allow(self.name)
+
         counts: dict[str, int] = {}
         for f in found:
             counts[f.kind] = counts.get(f.kind, 0) + 1
-        return Verdict.allow(self.name, pii=counts, findings=[f.as_dict() for f in found])
+        meta = {"pii": counts, "findings": [f.as_dict() for f in found]}
+
+        if self.mode == "detect":
+            return Verdict.allow(self.name, **meta)
+
+        session = session_of(insp.body, insp.request_id)
+        # 번호는 앞에서부터 매기고(로그를 읽기 쉽게), 치환은 뒤에서부터 한다(위치값 보존).
+        tokens = [self.vault.token_for(session, f.kind, text[f.start:f.end]) for f in found]
+        masked = text
+        for f, token in zip(reversed(found), reversed(tokens)):
+            masked = masked[:f.start] + token + masked[f.end:]
+
+        return Verdict.transform(self.name, masked.encode("utf-8"),
+                                 f"PII {len(found)}건 마스킹", masked=len(found), **meta)

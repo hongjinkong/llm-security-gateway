@@ -82,3 +82,42 @@ def test_unknown_detector_name_fails_fast(make_stack):
     import subprocess
     with pytest.raises((RuntimeError, subprocess.TimeoutExpired)):
         make_stack(GATEWAY_DETECTORS="typo_detector")
+
+
+# ---------- 4-E: 마스킹이 실제 게이트웨이에 배선됐을 때 ----------
+
+@pytest.fixture(scope="module")
+def mask_stack(make_stack):
+    return make_stack(GATEWAY_DETECTORS="pii_mask")
+
+
+def test_target_never_sees_the_original_pii(mask_stack):
+    """SCOPE 2절의 위협 그 자체. 타겟과 그 뒤의 LLM이 원문을 보면 안 된다."""
+    rrn, phone = "900101-1234563", "010-2345-6789"
+    r = httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
+        "message": f"주민등록번호 {rrn}이고 연락처 {phone}입니다. 병가는 며칠인가요?",
+        "mode": "query", "sessionId": "eval-mask-1"})
+    echo_msg = r.json()["echo"]["body"]["message"]
+    assert rrn not in echo_msg and phone not in echo_msg
+    assert "[PII:rrn:1]" in echo_msg and "[PII:phone:2]" in echo_msg
+
+
+def test_masking_is_logged_without_the_value(mask_stack):
+    httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
+        "message": "카드 4111-1111-1111-1111로 결제했습니다", "mode": "query",
+        "sessionId": "eval-mask-2"})
+    raw = mask_stack.log_path.read_text(encoding="utf-8")
+    assert "4111-1111-1111-1111" not in raw
+    rec = mask_stack.log_lines()[-1]
+    assert rec["transformed"] is True and rec["blocked"] is False
+    step = rec["detectors"][0]
+    assert step["action"] == "transform" and step["pii"] == {"card": 1}
+
+
+def test_normal_question_is_untouched(mask_stack):
+    """PII가 없는 정상 질문은 4-A와 완전히 같아야 한다. FPR을 지키는 지점."""
+    q = {"message": "표준 근무시간은 몇 시부터인가요?", "mode": "query", "sessionId": "eval-mask-3"}
+    direct = httpx.post(f"{mask_stack.target}{PATH_}", json=q, headers=HDR)
+    proxied = httpx.post(f"{mask_stack.gateway}{PATH_}", json=q, headers=HDR)
+    assert direct.json() == proxied.json()
+    assert mask_stack.log_lines()[-1]["transformed"] is False

@@ -4,7 +4,8 @@
      "게이트웨이를 껴도 타겟 앱 동작이 변하지 않는다"가 이 단계의 전부다.
 4-B: 요청 1건마다 감사 로그 1줄. 지연을 세 갈래(종단/타겟/게이트웨이)로 분리 기록.
 4-C: 검사기 체인. 기본 구성은 검사기 0개이므로 동작은 4-A와 동일하다.
-4-D: PII 탐지기(탐지만, 조치 없음). GATEWAY_DETECTORS=pii 로 활성화.
+4-D: PII 탐지기(탐지만). GATEWAY_DETECTORS=pii
+4-E: PII 마스킹 + 토큰 볼트.   GATEWAY_DETECTORS=pii_mask
 """
 from __future__ import annotations
 
@@ -50,7 +51,8 @@ DETECTOR_NAMES = [x.strip() for x in os.environ.get("GATEWAY_DETECTORS", "").spl
 # 이름 → 생성자. 4-D부터 여기에 실제 검사기가 등록된다.
 DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
     "noop": lambda: NoOpDetector("noop"),
-    "pii": PIIDetector,
+    "pii": lambda: PIIDetector("detect"),
+    "pii_mask": lambda: PIIDetector("mask"),
 }
 
 

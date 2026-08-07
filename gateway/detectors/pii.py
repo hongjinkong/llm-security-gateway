@@ -178,7 +178,7 @@ class PIIDetector(Detector):
         if self.mode == "detect":
             return Verdict.allow(self.name, **meta)
 
-        session = session_of(insp.body, insp.request_id)
+        session = insp.session or session_of(insp.body, insp.request_id)
         # 번호는 앞에서부터 매기고(로그를 읽기 쉽게), 치환은 뒤에서부터 한다(위치값 보존).
         tokens = [self.vault.token_for(session, f.kind, text[f.start:f.end]) for f in found]
         masked = text
@@ -187,3 +187,16 @@ class PIIDetector(Detector):
 
         return Verdict.transform(self.name, masked.encode("utf-8"),
                                  f"PII {len(found)}건 마스킹", masked=len(found), **meta)
+
+    async def on_response(self, session: str, text: str) -> tuple[str, dict] | None:
+        """응답에 남은 토큰을 원본으로 되돌린다(4-F).
+
+        사용자는 자기가 보낸 값을 그대로 돌려받아야 한다. 토큰이 그대로 노출되면
+        EVAL 3.2의 '부분 저하'로 집계되어 FPR을 밀어올린다.
+        """
+        if self.mode != "mask":
+            return None
+        restored, n = self.vault.restore(session, text)
+        if n == 0:
+            return None
+        return restored, {"restored": n}

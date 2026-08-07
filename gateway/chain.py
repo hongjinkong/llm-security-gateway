@@ -88,3 +88,16 @@ class DetectorChain:
             chain_ms=round((time.perf_counter() - t_chain) * 1000, 3),
             transformed=transformed,
         )
+
+    async def run_response(self, session: str, text: str) -> tuple[str, list[Step]]:
+        """응답 후처리. 검사기를 역순으로 지나간다."""
+        steps: list[Step] = []
+        for det in reversed(self.detectors):
+            t0 = time.perf_counter()
+            out = await det.on_response(session, text)
+            if out is None:
+                continue
+            text, meta = out
+            steps.append(Step(det.name, "restore",
+                              round((time.perf_counter() - t0) * 1000, 3), "", meta))
+        return text, steps

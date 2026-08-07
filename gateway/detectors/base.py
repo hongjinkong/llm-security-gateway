@@ -36,6 +36,7 @@ class Inspection:
     path: str
     headers: Mapping[str, str]
     body: bytes
+    session: str = ""    # 마스킹 매핑을 묶는 키. 비어 있으면 검사기가 알아서 정한다.
 
 
 @dataclass(frozen=True)
@@ -80,3 +81,11 @@ class Detector(ABC):
     async def inspect(self, insp: Inspection) -> Verdict:
         """요청을 보고 판정을 돌려준다. 예외를 삼키지 않는다(체인 정책 참조)."""
         raise NotImplementedError
+
+    async def on_response(self, session: str, text: str) -> tuple[str, dict] | None:
+        """응답을 돌려보내기 직전에 불린다. 바꿀 게 없으면 None.
+
+        요청은 앞에서 뒤로, 응답은 뒤에서 앞으로 지나간다(양파 껍질).
+        들어올 때 마스킹한 검사기가 나갈 때 복원하는 짝이 맞아야 하기 때문이다.
+        """
+        return None

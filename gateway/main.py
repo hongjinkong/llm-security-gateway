@@ -6,6 +6,7 @@
 4-C: 검사기 체인. 기본 구성은 검사기 0개이므로 동작은 4-A와 동일하다.
 4-D: PII 탐지기(탐지만). GATEWAY_DETECTORS=pii
 4-E: PII 마스킹 + 토큰 볼트.   GATEWAY_DETECTORS=pii_mask
+4-F: 응답에 남은 마스킹 토큰을 원본으로 복원.
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from gateway.audit import AuditLog, digest, utcnow
 from gateway.chain import ChainResult, DetectorChain
 from gateway.detectors.base import Detector, Inspection
 from gateway.detectors.noop import NoOpDetector
-from gateway.detectors.pii import PIIDetector
+from gateway.detectors.pii import PIIDetector, session_of
 
 load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 않는다
 
@@ -108,6 +109,8 @@ async def audit(request: Request, call_next):
     state.req_digest = None
     state.blocked = False      # EVAL 3.3 자동 판정용. 검사기 체인이 채운다.
     state.chain_result = None
+    state.response_steps = []
+    state.session = None
 
     t0 = time.perf_counter()
     response = await call_next(request)
@@ -137,6 +140,7 @@ async def audit(request: Request, call_next):
         "blocked": getattr(state, "blocked", False),
         "client": request.client.host if request.client else None,
         **_chain_fields(getattr(state, "chain_result", None)),
+        "response_detectors": [s.as_dict() for s in getattr(state, "response_steps", [])],
     })
     return response
 
@@ -170,12 +174,18 @@ async def passthrough(request: Request, full_path: str) -> Response:
     request.state.req_bytes = len(body)
     request.state.req_digest = digest(body)
 
-    result = await request.app.state.chain.run(Inspection(
+    chain = request.app.state.chain
+    # 세션 식별은 요청의 속성이지 검사기의 사정이 아니다. 여기서 한 번 정해 공유한다.
+    session = session_of(body, request.state.request_id)
+    request.state.session = session
+
+    result = await chain.run(Inspection(
         request_id=request.state.request_id,
         method=request.method,
         path=request.url.path,
         headers=request.headers,
         body=body,
+        session=session,
     ))
     request.state.chain_result = result
     if result.blocked:
@@ -201,8 +211,29 @@ async def passthrough(request: Request, full_path: str) -> Response:
         content=body,
     )
     request.state.upstream_ms = (time.perf_counter() - t0) * 1000
+
+    content = upstream.content
+    text = _as_text(content, upstream.headers.get("content-type", ""))
+    if text is not None:
+        restored, steps = await chain.run_response(session, text)
+        if steps:
+            request.state.response_steps = steps
+        if restored != text:
+            content = restored.encode("utf-8")
+
     return Response(
-        content=upstream.content,
+        content=content,
         status_code=upstream.status_code,
         headers=_clean(upstream.headers, _DROP_RES),
     )
+
+
+def _as_text(content: bytes, content_type: str) -> str | None:
+    """텍스트 응답만 후처리한다. 이미지·바이너리는 손대지 않는다."""
+    ct = content_type.lower()
+    if "json" not in ct and not ct.startswith("text/") and "xml" not in ct:
+        return None
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        return None

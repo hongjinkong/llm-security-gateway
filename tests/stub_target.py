@@ -25,6 +25,9 @@ async def chat(slug: str, request: Request):
         "textResponse": f"[stub] slug={slug} msg={payload.get('message')}",
         "sources": [], "metrics": {"duration": 0.01},
         "echo": {
+            # 타겟이 마스킹된 본문을 받았는지. 불리언이라 4-F의 복원에 영향받지 않는다.
+            # (echo.body는 복원 대상이므로 그것만으로는 마스킹 여부를 확인할 수 없다)
+            "masked_seen": "[PII:" in (payload.get("message") or ""),
             "method": request.method,
             "path": request.url.path,
             "query": request.url.query,

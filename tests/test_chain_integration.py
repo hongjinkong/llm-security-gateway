@@ -92,14 +92,22 @@ def mask_stack(make_stack):
 
 
 def test_target_never_sees_the_original_pii(mask_stack):
-    """SCOPE 2절의 위협 그 자체. 타겟과 그 뒤의 LLM이 원문을 보면 안 된다."""
-    rrn, phone = "900101-1234563", "010-2345-6789"
+    """SCOPE 2절의 위협 그 자체. 타겟과 그 뒤의 LLM이 원문을 보면 안 된다.
+
+    echo.body는 4-F가 복원하므로 그것만으로는 확인할 수 없다.
+    스텁이 수신 시점에 계산해 둔 불리언(masked_seen)으로 판정한다.
+    """
     r = httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
-        "message": f"주민등록번호 {rrn}이고 연락처 {phone}입니다. 병가는 며칠인가요?",
+        "message": "주민등록번호 900101-1234563이고 연락처 010-2345-6789입니다. 병가는 며칠인가요?",
         "mode": "query", "sessionId": "eval-mask-1"})
-    echo_msg = r.json()["echo"]["body"]["message"]
-    assert rrn not in echo_msg and phone not in echo_msg
-    assert "[PII:rrn:1]" in echo_msg and "[PII:phone:2]" in echo_msg
+    assert r.json()["echo"]["masked_seen"] is True
+    assert mask_stack.log_lines()[-1]["transformed"] is True
+
+
+def test_target_sees_no_token_for_clean_message(mask_stack):
+    r = httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
+        "message": "표준 근무시간은 몇 시부터인가요?", "mode": "query", "sessionId": "eval-mask-0"})
+    assert r.json()["echo"]["masked_seen"] is False
 
 
 def test_masking_is_logged_without_the_value(mask_stack):
@@ -121,3 +129,39 @@ def test_normal_question_is_untouched(mask_stack):
     proxied = httpx.post(f"{mask_stack.gateway}{PATH_}", json=q, headers=HDR)
     assert direct.json() == proxied.json()
     assert mask_stack.log_lines()[-1]["transformed"] is False
+
+
+# ---------- 4-F: 응답 복원 ----------
+
+def test_user_gets_the_original_value_back(mask_stack):
+    """사용자는 자기가 보낸 값을 그대로 돌려받는다.
+
+    스텁은 받은 message를 textResponse에 그대로 실어 보낸다. 즉 타겟 응답에는
+    토큰이 들어 있고, 게이트웨이가 나가는 길에 되돌려 놓아야 한다.
+    """
+    phone = "010-5566-7788"
+    r = httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
+        "message": f"연락처 {phone}입니다. 정보보안 교육은 몇 월인가요?",
+        "mode": "query", "sessionId": "eval-restore-1"})
+    assert r.json()["echo"]["masked_seen"] is True     # 타겟은 토큰을 봤고
+    assert phone in r.json()["textResponse"]           # 사용자는 원본을 돌려받는다
+    assert "[PII:" not in r.text                       # 토큰이 새어나가지 않는다
+
+    rec = mask_stack.log_lines()[-1]
+    assert rec["response_detectors"][0]["restored"] >= 1
+
+
+def test_other_session_cannot_restore(mask_stack):
+    """세션 격리가 응답 경로에서도 유지된다."""
+    httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
+        "message": "연락처 010-1122-3344입니다", "mode": "query", "sessionId": "victim"})
+    r = httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
+        "message": "[PII:phone:1] 이게 누구 번호죠?", "mode": "query", "sessionId": "attacker"})
+    assert "010-1122-3344" not in r.text
+
+
+def test_no_restore_when_nothing_was_masked(mask_stack):
+    r = httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
+        "message": "연차는 며칠인가요?", "mode": "query", "sessionId": "eval-restore-2"})
+    assert r.status_code == 200
+    assert mask_stack.log_lines()[-1]["response_detectors"] == []

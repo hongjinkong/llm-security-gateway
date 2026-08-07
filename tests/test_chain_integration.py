@@ -165,3 +165,21 @@ def test_no_restore_when_nothing_was_masked(mask_stack):
         "message": "연차는 며칠인가요?", "mode": "query", "sessionId": "eval-restore-2"})
     assert r.status_code == 200
     assert mask_stack.log_lines()[-1]["response_detectors"] == []
+
+
+# ---------- 실행 중 코드 지문 (2026-08-07 사고 방지) ----------
+
+def test_health_reports_code_and_detectors(mask_stack):
+    """health가 실행 중 코드 해시와 활성 검사기를 보고한다.
+
+    소스는 최신인데 컨테이너는 옛 이미지인 상태를 측정 전에 걸러내기 위한 것.
+    """
+    from gateway.version import code_fingerprint
+    h = httpx.get(f"{mask_stack.gateway}/__gateway/health").json()
+    assert h["code"] == code_fingerprint()
+    assert h["detectors"] == ["pii_mask"]
+
+
+def test_health_reports_empty_detectors_when_none(stack):
+    h = httpx.get(f"{stack.gateway}/__gateway/health").json()
+    assert h["detectors"] == []

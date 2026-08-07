@@ -26,6 +26,7 @@ from gateway.chain import ChainResult, DetectorChain
 from gateway.detectors.base import Detector, Inspection
 from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import PIIDetector, session_of
+from gateway.version import code_fingerprint
 
 load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 않는다
 
@@ -162,9 +163,18 @@ def _chain_fields(result: ChainResult | None) -> dict:
 
 
 @app.get("/__gateway/health")
-async def health() -> dict[str, str]:
-    """게이트웨이 자체 상태. 언더스코어 2개로 타겟 앱 경로와 충돌을 피한다."""
-    return {"status": "ok", "target": TARGET_URL}
+async def health(request: Request) -> dict:
+    """게이트웨이 자체 상태. 언더스코어 2개로 타겟 앱 경로와 충돌을 피한다.
+
+    code와 detectors를 함께 보고한다. 측정 전에 이 둘만 확인하면
+    "옛 이미지로 돌고 있음"과 "검사기 설정이 틀림"을 모두 걸러낼 수 있다.
+    """
+    return {
+        "status": "ok",
+        "target": TARGET_URL,
+        "code": code_fingerprint(),
+        "detectors": list(request.app.state.chain.names),
+    }
 
 
 @app.api_route("/{full_path:path}",

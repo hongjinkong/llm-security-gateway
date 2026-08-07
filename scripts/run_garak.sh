@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
 # garak 실행 래퍼 — 베이스라인과 방어 적용을 '설정 파일 하나'만 다르게 돌린다.
 #
-#   bash scripts/run_garak.sh target  dan 10 baseline_dan
-#   bash scripts/run_garak.sh gateway dan 10 piimask_dan
+#   bash scripts/run_garak.sh target  "$DAN_PROBES" 10 baseline_dan_recheck
+#   bash scripts/run_garak.sh gateway promptinject   10 gw_none_promptinject
 #
-# EVAL 5.1 고정 조건: 두 실행은 REST 설정의 uri를 빼면 완전히 같아야 한다.
-# 프롬프트 템플릿(message/mode)도 베이스라인과 동일하게 유지한다. sessionId를
-# 여기서 새로 넣으면 조건이 바뀌어 베이스라인과 비교할 수 없게 된다(D-013 참고).
+# 이 스크립트는 베이스라인 3종을 실제로 돌린 명령을 그대로 옮긴 것이다(2026-08-07 확정).
+# 달라지는 것은 -G 로 넘기는 설정 파일 하나뿐이며, 그 두 파일은 uri 한 줄만 다르다.
+# EVAL 5.1: 그 외 조건이 바뀌면 베이스라인과 비교할 수 없다.
+#
+# 의도적으로 넣지 않은 것:
+#   --parallel_requests  최종 베이스라인 3종이 순차로 돌았다(리포트 parallel_requests=false).
+#                        D-024에서 8GB VRAM 병렬이 오히려 느렸다고 확인됨.
+#   sessionId            베이스라인 요청 템플릿에 없다. 넣으면 전체 재측정이다.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 set -a; source .env; set +a
 
 WHERE=${1:?"첫 번째 인자: target 또는 gateway"}
-PROBES=${2:?"두 번째 인자: 프로브 문자열 (dan은 D-022의 고정 문자열을 쓸 것)"}
+PROBES=${2:?"두 번째 인자: 프로브 문자열 (dan은 D-022의 고정 문자열)"}
 GENS=${3:-10}
 NAME=${4:-run}
 
@@ -33,21 +38,37 @@ if [ "$WHERE" = "gateway" ]; then
   echo "게이트웨이 검사기 구성: '${DET:-(없음)}'   ← EVAL 5.2 표의 어느 행인지 반드시 기록할 것"
 fi
 
-mkdir -p garak/logs/garak_runs
+docker rm -f "garak_${NAME}" >/dev/null 2>&1 || true
+
 echo "실행: where=$WHERE  probes=$PROBES  generations=$GENS  name=$NAME  network=$NET"
 echo "시작: $(date -Iseconds)"
 
-docker run --rm --name "garak_${NAME}" \
+# detached로 띄운다. 몇 시간짜리 실행이라 터미널이 닫혀도 살아남아야 한다.
+# 화면잠금(Win+L)은 괜찮지만 절전은 컨테이너를 통째로 죽인다 → powercfg 확인할 것.
+# REST_API_KEY: garak RestGenerator가 설정의 $KEY 자리에 넣는 환경변수 이름.
+docker run -d --name "garak_${NAME}" \
   --network "$NET" \
-  -e KEY="$TARGET_API_KEY" \
+  -e REST_API_KEY="$TARGET_API_KEY" \
   -v "$PWD/garak:/work" \
-  -v "$PWD/garak/logs/garak_runs:/root/.local/share/garak/garak_runs" \
+  -v "$PWD/garak/logs:/root/.local/share/garak" \
   garak-runner \
     --target_type rest \
-    --generator_option_file "/work/$CFG" \
+    -G "/work/$CFG" \
     --probes "$PROBES" \
     --generations "$GENS" \
     --report_prefix "$NAME"
 
-echo "종료: $(date -Iseconds)"
-echo "다음: python3 scripts/asr_summary.py garak/logs/garak_runs/${NAME}.report.jsonl | tee results/${NAME}_summary.md"
+cat <<EOF
+
+진행 확인:
+  docker logs -f garak_${NAME}
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/${NAME}.report.jsonl \\
+    | tee results/${NAME}_summary.md
+  cp garak/logs/garak_runs/${NAME}.report.jsonl results/${NAME}.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+EOF

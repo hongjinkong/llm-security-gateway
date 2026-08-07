@@ -114,13 +114,47 @@ gemma3:4b 생성 시간이 지배해서 방어 비용 판단에 쓸 수 없다.
 - `DECISIONS.md`에 날짜·검사기 구성·프로브·생성횟수·결과·소요시간
 - EVAL_CRITERIA 5.2 표의 해당 행
 
-## 6. 확인이 필요한 부분
+## 6. 베이스라인 실행 명령 (2026-08-07 확정)
 
-`scripts/run_garak.sh`의 `docker run` 옵션은 리포트 메타데이터(`--target_type rest`,
-`--generator_option_file`)와 garak 0.15.1 CLI를 근거로 재구성한 것이다.
-**베이스라인 3종을 실제로 돌린 명령과 대조해서 차이가 있으면 스크립트를 고친다.**
-특히 확인할 것:
+`scripts/run_garak.sh`는 아래 실제 명령을 그대로 옮긴 것이다. 셸 히스토리에만
+남아 있던 것을 여기에 고정했다. 앞으로는 이 스크립트가 단일 출처다.
 
-- 리포트 출력 경로 마운트 (`/root/.local/share/garak/garak_runs`)
-- `--parallel_requests` 사용 여부 — 리포트상 encoding 런은 `false`(순차)였다
-- API 키 주입 방식 (`-e KEY=...` → 설정의 `$KEY` 치환)
+```bash
+# dan (2026-07-30, 리포트 9abe5583...) — 최종본에는 --parallel_requests 없음
+docker run -d --name baseline_dan \
+  --network llm-security-gateway_default \
+  -e REST_API_KEY="$TARGET_API_KEY" \
+  -v "$PWD/garak:/work" \
+  -v "$PWD/garak/logs:/root/.local/share/garak" \
+  garak-runner \
+    --target_type rest -G /work/anythingllm_rest.json \
+    --probes "$DAN_PROBES" --generations 10
+
+# promptinject (2026-08-06) — --probes promptinject --generations 10
+# encoding    (2026-08-07) — --probes encoding      --generations 3
+```
+
+주의할 점 세 가지:
+
+1. **`-e REST_API_KEY=`** 가 맞다. garak RestGenerator가 설정 파일의 `$KEY` 자리에
+   넣는 환경변수 이름이 `REST_API_KEY`다. 다른 이름으로 주면 인증 없이 나가 401이 난다.
+2. **`-v "$PWD/garak/logs:/root/.local/share/garak"`** — `garak_runs/` 하위만
+   마운트하면 `garak.log`가 남지 않는다.
+3. **`--parallel_requests`는 쓰지 않는다.** 최종 3종 모두 순차였고
+   (리포트 `parallel_requests: false`), D-024에서 8GB VRAM 병렬이 오히려 느렸다.
+
+`-d`(detached)로 띄우는 이유: 몇 시간짜리 실행이라 터미널이 닫혀도 살아남아야 한다.
+화면잠금(Win+L)은 괜찮지만 절전은 컨테이너를 통째로 죽인다(0절 참조).
+
+### 남은 정리 — API 키 단일 출처
+
+promptinject·encoding 실행은 `$REST_API_KEY`라는 셸 변수를 썼는데 `.env`에는 그 이름이
+없다. 그래서 `baseline_dan` 컨테이너가 값 보관처가 되어 삭제 금지 상태였다.
+dan 실행은 `.env`의 `$TARGET_API_KEY`를 썼으므로 두 값이 같은지 확인하면 정리된다.
+
+```bash
+docker inspect baseline_dan --format '{{range .Config.Env}}{{println .}}{{end}}' | grep REST_API_KEY
+grep TARGET_API_KEY .env
+```
+
+같으면 `.env`가 단일 출처가 되고 컨테이너를 붙잡아둘 이유가 없어진다.

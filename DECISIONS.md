@@ -803,11 +803,18 @@ AnythingLLM 측에 해당 설정 항목이 없으며, 기능 요청 이슈
   (빈 값) → `pii` → `pii_mask`. **빈 값 실행을 반드시 포함한다** — 프록시를 끼우기만
   해도 ASR이 변하는지 확인해야 이후 변화를 방어 로직 탓으로 돌릴 수 있다.
 - 실행은 전부 `scripts/run_garak.sh`를 거친다. 절차는 `docs/MEASUREMENT.md`.
-- ⚠ **미해결**: 베이스라인 3종을 실제로 돌린 `docker run` 명령이 저장소 어디에도 없다.
-  현재 스크립트는 리포트 메타데이터(`--target_type rest`, `generations`,
-  `parallel_requests: false`)와 garak 0.15.1 CLI로 역산한 재구성이다.
-  학원 PC 셸 히스토리와 대조해 확정하고, 차이가 있으면 스크립트를 고칠 것.
-  SCOPE 7절 "단일 명령으로 전체 평가 재현" 위반 상태를 여기서 해소한다.
+- **해소됨(같은 날)**: 베이스라인 3종의 실제 실행 명령을 학원 PC 셸 히스토리에서 확보해
+  `scripts/run_garak.sh` + `docs/MEASUREMENT.md` 6절에 고정했다. 셸 히스토리가 유일한
+  기록이던 상태를 끝냈다(SCOPE 7절 재현성). 역산본에서 두 가지가 틀려 바로잡았다:
+  1. API 키 환경변수는 `KEY`가 아니라 **`REST_API_KEY`**. garak RestGenerator가
+     설정의 `$KEY` 자리에 넣는 이름이다. 틀리면 인증 없이 나가 401이 난다.
+  2. 리포트 마운트는 `garak/logs:/root/.local/share/garak` 전체.
+     `garak_runs/` 하위만 걸면 `garak.log`가 남지 않는다.
+  맞았던 것: `--parallel_requests` 미사용(최종 3종 모두 순차, 리포트와 일치).
+- 후속 정리 대상: promptinject·encoding 실행은 `.env`에 없는 셸 변수 `$REST_API_KEY`를
+  썼고, 그래서 `baseline_dan` 컨테이너가 키 보관처가 되어 삭제 금지 상태였다.
+  dan 실행은 `.env`의 `$TARGET_API_KEY`를 썼으므로, 두 값이 같은지 확인되면
+  `.env`가 단일 출처가 되고 컨테이너 보존 제약이 사라진다.
 
 ---
 

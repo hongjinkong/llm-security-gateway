@@ -11,3 +11,30 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: llm-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      # 컨테이너 안에서는 compose 서비스 이름으로 타겟을 부른다(호스트 포트 8000이 아님).
+      - TARGET_URL=http://target-app:3001
+      # EVAL 5.2 증분 측정의 손잡이. 이 값만 바꿔가며 같은 측정을 반복한다.
+      #   (빈 값) → 검사기 없음   pii → 탐지만   pii_mask → 마스킹+복원
+      - GATEWAY_DETECTORS=${GATEWAY_DETECTORS:-}
+      - GATEWAY_LOG_PATH=/logs/gateway.jsonl
+    volumes:
+      - ./logs:/logs
+    depends_on:
+      - target-app
+    healthcheck:
+      # /__gateway/health는 감사 로그에서 제외되므로 지연 통계를 오염시키지 않는다.
+      test: ["CMD", "python", "-c",
+             "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/__gateway/health', timeout=2).status == 200 else 1)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped

@@ -50,7 +50,8 @@ def test_latency_split_is_consistent(one_request):
     assert rec["upstream_ms"] is not None
     assert rec["gateway_ms"] >= 0
     assert rec["upstream_ms"] <= rec["total_ms"]
-    assert abs(rec["gateway_ms"] + rec["upstream_ms"] - rec["total_ms"]) < 0.01
+    # 세 값 모두 소수점 2자리로 반올림되므로 오차 0.015까지는 정상
+    assert abs(rec["gateway_ms"] + rec["upstream_ms"] - rec["total_ms"]) < 0.02
 
 
 def test_blocked_flag_defaults_false(one_request):

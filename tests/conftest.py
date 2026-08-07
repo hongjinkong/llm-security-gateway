@@ -51,17 +51,30 @@ class Stack:
 
 
 @pytest.fixture(scope="module")
-def stack(tmp_path_factory) -> Stack:
-    log_path = tmp_path_factory.mktemp("logs") / "gateway.jsonl"
-    tp, gp = free_port(), free_port()
-    t = serve("tests.stub_target:app", tp)
-    g = serve("gateway.main:app", gp, {
-        "TARGET_URL": f"http://127.0.0.1:{tp}",
-        "GATEWAY_LOG_PATH": str(log_path),
-    }, probe="/__gateway/health")
+def make_stack(tmp_path_factory):
+    """스텁 타겟 + 게이트웨이 한 벌을 띄우는 공장. 환경변수를 바꿔 여러 벌 띄울 수 있다."""
+    procs: list[subprocess.Popen] = []
+
+    def _make(gateway_app: str = "gateway.main:app", **env: str) -> Stack:
+        log_path = tmp_path_factory.mktemp("logs") / "gateway.jsonl"
+        tp, gp = free_port(), free_port()
+        procs.append(serve("tests.stub_target:app", tp))
+        procs.append(serve(gateway_app, gp, {
+            "TARGET_URL": f"http://127.0.0.1:{tp}",
+            "GATEWAY_LOG_PATH": str(log_path),
+            **env,
+        }, probe="/__gateway/health"))
+        return Stack(f"http://127.0.0.1:{tp}", f"http://127.0.0.1:{gp}", log_path)
+
     try:
-        yield Stack(f"http://127.0.0.1:{tp}", f"http://127.0.0.1:{gp}", log_path)
+        yield _make
     finally:
-        for p in (g, t):
+        for p in reversed(procs):
             p.terminate()
             p.wait(10)
+
+
+@pytest.fixture(scope="module")
+def stack(make_stack) -> Stack:
+    """검사기 없는 기본 게이트웨이."""
+    return make_stack()

@@ -3,20 +3,25 @@
 4-A: 어떤 검사도 하지 않고 타겟에 그대로 중계한다.
      "게이트웨이를 껴도 타겟 앱 동작이 변하지 않는다"가 이 단계의 전부다.
 4-B: 요청 1건마다 감사 로그 1줄. 지연을 세 갈래(종단/타겟/게이트웨이)로 분리 기록.
+4-C: 검사기 체인. 기본 구성은 검사기 0개이므로 동작은 4-A와 동일하다.
 """
 from __future__ import annotations
 
 import os
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import asynccontextmanager
 
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 
 from gateway.audit import AuditLog, digest, utcnow
+from gateway.chain import ChainResult, DetectorChain
+from gateway.detectors.base import Detector, Inspection
+from gateway.detectors.noop import NoOpDetector
 
 load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 않는다
 
@@ -29,6 +34,29 @@ AUDIT_LOG_PATH = os.environ.get("GATEWAY_LOG_PATH", "logs/gateway.jsonl")
 # 게이트웨이 자체 경로. 감사 로그에서 제외한다.
 # preflight.sh 같은 헬스체크가 초당 여러 번 때리면 지연 통계가 오염된다.
 INTERNAL_PREFIX = "/__gateway/"
+
+# 차단 시 사용자에게 돌려줄 문구. 타겟(AnythingLLM)과 같은 스키마로 200을 반환한다.
+# 403+오류 JSON을 주면 garak이 이를 '오류'로 처리해 total_evaluated에서 빠질 수 있고,
+# 그러면 베이스라인(n=4000)과 방어 적용(n=?)을 비교하는 EVAL 5.2가 무효가 된다.
+# 차단 여부는 HTTP 코드가 아니라 gateway_blocked 필드와 감사 로그로 판별한다.
+BLOCKED_MESSAGE = os.environ.get(
+    "GATEWAY_BLOCKED_MESSAGE", "요청이 보안 정책에 의해 차단되었습니다.")
+
+# 활성 검사기 목록. 쉼표 구분. 기본값은 빈 문자열 = 검사기 없음 = 4-A와 동일 동작.
+DETECTOR_NAMES = [x.strip() for x in os.environ.get("GATEWAY_DETECTORS", "").split(",") if x.strip()]
+
+# 이름 → 생성자. 4-D부터 여기에 실제 검사기가 등록된다.
+DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
+    "noop": lambda: NoOpDetector("noop"),
+}
+
+
+def build_chain(names: list[str] | None = None) -> DetectorChain:
+    names = DETECTOR_NAMES if names is None else names
+    unknown = [n for n in names if n not in DETECTOR_REGISTRY]
+    if unknown:
+        raise ValueError(f"알 수 없는 검사기: {unknown}. 등록된 것: {sorted(DETECTOR_REGISTRY)}")
+    return DetectorChain([DETECTOR_REGISTRY[n]() for n in names])
 
 # 홉 단위(hop-by-hop) 헤더 — "이 구간에서만 유효"한 라벨. 다음 구간으로 옮기면 안 된다.
 HOP_BY_HOP = frozenset({
@@ -43,6 +71,7 @@ async def lifespan(app: FastAPI):
     # 요청마다 새로 만들면 매번 TCP 핸드셰이크 → EVAL 4절 p95 목표를 혼자 다 까먹는다.
     app.state.client = httpx.AsyncClient(base_url=TARGET_URL, timeout=TARGET_TIMEOUT)
     app.state.audit = AuditLog(AUDIT_LOG_PATH)
+    app.state.chain = build_chain()
     try:
         yield
     finally:
@@ -72,7 +101,8 @@ async def audit(request: Request, call_next):
     state.upstream_ms = None   # 타겟 호출에 쓴 시간 (passthrough가 채운다)
     state.req_bytes = None
     state.req_digest = None
-    state.blocked = False      # EVAL 3.3 자동 판정용. 4-C 이후 검사기가 채운다.
+    state.blocked = False      # EVAL 3.3 자동 판정용. 검사기 체인이 채운다.
+    state.chain_result = None
 
     t0 = time.perf_counter()
     response = await call_next(request)
@@ -101,12 +131,25 @@ async def audit(request: Request, call_next):
         "res_bytes": _int_or_none(response.headers.get("content-length")),
         "blocked": getattr(state, "blocked", False),
         "client": request.client.host if request.client else None,
+        **_chain_fields(getattr(state, "chain_result", None)),
     })
     return response
 
 
 def _int_or_none(v: str | None) -> int | None:
     return int(v) if v is not None and v.isdigit() else None
+
+
+def _chain_fields(result: ChainResult | None) -> dict:
+    """검사기 체인 실행 내역. EVAL 4절이 요구하는 단계별 소요 시간을 남긴다."""
+    if result is None:
+        return {"chain_ms": None, "detectors": [], "blocked_by": None, "transformed": False}
+    return {
+        "chain_ms": result.chain_ms,
+        "detectors": [s.as_dict() for s in result.steps],
+        "blocked_by": result.blocked_by,
+        "transformed": result.transformed,
+    }
 
 
 @app.get("/__gateway/health")
@@ -121,6 +164,29 @@ async def passthrough(request: Request, full_path: str) -> Response:
     body = await request.body()
     request.state.req_bytes = len(body)
     request.state.req_digest = digest(body)
+
+    result = await request.app.state.chain.run(Inspection(
+        request_id=request.state.request_id,
+        method=request.method,
+        path=request.url.path,
+        headers=request.headers,
+        body=body,
+    ))
+    request.state.chain_result = result
+    if result.blocked:
+        request.state.blocked = True
+        # 차단 시 타겟을 호출하지 않는다 → upstream_ms는 None으로 남는다.
+        return JSONResponse(status_code=200, content={
+            "id": request.state.request_id,
+            "type": "textResponse",
+            "textResponse": BLOCKED_MESSAGE,
+            "sources": [],
+            "error": None,
+            "gateway_blocked": True,
+            # 차단 사유는 응답에 넣지 않는다. 공격자에게 룰을 알려줄 이유가 없다.
+            # 사유는 감사 로그에 있고 X-Gateway-Request-Id로 대조할 수 있다.
+        })
+    body = result.body   # TRANSFORM이 있었으면 바뀐 본문으로 중계한다
 
     t0 = time.perf_counter()
     upstream = await request.app.state.client.request(

@@ -17,3 +17,6 @@ keepalive.pid
 garak/logs/garak.log
 garak/logs/garak_runs/
 .venv-garak/
+
+# 게이트웨이 감사 로그 (런타임 산출물)
+logs/

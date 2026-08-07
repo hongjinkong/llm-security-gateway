@@ -30,11 +30,14 @@ class Step:
     action: str
     ms: float
     reason: str = ""
+    meta: dict = field(default_factory=dict)   # 검사기가 남긴 부가정보(원문 값은 금지)
 
     def as_dict(self) -> dict:
         d = {"detector": self.detector, "action": self.action, "ms": self.ms}
         if self.reason:
             d["reason"] = self.reason
+        if self.meta:
+            d.update(self.meta)
         return d
 
 
@@ -68,7 +71,7 @@ class DetectorChain:
             t0 = time.perf_counter()
             verdict = await det.inspect(current)   # 예외는 그대로 위로 올린다
             ms = round((time.perf_counter() - t0) * 1000, 3)
-            steps.append(Step(det.name, str(verdict.action), ms, verdict.reason))
+            steps.append(Step(det.name, str(verdict.action), ms, verdict.reason, verdict.meta))
 
             if verdict.action is Action.BLOCK:
                 return ChainResult(

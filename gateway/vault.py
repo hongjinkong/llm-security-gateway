@@ -19,7 +19,15 @@ import re
 import time
 from dataclasses import dataclass, field
 
-TOKEN_RE = re.compile(r"\[PII:([a-z]+):(\d+)\]")
+# 대괄호는 '있으면 먹고 없어도 되는' 선택 요소다.
+# 2026-08-07 실측: gemma3:4b가 "인사팀([PII:phone:1])으로"를 받아
+# "인사팀(PII:phone:1)으로"로 다시 써서 대괄호를 잃어버렸다(65건 중 4건).
+# 대괄호를 필수로 걸면 복원에 실패해 내부 토큰이 사용자에게 그대로 노출된다.
+# 핵심 부분(PII:종류:번호)만 필수로 두고, 모델이 붙인 괄호는 건드리지 않는다.
+TOKEN_RE = re.compile(r"\[?PII:([a-z]+):(\d+)\]?")
+
+# 복원 후에도 남아 있는 토큰 잔해를 찾는 검사용 패턴. 감사 로그에 개수를 남긴다.
+RESIDUAL_RE = re.compile(r"PII[:_][a-z]+[:_]\d+", re.IGNORECASE)
 
 
 @dataclass
@@ -75,13 +83,19 @@ class TokenVault:
 
         def sub(m: re.Match[str]) -> str:
             nonlocal count
-            original = entry.by_token.get(m.group(0))
+            kind, num = m.group(1), m.group(2)
+            original = entry.by_token.get(f"[PII:{kind}:{num}]")
             if original is None:
                 return m.group(0)      # 모르는 토큰은 손대지 않는다
             count += 1
             return original
 
         return TOKEN_RE.sub(sub, text), count
+
+    @staticmethod
+    def residual_tokens(text: str) -> int:
+        """복원 후 남은 토큰 잔해 수. 0이어야 정상이며 감사 로그로 감시한다."""
+        return len(RESIDUAL_RE.findall(text))
 
     def drop(self, session: str) -> None:
         self._sessions.pop(session, None)

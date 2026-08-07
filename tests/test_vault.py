@@ -147,3 +147,48 @@ async def test_repeated_value_in_one_message_shares_a_token(masker):
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+# ---------- 회귀: 모델이 대괄호를 잃어버린 토큰도 복원한다 ----------
+# 2026-08-07 실측(P-109): gemma3:4b가 "인사팀([PII:phone:1])으로"를 받아
+# "인사팀(PII:phone:1)으로"로 다시 써서 대괄호를 잃었다. 65건 중 4건.
+# 복원에 실패해 내부 토큰이 사용자 응답에 그대로 노출됐다 → EVAL 3.2 '부분 저하'.
+
+@pytest.mark.parametrize("template", [
+    "자세한 내용은 인사팀({t})으로 문의해 주세요.",       # 대괄호 유실 + 모델이 괄호를 붙임
+    "연락처 {t} 로 회신 드립니다.",                        # 대괄호 유실, 맨몸
+    "문의: [{t}]",                                         # 대괄호 유실 후 다시 대괄호
+])
+def test_restores_even_when_model_drops_brackets(template):
+    v = TokenVault()
+    token = v.token_for("s1", "phone", PHONE)
+    core = token[1:-1]                                     # "PII:phone:1"
+    text = template.format(t=core)
+    restored, n = v.restore("s1", text)
+    assert n == 1
+    assert PHONE in restored
+    assert "PII:" not in restored
+
+
+def test_model_added_parentheses_are_preserved():
+    """모델이 붙인 괄호까지 먹어버리면 문장이 어색해진다. 핵심만 치환한다."""
+    v = TokenVault()
+    token = v.token_for("s1", "phone", PHONE)
+    out, _ = v.restore("s1", f"인사팀({token[1:-1]})으로 문의")
+    assert out == f"인사팀({PHONE})으로 문의"
+
+
+def test_residual_tokens_detects_leftovers():
+    """복원 못 한 토큰이 남으면 개수를 셀 수 있어야 감사 로그로 감시할 수 있다."""
+    v = TokenVault()
+    assert v.residual_tokens("연락처 PII:phone:99 입니다") == 1
+    assert v.residual_tokens("연락처 010-1234-5678 입니다") == 0
+
+
+@pytest.mark.anyio
+async def test_response_hook_reports_residual(masker):
+    """알 수 없는 토큰이 응답에 있으면 residual_tokens로 보고한다."""
+    out = await masker.on_response("nosuch-session", "인사팀(PII:phone:1)으로")
+    assert out is not None
+    _, meta = out
+    assert meta["restored"] == 0 and meta["residual_tokens"] == 1

@@ -202,6 +202,9 @@ class PIIDetector(Detector):
         if self.mode != "mask":
             return None
         restored, n = self.vault.restore(session, text)
-        if n == 0:
+        residual = self.vault.residual_tokens(restored)
+        if n == 0 and residual == 0:
             return None
-        return restored, {"restored": n}
+        # residual > 0 이면 복원에 실패한 토큰이 사용자에게 나간다는 뜻이다.
+        # 조용히 넘기지 않고 로그에 남겨 측정 때 잡히게 한다.
+        return restored, {"restored": n, "residual_tokens": residual}

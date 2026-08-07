@@ -14,7 +14,18 @@ URL=${GATEWAY_URL:-http://localhost:8080}
 EXPECT_DET=${1:-}
 
 LOCAL=$(python3 gateway/version.py)
-RESP=$(curl -s --max-time 5 "$URL/__gateway/health") || { echo "게이트웨이 응답 없음: $URL"; exit 1; }
+
+# 컨테이너를 막 띄운 직후에는 uvicorn 기동에 1~2초가 걸린다. 잠시 기다려 준다.
+RESP=""
+for i in $(seq 1 15); do
+  RESP=$(curl -s --max-time 3 "$URL/__gateway/health" 2>/dev/null) && [ -n "$RESP" ] && break
+  sleep 1
+done
+if [ -z "$RESP" ]; then
+  echo "게이트웨이 응답 없음: $URL (15초 대기 후 포기)"
+  echo "  → docker compose ps / docker logs llm-gateway 로 상태 확인"
+  exit 1
+fi
 
 read -r RUNNING TARGET DETS <<<"$(python3 - "$RESP" <<'PY'
 import json, sys

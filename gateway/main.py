@@ -6,6 +6,7 @@
 4-C: 검사기 체인. 기본 구성은 검사기 0개이므로 동작은 4-A와 동일하다.
 4-D: PII 탐지기(탐지만). GATEWAY_DETECTORS=pii
 4-E: PII 마스킹 + 토큰 볼트.   GATEWAY_DETECTORS=pii_mask
+5-A: 룰 기반 인젝션 탐지.     GATEWAY_DETECTORS=injection_rule,pii_mask (순서는 D-037)
 4-F: 응답에 남은 마스킹 토큰을 원본으로 복원.
 """
 from __future__ import annotations
@@ -24,6 +25,7 @@ from fastapi.responses import JSONResponse
 from gateway.audit import AuditLog, digest, utcnow
 from gateway.chain import ChainResult, DetectorChain
 from gateway.detectors.base import Detector, Inspection
+from gateway.detectors.injection import InjectionRuleDetector
 from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import PIIDetector, session_of
 from gateway.version import code_fingerprint
@@ -55,6 +57,7 @@ DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
     "noop": lambda: NoOpDetector("noop"),
     "pii": lambda: PIIDetector("detect"),
     "pii_mask": lambda: PIIDetector("mask"),
+    "injection_rule": lambda: InjectionRuleDetector(),
 }
 
 

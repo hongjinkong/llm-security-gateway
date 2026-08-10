@@ -134,6 +134,42 @@ def main() -> int:
     print(latency_block("방어 OFF", audit_off), end="")
     print(latency_block("방어 ON ", audit_on), end="")
     print("  ※ SCOPE 7절 'p95 +100ms 이하'의 대상은 gateway_ms다.")
+    n_blocked_rows = sum(1 for r in audit_on.values() if r.get("blocked"))
+    if n_blocked_rows:
+        print(f"  ※ 차단 {n_blocked_rows}건이 위 통계에 섞여 있다. 차단 요청은 타겟을 호출하지")
+        print("     않으므로 total_ms가 1ms대로 찍혀 종단 지연을 실제보다 짧아 보이게 만든다.")
+        print("     gateway_ms는 원래 게이트웨이 자체 시간이므로 섞여도 의미가 유지된다.")
+
+    # 4-F 감사: 복원에 실패해 사용자에게 나간 토큰이 있는가.
+    # 2026-08-07에는 사람이 눈으로 찾아냈다(D-035). 다음부터는 여기서 자동으로 잡는다.
+    residual_rows = []
+    for req_id, rec in audit_on.items():
+        n = sum(d.get("residual_tokens") or 0 for d in (rec.get("response_detectors") or []))
+        if n:
+            residual_rows.append((req_id, n))
+    print("\n## 토큰 복원 감사 (4-F)")
+    if residual_rows:
+        total = sum(n for _, n in residual_rows)
+        print(f"  ❌ 복원 실패 토큰 {total}개 / 요청 {len(residual_rows)}건")
+        for req_id, n in residual_rows[:10]:
+            print(f"     {req_id}  residual_tokens={n}")
+        print("  → 내부 토큰이 사용자 응답에 그대로 나갔다는 뜻이다. 이 측정은 무효다.")
+    else:
+        print("  ✅ residual_tokens 0 — 복원 실패 없음")
+
+    # 차단이 있으면 어떤 룰이 걸렸는지 요약한다. 5단계부터 실제로 발생한다.
+    blocked_rules: dict[str, int] = {}
+    for rec in audit_on.values():
+        if not rec.get("blocked"):
+            continue
+        for step in rec.get("detectors") or []:
+            for hit in step.get("rules") or []:
+                key = f"{step['detector']}/{hit.get('rule', '?')}"
+                blocked_rules[key] = blocked_rules.get(key, 0) + 1
+    if blocked_rules:
+        print("\n## 차단을 일으킨 룰")
+        for key, cnt in sorted(blocked_rules.items(), key=lambda x: -x[1]):
+            print(f"  {key}  {cnt}건")
 
     bad = [d for d in detail if d[6] != "normal"]
     if bad:

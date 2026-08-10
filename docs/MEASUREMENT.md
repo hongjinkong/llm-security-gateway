@@ -67,11 +67,59 @@ bash scripts/run_garak.sh gateway <프로브> <횟수> gw_pii_<프로브>
 # (c) PII 마스킹 + 복원
 GATEWAY_DETECTORS=pii_mask docker compose up -d gateway
 bash scripts/run_garak.sh gateway <프로브> <횟수> gw_piimask_<프로브>
+
+# (d) 룰 기반 인젝션 탐지 추가 — 5단계. 순서는 D-037(인젝션 탐지가 마스킹보다 앞).
+GATEWAY_DETECTORS=injection_rule,pii_mask docker compose up -d gateway
+bash scripts/run_garak.sh gateway <프로브> <횟수> gw_rule_<프로브>
+```
+
+각 구성 전에 반드시:
+
+```bash
+bash scripts/verify_gateway.sh injection_rule,pii_mask
 ```
 
 (a)가 중요하다. 게이트웨이를 끼우기만 해도 ASR이 변하는지 먼저 확인해야,
 이후 변화를 방어 로직 탓으로 돌릴 수 있다. 단위테스트에서는 응답이 동일함을
 확인했지만, 실제 모델은 비결정적이므로 측정으로도 확인한다.
+
+## 3-1. 맥북 예행연습 (학원 PC 없이 배선을 확인한다)
+
+측정 자체는 학원 PC 전용이지만, **배선이 맞는지는 맥북에서 미리 확인할 수 있다.**
+가짜 타겟(`tests/stub_target.py`)을 쓰면 모델 없이 100문항을 전부 통과시켜
+FPR 집계 경로와 감사 로그 필드를 검증할 수 있다.
+2026-08-10에 5단계 차단 경로를 이 방법으로 처음 검증했다 — 그전까지 `blocked`는
+한 번도 발생한 적이 없어 집계 코드가 실행된 적조차 없었다.
+
+```bash
+python3 -m uvicorn tests.stub_target:app --port 8000 --log-level error
+```
+
+```bash
+GATEWAY_DETECTORS= TARGET_URL=http://127.0.0.1:8000 GATEWAY_LOG_PATH=/tmp/reh/audit_off.jsonl python3 -m uvicorn gateway.main:app --port 8080 --log-level error
+```
+
+```bash
+BASE_URL=http://127.0.0.1:8080 WORKSPACE_SLUG=demo TARGET_API_KEY=k RUNS=1 SLEEP=0 python3 eval/fpr_run.py eval/benign/all100.jsonl /tmp/reh/fpr_off.jsonl
+```
+
+ON 구성은 `GATEWAY_DETECTORS=injection_rule,pii_mask`, 포트와 로그 경로만 바꿔 반복한다.
+그다음 집계:
+
+```bash
+python3 scripts/fpr_report.py --off /tmp/reh/fpr_off.jsonl --on /tmp/reh/fpr_on.jsonl --audit-off /tmp/reh/audit_off.jsonl --audit-on /tmp/reh/audit_on.jsonl
+```
+
+확인할 것:
+
+- `FPR = 1.0%` (차단 1건 = B-103). D-040의 설계 예측과 일치해야 한다
+- `transformed=true : 13개` — 체인 순서를 바꿔도 PII 마스킹이 깨지지 않았다는 증거
+- `차단을 일으킨 룰` 절에 `injection_rule/R2`
+- `토큰 복원 감사` 절이 `residual_tokens 0`
+
+**주의**: 가짜 타겟은 질문을 그대로 되돌려주므로 `all_facts_hit`은 전부 0이다.
+예행연습으로 판단할 수 있는 것은 **배선과 집계 경로**뿐이고, FPR의 '부분 저하'
+판정이나 지연 수치는 여기서 얻을 수 없다.
 
 ## 4. 세 지표를 함께 낸다
 
@@ -105,6 +153,15 @@ PY
 
 **`gateway_ms`가 SCOPE 7절 "p95 +100ms 이하"의 대상이다.** `total_ms`는
 gemma3:4b 생성 시간이 지배해서 방어 비용 판단에 쓸 수 없다.
+
+### 차단이 있는 구성(5단계~)의 지연 해석
+
+차단된 요청은 타겟을 호출하지 않는다. 따라서 `upstream_ms`가 `None`이고
+`total_ms`는 1ms대로 찍힌다. 이 값이 통계에 섞이면 **종단 지연이 실제보다
+짧아 보인다.** 차단 비율이 높아질수록 왜곡이 커진다.
+
+`gateway_ms`는 원래 게이트웨이 자체 처리 시간이므로 섞여도 의미가 유지된다.
+`fpr_report.py`가 차단 건수를 감지하면 이 경고를 자동으로 출력한다.
 
 ## 5. 기록
 

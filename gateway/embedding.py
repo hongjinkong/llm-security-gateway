@@ -59,6 +59,10 @@ class Embedder(ABC):
         """벡터를 돌려준다. 실패하면 EmbeddingError를 던진다(빈 값·0벡터 금지)."""
         raise NotImplementedError
 
+    async def aclose(self) -> None:
+        """소유한 자원을 닫는다. 주입받은 클라이언트는 닫지 않는다(소유자가 닫는다)."""
+        return None
+
 
 def l2_normalize(vec: Sequence[float]) -> list[float]:
     """단위 길이로 만든다. 정규화된 벡터끼리는 **코사인 유사도 = 내적**이라
@@ -113,8 +117,10 @@ class OllamaEmbedder(Embedder):
         endpoint: str = "http://localhost:11434",
         *,
         strict_norm: bool = True,
+        owns_client: bool = False,
     ) -> None:
         self.client = client
+        self.owns_client = owns_client
         self.model = model
         self.endpoint = endpoint.rstrip("/")
         self.strict_norm = strict_norm
@@ -169,6 +175,12 @@ class OllamaEmbedder(Embedder):
                 raise EmbeddingError(msg)
 
         return [l2_normalize(v) for v in vecs]
+
+    async def aclose(self) -> None:
+        """**만든 사람이 닫는다.** 테스트는 클라이언트를 주입하고 스스로 닫으므로
+        여기서 닫으면 안 된다. main.py의 팩토리만 owns_client=True로 만든다."""
+        if self.owns_client:
+            await self.client.aclose()
 
 
 class FakeEmbedder(Embedder):

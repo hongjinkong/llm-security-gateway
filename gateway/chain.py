@@ -60,6 +60,17 @@ class DetectorChain:
     def names(self) -> tuple[str, ...]:
         return tuple(d.name for d in self.detectors)
 
+    async def prepare(self) -> None:
+        """모든 검사기를 기동 준비시킨다. 하나라도 실패하면 그대로 위로 올려 기동을
+        실패시킨다 — 준비 안 된 검사기를 달고 뜨면 방어가 꺼진 채로 측정이 돌아간다."""
+        for det in self.detectors:
+            await det.prepare()
+
+    async def aclose(self) -> None:
+        """역순으로 닫는다. prepare가 앞에서 뒤로였으니 정리는 뒤에서 앞으로."""
+        for det in reversed(self.detectors):
+            await det.aclose()
+
     async def run(self, insp: Inspection) -> ChainResult:
         body = insp.body
         steps: list[Step] = []

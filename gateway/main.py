@@ -7,6 +7,8 @@
 4-D: PII 탐지기(탐지만). GATEWAY_DETECTORS=pii
 4-E: PII 마스킹 + 토큰 볼트.   GATEWAY_DETECTORS=pii_mask
 5-A: 룰 기반 인젝션 탐지.     GATEWAY_DETECTORS=injection_rule,pii_mask (순서는 D-037)
+5-B: 코퍼스 유사도 인젝션 탐지. GATEWAY_DETECTORS=injection_rule,injection_similarity,pii_mask
+     T가 없으면 기동하지 않는다. 캘리브레이션은 injection_similarity_observe로 (D-048).
 4-F: 응답에 남은 마스킹 토큰을 원본으로 복원.
 """
 from __future__ import annotations
@@ -28,6 +30,8 @@ from gateway.detectors.base import Detector, Inspection
 from gateway.detectors.injection import InjectionRuleDetector
 from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import PIIDetector, session_of
+from gateway.detectors.similarity import InjectionSimilarityDetector, threshold_from_env
+from gateway.embedding import OllamaEmbedder
 from gateway.version import code_fingerprint
 
 load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 않는다
@@ -49,6 +53,13 @@ INTERNAL_PREFIX = "/__gateway/"
 BLOCKED_MESSAGE = os.environ.get(
     "GATEWAY_BLOCKED_MESSAGE", "요청이 보안 정책에 의해 차단되었습니다.")
 
+# 5단계 2차 유사도(D-043). 임베딩은 Ollama HTTP + bge-m3를 재사용한다.
+# 타임아웃이 타겟(600s)과 다른 이유: 임베딩은 150ms짜리 작업이라 600초를 기다리면
+# Ollama가 죽었을 때 요청이 10분간 매달린다. 빨리 터뜨려 500을 내는 편이 낫다(D-030).
+OLLAMA_URL = os.environ.get("GATEWAY_OLLAMA_URL", "http://localhost:11434").rstrip("/")
+EMBED_MODEL = os.environ.get("GATEWAY_EMBED_MODEL", "bge-m3")
+EMBED_TIMEOUT = float(os.environ.get("GATEWAY_EMBED_TIMEOUT", "30"))
+
 # 활성 검사기 목록. 쉼표 구분. 기본값은 빈 문자열 = 검사기 없음 = 4-A와 동일 동작.
 DETECTOR_NAMES = [x.strip() for x in os.environ.get("GATEWAY_DETECTORS", "").split(",") if x.strip()]
 
@@ -58,7 +69,21 @@ DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
     "pii": lambda: PIIDetector("detect"),
     "pii_mask": lambda: PIIDetector("mask"),
     "injection_rule": lambda: InjectionRuleDetector(),
+    "injection_similarity": lambda: _similarity(observe=False),
+    "injection_similarity_observe": lambda: _similarity(observe=True),
 }
+
+
+def _similarity(*, observe: bool) -> Detector:
+    """유사도 검사기 1개. **Ollama용 클라이언트를 따로 만든다** —
+    app.state.client는 base_url이 타겟으로 묶여 있어 재사용할 수 없다.
+    만든 쪽이 닫는다: owns_client=True → 검사기 aclose()가 임베더를 통해 닫는다."""
+    embedder = OllamaEmbedder(
+        httpx.AsyncClient(timeout=EMBED_TIMEOUT),
+        model=EMBED_MODEL, endpoint=OLLAMA_URL, owns_client=True,
+    )
+    return InjectionSimilarityDetector(
+        embedder, threshold=threshold_from_env(), observe=observe)
 
 
 def build_chain(names: list[str] | None = None) -> DetectorChain:
@@ -82,9 +107,13 @@ async def lifespan(app: FastAPI):
     app.state.client = httpx.AsyncClient(base_url=TARGET_URL, timeout=TARGET_TIMEOUT)
     app.state.audit = AuditLog(AUDIT_LOG_PATH)
     app.state.chain = build_chain()
+    # 코퍼스 임베딩 같은 무거운 준비는 여기서 끝낸다(D-043). 실패하면 기동을 실패시킨다 —
+    # 준비 안 된 검사기를 달고 뜨면 방어가 꺼진 채로 측정이 돌아간다.
+    await app.state.chain.prepare()
     try:
         yield
     finally:
+        await app.state.chain.aclose()
         await app.state.client.aclose()
         app.state.audit.close()
 

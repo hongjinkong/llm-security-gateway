@@ -82,6 +82,20 @@ class Detector(ABC):
         """요청을 보고 판정을 돌려준다. 예외를 삼키지 않는다(체인 정책 참조)."""
         raise NotImplementedError
 
+    async def prepare(self) -> None:
+        """기동 시 1회. 무거운 준비를 여기서 한다 — 5단계 2차의 코퍼스 임베딩(D-043).
+
+        지연 로딩을 쓰지 않는 이유: 첫 요청이 준비 비용을 혼자 뒤집어쓰고, 그 요청이
+        지연 통계에 섞이면 p95가 오염된다. 측정 도구가 측정을 망친다.
+
+        기본 구현은 아무것도 하지 않는다 — 기존 검사기는 영향받지 않는다.
+        """
+        return None
+
+    async def aclose(self) -> None:
+        """종료 시 1회. prepare()에서 연 자원을 닫는다. 기본은 아무것도 하지 않는다."""
+        return None
+
     async def on_response(self, session: str, text: str) -> tuple[str, dict] | None:
         """응답을 돌려보내기 직전에 불린다. 바꿀 게 없으면 None.
 

@@ -217,6 +217,14 @@ async def main() -> int:
             verdict_lines.append(f"     (기저가 약한 항목 {base_weak} — B가 아니라 A의 문제)")
 
         if not b_pass:
+            # 요약을 **먼저** 찍는다. 2026-08-18에 종료 경로가 집계 줄을 건너뛰어
+            # "몇 건 뚫렸는지"가 기록에 안 남았다. 실패했을 때야말로 숫자가 필요하다.
+            print("\n" + "=" * 78)
+            for line in verdict_lines:
+                print("  " + line)
+            print(f"  호출 {run.calls}건 / 판정 실패 {run.errors}건 "
+                  f"({run.errors / max(run.calls, 1) * 100:.1f}%)")
+            print("=" * 78)
             print("!" * 78)
             print("B 실패. 판사가 조작당한다. 8GB 제약상 모델 교체 카드가 없으므로")
             print("D-053 결정 (5)에 따라 '3차도 성립하지 않는다'로 보고하고 종결한다.")

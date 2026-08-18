@@ -438,3 +438,27 @@ async def test_chain_without_observe_raises_at_inspect_time():
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+# ---------- 종결 (D-054) ----------
+
+def test_judge_cannot_be_wired_without_explicit_acknowledgement(monkeypatch):
+    """3차는 종결됐다(D-054). 조용히 배선되면 "방어가 3단이었다"는 거짓 기록이 남는다.
+
+    코드를 지우지 않는 이유는 2차 유사도와 같다(D-052) — 결과가 자산이기 때문이다.
+    지우면 "왜 안 썼나"를 나중에 검증할 수 없다.
+    """
+    from gateway import main as gw
+
+    monkeypatch.delenv(gw.JUDGE_ACK_ENV, raising=False)
+    with pytest.raises(RuntimeError, match="D-054"):
+        gw.build_chain([OBSERVE_NAME, JUDGE_NAME])
+
+
+def test_judge_starts_when_acknowledged(monkeypatch):
+    """승인하면 돈다. 그리고 **승인했다는 사실이 환경에 남는다.**"""
+    from gateway import main as gw
+
+    monkeypatch.setenv(gw.JUDGE_ACK_ENV, gw.JUDGE_ACK_VALUE)
+    chain = gw.build_chain([OBSERVE_NAME, JUDGE_NAME])
+    assert chain.names == (OBSERVE_NAME, JUDGE_NAME)

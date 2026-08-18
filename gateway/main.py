@@ -93,9 +93,25 @@ DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
 }
 
 
+# 3차 Judge는 **종결됐다**(D-054). 양성대조 B에서 판정이 조작됐고, 8GB 제약상 모델 교체
+# 카드가 없어 D-053 결정 (5)에 따라 "성립하지 않는다"로 닫았다.
+#
+# 코드는 남긴다(2차 유사도와 같다 — D-052). 다만 **아무도 실수로 배선하지 못하게** 막는다.
+# 이 값을 명시적으로 넣지 않으면 기동하지 않는다. `injection_similarity`가 T 없이
+# 기동을 실패시킨 것과 같은 장치다(D-048): 종결된 층이 조용히 EVAL 5.2에 들어가면
+# "방어가 3단이었다"는 거짓 기록이 남는다.
+JUDGE_ACK_ENV = "GATEWAY_JUDGE_ACK"
+JUDGE_ACK_VALUE = "D-054"
+
+
 def _judge() -> Detector:
-    """3차 Judge 1개. 유사도 검사기와 같은 이유로 **Ollama용 클라이언트를 따로 만든다** —
-    app.state.client는 base_url이 타겟으로 묶여 있다. 만든 쪽이 닫는다."""
+    """3차 Judge 1개. **종결된 검사기다** — 명시적 승인 없이는 기동하지 않는다."""
+    if (os.environ.get(JUDGE_ACK_ENV) or "").strip() != JUDGE_ACK_VALUE:
+        raise RuntimeError(
+            f"{JUDGE_ACK_ENV}={JUDGE_ACK_VALUE}가 없다. injection_judge는 D-054로 종결됐다 "
+            f"(양성대조 B에서 판정 조작 5건). 측정에 쓰지 않는다. 재현·연구 목적으로 "
+            f"돌리려면 이 값을 명시적으로 설정할 것 — 그 사실이 감사 로그와 "
+            f"scripts/verify_gateway.sh의 활성 검사기 줄에 함께 남는다")
     model = OllamaJudge(
         httpx.AsyncClient(timeout=JUDGE_TIMEOUT),
         model=JUDGE_MODEL, endpoint=OLLAMA_URL, owns_client=True,

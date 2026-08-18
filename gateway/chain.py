@@ -16,8 +16,10 @@ TRANSFORM은 다음 검사기에게 '바뀐 본문'을 넘긴다. 마스킹 후�
 from __future__ import annotations
 
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
+from types import MappingProxyType
+from typing import Any
 
 from gateway.detectors.base import Action, Detector, Inspection
 
@@ -52,6 +54,16 @@ class ChainResult:
     transformed: bool = False
 
 
+def _freeze(prior: dict[str, Mapping[str, Any]]) -> Mapping[str, Mapping[str, Any]]:
+    """검사기에게 넘길 읽기 전용 스냅샷.
+
+    산 dict를 그대로 프록시로 감싸면 뒤에 실행된 검사기의 meta가 앞 검사기가 들고 있던
+    참조에도 나타난다. 그러면 "이 검사기가 무엇을 보고 판단했나"를 사후에 못 되짚는다 —
+    감사 로그가 거짓말을 하게 된다. 항목 수가 검사기 개수(≤5)라 복사 비용은 무시할 수 있다.
+    """
+    return MappingProxyType(dict(prior))
+
+
 class DetectorChain:
     def __init__(self, detectors: Sequence[Detector] = ()) -> None:
         self.detectors = tuple(detectors)
@@ -75,14 +87,18 @@ class DetectorChain:
         body = insp.body
         steps: list[Step] = []
         transformed = False
+        # 앞 검사기들이 남긴 meta. 매 단계 **스냅샷**을 떠서 넘긴다(아래 이유 참조).
+        prior: dict[str, Mapping[str, Any]] = {}
         t_chain = time.perf_counter()
 
         for det in self.detectors:
-            current = replace(insp, body=body)
+            current = replace(insp, body=body, prior=_freeze(prior))
             t0 = time.perf_counter()
             verdict = await det.inspect(current)   # 예외는 그대로 위로 올린다
             ms = round((time.perf_counter() - t0) * 1000, 3)
             steps.append(Step(det.name, str(verdict.action), ms, verdict.reason, verdict.meta))
+            # 자기 판정은 자기가 볼 수 없다 — 기록은 inspect가 끝난 **뒤에** 붙는다.
+            prior[det.name] = MappingProxyType(dict(verdict.meta))
 
             if verdict.action is Action.BLOCK:
                 return ChainResult(

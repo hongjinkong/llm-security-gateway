@@ -11,7 +11,19 @@ from abc import ABC, abstractmethod
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any
+
+# 앞 검사기가 아무것도 안 남겼을 때의 기본값.
+#
+# `default_factory`를 쓰는 이유: dataclasses는 기본값의 **타입**이 unhashable이면
+# ('mappingproxy'가 그렇다) 가변 기본값으로 보고 ValueError를 던진다. 실제로는 읽기
+# 전용이라 인스턴스끼리 공유해도 안전하므로, 팩토리가 매번 **같은 객체**를 돌려준다.
+NO_PRIOR: Mapping[str, Mapping[str, Any]] = MappingProxyType({})
+
+
+def _no_prior() -> Mapping[str, Mapping[str, Any]]:
+    return NO_PRIOR
 
 
 class Action(StrEnum):
@@ -37,6 +49,19 @@ class Inspection:
     headers: Mapping[str, str]
     body: bytes
     session: str = ""    # 마스킹 매핑을 묶는 키. 비어 있으면 검사기가 알아서 정한다.
+
+    # 앞에서 이미 판정을 끝낸 검사기들의 meta. {검사기 이름: meta}. **읽기 전용이다.**
+    #
+    # 왜 필요한가 (D-053 / JUDGE_DESIGN 5.1): 3차 LLM Judge는 2차가 계산한 유사도
+    # 점수를 게이팅에 쓴다. 이 통로가 없으면 Judge가 임베딩을 한 번 더 돌려야 하고,
+    # 임베딩 왕복이 2회가 되어 지연이 두 배가 된다.
+    #
+    # 왜 meta만 넘기고 Verdict 전체를 안 넘기는가: BLOCK은 조기 종료라 뒤 검사기가
+    # 아예 실행되지 않는다. 따라서 여기 담기는 것은 항상 ALLOW 또는 TRANSFORM의
+    # meta뿐이고, action을 넘겨도 읽는 쪽이 쓸 일이 없다. 좁게 연다.
+    #
+    # 원문은 담기지 않는다 — meta에 원문을 넣지 않는 것이 기존 규칙이다(D-029).
+    prior: Mapping[str, Mapping[str, Any]] = field(default_factory=_no_prior)
 
 
 @dataclass(frozen=True)

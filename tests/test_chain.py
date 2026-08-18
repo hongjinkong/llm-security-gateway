@@ -45,6 +45,32 @@ class Boom(Detector):
         raise RuntimeError("검사기 내부 버그")
 
 
+class Note(Detector):
+    """meta를 남기는 검사기. prior 전달 검증용."""
+
+    def __init__(self, name: str, **meta):
+        self.name = name
+        self._meta = meta
+
+    async def inspect(self, insp):
+        return Verdict.allow(self.name, **self._meta)
+
+
+class PriorSpy(Detector):
+    """자기가 본 prior를 기록한다. **참조를 그대로 들고 있는다** — 스냅샷 검증용."""
+    name = "prior_spy"
+
+    def __init__(self, name: str = "prior_spy"):
+        self.name = name
+        self.seen: list = []          # 실행 시점에 복사한 것
+        self.held: list = []          # 참조를 그대로 붙든 것
+
+    async def inspect(self, insp):
+        self.seen.append({k: dict(v) for k, v in insp.prior.items()})
+        self.held.append(insp.prior)
+        return Verdict.allow(self.name)
+
+
 # ---------- Verdict 계약 ----------
 
 def test_transform_requires_body():
@@ -114,3 +140,74 @@ async def test_detector_exception_is_not_swallowed():
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+# ---------- prior: 앞 검사기의 meta를 뒤 검사기가 읽는다 (D-053) ----------
+#
+# 3차 LLM Judge가 2차 유사도 점수를 게이팅에 쓰기 위한 통로다(JUDGE_DESIGN 5.1).
+# 없으면 Judge가 임베딩을 한 번 더 돌려야 하고 지연이 두 배가 된다.
+
+
+@pytest.mark.anyio
+async def test_first_detector_sees_empty_prior():
+    """앞이 없으면 빈 메모판. 검사기가 `.get()`으로 안전하게 다룰 수 있어야 한다."""
+    spy = PriorSpy()
+    await DetectorChain([spy]).run(INSP)
+    assert spy.seen == [{}]
+
+
+@pytest.mark.anyio
+async def test_prior_carries_earlier_detector_meta():
+    spy = PriorSpy()
+    await DetectorChain([Note("sim", similarity=0.71, nearest_id="K-R1-08"), spy]).run(INSP)
+    assert spy.seen == [{"sim": {"similarity": 0.71, "nearest_id": "K-R1-08"}}]
+
+
+@pytest.mark.anyio
+async def test_detector_cannot_see_its_own_verdict_in_prior():
+    """자기 판정은 자기가 볼 수 없다. 기록은 inspect가 끝난 뒤에 붙는다."""
+    spy = PriorSpy("prior_spy")
+    await DetectorChain([Note("a", x=1), spy, Note("z", y=2)]).run(INSP)
+    assert "prior_spy" not in spy.seen[0]
+    assert "z" not in spy.seen[0], "뒤 검사기의 판정이 미리 보인다 — 순서가 깨졌다"
+
+
+@pytest.mark.anyio
+async def test_prior_is_read_only():
+    """검사기가 앞 단계 기록을 고칠 수 있으면 감사 로그를 믿을 수 없다."""
+    spy = PriorSpy()
+    await DetectorChain([Note("a", x=1), spy]).run(INSP)
+    with pytest.raises(TypeError):
+        spy.held[0]["a"] = {"x": 999}          # type: ignore[index]
+    with pytest.raises(TypeError):
+        spy.held[0]["a"]["x"] = 999            # type: ignore[index]
+
+
+@pytest.mark.anyio
+async def test_prior_is_a_snapshot_not_a_live_view():
+    """**이 테스트가 이 기능의 핵심이다.**
+
+    산 dict를 프록시로 감싸 넘기면, 뒤에 실행된 검사기의 meta가 앞 검사기가 붙들고 있던
+    참조에도 나타난다. 그러면 "이 검사기가 무엇을 보고 판단했나"를 사후에 되짚을 수 없다.
+    """
+    spy = PriorSpy()
+    await DetectorChain([Note("a", x=1), spy, Note("z", y=2)]).run(INSP)
+    assert dict(spy.held[0]) .keys() == {"a"}, (
+        f"실행 시점 이후의 판정이 새어 들어왔다: {dict(spy.held[0]).keys()}")
+
+
+@pytest.mark.anyio
+async def test_prior_and_transformed_body_arrive_together():
+    """마스킹된 본문과 앞 단계 메모를 같은 Inspection에서 본다."""
+    spy = PriorSpy()
+    await DetectorChain([Note("a", x=1), Mask(), spy]).run(INSP)
+    assert spy.seen == [{"a": {"x": 1}, "mask": {}}]
+
+
+@pytest.mark.anyio
+async def test_prior_does_not_change_existing_chain_behaviour():
+    """additive임을 고정한다. prior를 안 보는 기존 검사기는 결과가 그대로여야 한다."""
+    spy = Spy()
+    r = await DetectorChain([Mask(), spy]).run(INSP)
+    assert r.body == b"hello [MASKED]" and r.transformed is True
+    assert spy.seen == [b"hello [MASKED]"]

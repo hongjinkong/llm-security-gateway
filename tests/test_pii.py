@@ -153,3 +153,68 @@ def test_korean_suffix_still_detected():
     """한글은 ASCII가 아니므로 조사가 붙어도 탐지된다. 위 경계 조건의 부작용 방지."""
     assert [f.kind for f in find_all("법인카드 4111-1111-1111-1111로 결제")] == ["card"]
     assert [f.kind for f in find_all("주민등록번호 900101-1234563입니다")] == ["rrn"]
+
+
+# --- L-005: JSON 인코딩 의존 (D-055에서 해소) ---------------------------------
+#
+# 2026-08-10에 발견하고 2026-08-18에 고쳤다. 고치면 D-035의 FPR·지연 측정이 무효가
+# 되므로 "5단계 재측정을 어차피 해야 할 때 함께"로 미뤄뒀던 항목이다.
+#
+#     ensure_ascii=False → {"message": "번호900101-1234563"}
+#     ensure_ascii=True  → {"message": "번호900101-1234563"}
+#                                                ^ 앞 문자가 '8'이라 경계 조건에 걸려 미탐
+#
+# 조용한 미탐이라 로그에는 allow만 남는다. 이 프로젝트가 가장 경계하는 실패다.
+
+import json as _json  # noqa: E402
+
+from gateway.detectors.pii import normalized_text  # noqa: E402
+
+_L005_CASES = [
+    ("rrn", "번호900101-1234563"),
+    ("card", "결제4111-1111-1111-1111"),
+    ("phone", "연락처010-2345-6789"),
+]
+
+
+@pytest.mark.parametrize("kind,payload", _L005_CASES)
+@pytest.mark.parametrize("ensure_ascii", [False, True])
+def test_pii_detection_is_independent_of_json_escaping(kind, payload, ensure_ascii):
+    """같은 요청인데 인코딩만 다르다고 탐지가 달라지면 안 된다."""
+    body = _json.dumps({"message": payload}, ensure_ascii=ensure_ascii).encode()
+    kinds = {f.kind for f in find_all(normalized_text(body))}
+    assert kind in kinds, f"ensure_ascii={ensure_ascii}에서 {kind}를 놓쳤다"
+
+
+def test_raw_decode_would_have_missed_it():
+    """**양성대조**: 충돌이 실재함을 고정한다.
+
+    이게 통과하지 않으면 위 테스트가 아무것도 안 지키는 것이다 —
+    "안 걸린다"만 검사하면 정규식이 아무것도 안 잡아도 통과한다.
+    """
+    body = _json.dumps({"message": "번호900101-1234563"}, ensure_ascii=True).encode()
+    raw = body.decode("utf-8", errors="ignore")
+    assert "rrn" not in {f.kind for f in find_all(raw)}, (
+        "원문 바이트 그대로도 탐지된다 — L-005가 재현되지 않으므로 위 테스트 재검토")
+    assert "rrn" in {f.kind for f in find_all(normalized_text(body))}
+
+
+def test_normalized_text_falls_back_when_body_is_not_json():
+    assert normalized_text(b"not json 010-2345-6789") == "not json 010-2345-6789"
+
+
+@pytest.mark.anyio
+async def test_masking_works_on_escaped_json_end_to_end():
+    """탐지만이 아니라 마스킹·복원까지 도는지 본다."""
+    det = PIIDetector("mask")
+    # **한글에 붙여 쓴다.** 앞에 공백이 있으면 이스케이프돼도 경계 조건에 안 걸려
+    # L-005가 재현되지 않는다 — 2026-08-18에 변이 검사로 이 함정을 실제로 밟았다.
+    body = _json.dumps({"message": "번호900101-1234563입니다"},
+                       ensure_ascii=True).encode()
+    v = await det.inspect(Inspection(request_id="r1", method="POST", path="/chat",
+                                     headers={}, body=body, session="s1"))
+    assert v.action is Action.TRANSFORM, "이스케이프된 본문에서 마스킹이 안 돌았다 (L-005)"
+    out = _json.loads(v.body)["message"]
+    assert "900101-1234563" not in out and "[PII:rrn:" in out
+    restored = await det.on_response("s1", out)
+    assert restored is not None and "900101-1234563" in restored[0]

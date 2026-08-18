@@ -139,6 +139,33 @@ def find_all(text: str) -> list[Finding]:
     return sorted(taken, key=lambda f: f.start)
 
 
+def normalized_text(body: bytes) -> str:
+    r"""정규식을 돌릴 본문 텍스트. **원문 바이트를 그대로 쓰지 않는다** (L-005 / D-055).
+
+    JSON은 한글을 두 가지로 담는다.
+        ensure_ascii=False → {"message": "번호900101-1234563"}
+        ensure_ascii=True  → {"message": "\ubc88\ud638900101-1234563"}
+
+    두 번째에서 주민번호 앞 문자가 한글 `호`가 아니라 이스케이프의 `8`이 되고,
+    숫자 패턴의 경계 조건 `(?<![0-9A-Za-z-])`에 걸려 **조용히 미탐**이 난다.
+    로그에는 `allow`만 남아서 정상처럼 보인다 — 이 프로젝트가 가장 경계하는 실패다.
+
+    `json.loads`가 `\uXXXX`를 실제 문자로 되돌려주므로, 파싱한 뒤 `ensure_ascii=False`로
+    다시 직렬화해 넘긴다. 5-A의 `injection.py`가 `user_text()`로 한 것과 같은 처방이다.
+
+    **입력 필드만 꺼내지 않고 본문 전체를 재직렬화하는 이유**: 마스킹은 본문을 통째로
+    치환해 돌려줘야 하는데, 필드만 꺼내면 나머지를 다시 조립해야 하고 그 조립 과정이
+    새 버그 자리가 된다. 재직렬화는 의미를 보존하면서 이스케이프만 푼다.
+
+    파싱에 실패하면 예전처럼 통째로 디코딩한다. 놓치는 것보다는 낫다.
+    """
+    try:
+        obj = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        return body.decode("utf-8", errors="ignore")
+    return json.dumps(obj, ensure_ascii=False)
+
+
 def session_of(body: bytes, fallback: str) -> str:
     """마스킹 매핑을 묶을 키. AnythingLLM의 sessionId를 쓴다(D-013).
 
@@ -170,7 +197,7 @@ class PIIDetector(Detector):
         self.vault = vault or TokenVault()
 
     async def inspect(self, insp: Inspection) -> Verdict:
-        text = insp.body.decode("utf-8", errors="ignore")
+        text = normalized_text(insp.body)   # L-005: \uXXXX를 먼저 되돌린다
         found = [f for f in find_all(text) if f.kind in self.kinds]
         if not found:
             return Verdict.allow(self.name)

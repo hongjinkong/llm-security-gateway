@@ -346,6 +346,9 @@ GATEWAY_DETECTORS=pii_mask TARGET_URL=http://localhost:8000 uvicorn gateway.main
 | (빈 값) | 검사기 없음 — 순수 프록시 |
 | `pii` | 탐지만 하고 원문 그대로 전달 |
 | `pii_mask` | 마스킹 후 전달, 응답에서 복원 |
+| `injection_rule` | 5단계 1차 룰 기반 인젝션 차단 |
+| `injection_similarity_observe` | 5단계 2차 유사도 — **관측 전용, 절대 차단하지 않음** |
+| `injection_similarity` | 차단형. T가 동결되지 않아 **쓰지 않는다**(D-052) |
 
 실행 중인 코드의 지문과 활성 검사기 확인:
 

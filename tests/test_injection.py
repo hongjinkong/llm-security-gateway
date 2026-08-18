@@ -17,6 +17,7 @@ from gateway.detectors.injection import (
     EXCLUDED_OBJECTS,
     INSTRUCTION_OBJECTS,
     InjectionRuleDetector,
+    OVERRIDE_VERBS,
     match_rules,
     sentences,
     user_text,
@@ -301,3 +302,58 @@ def test_corpus_has_no_duplicate_texts():
     texts = [r["text"].strip() for r in corpus_rows()]
     dups = sorted({t for t in texts if texts.count(t) > 1})
     assert dups == [], f"중복 문장 {len(dups)}건"
+
+
+# --- 한국어에는 단어 경계가 없다 (D-053) --------------------------------------
+#
+# 2026-08-18에 발견했다. 3차 Judge 게이팅으로 "1차 룰 부분 매치"를 실험하다가,
+# 정상 문항 G-101·G-202·P-108이 무효화 동사 '무시'로 걸렸다. 원문에 그 단어가 없다.
+#
+#     근-무시-간        "표준 근무시간은 몇 시부터…"
+#        ^^^^
+#
+# 1차 룰은 이 충돌을 한 번도 드러내지 않았다. R1이 [동사 AND 목적어]를 같은 문장에서
+# 요구하는데 근무시간 질문에는 목적어가 없어서 **AND가 오탐을 가려주고 있었다.**
+# 즉 지금 안전한 이유는 어휘가 깨끗해서가 아니라 결합 조건이 막아주기 때문이다.
+#
+# 지뢰: 누군가 INSTRUCTION_OBJECTS에 HR 업무 단어를 하나 추가하면 근무시간 질문이
+# 즉시 오탐이 된다. 그 순간 이 테스트가 터지도록 두 층을 함께 고정한다.
+
+WORD_BOUNDARY_TRAPS = [
+    ("근무시간", "무시"),   # 근-무시-간
+    ("잊었는데", "잊"),     # 비밀번호를 잊었는데 (정당한 문의)
+]
+
+
+@pytest.mark.parametrize("word,substring", WORD_BOUNDARY_TRAPS)
+def test_override_verbs_do_match_inside_ordinary_words(word, substring):
+    """먼저 **충돌이 실재함**을 고정한다. 이게 깨지면 아래 테스트의 의미가 사라진다.
+
+    양성대조와 같은 이유다 — "안 걸린다"만 검사하면 정규식이 아무것도 안 잡아도 통과한다.
+    """
+    m = OVERRIDE_VERBS.search(word)
+    assert m is not None, f"'{word}' 안의 '{substring}' 충돌이 사라졌다 — 아래 테스트 재검토"
+    assert m.group(0) == substring
+
+
+@pytest.mark.parametrize("q", [
+    "표준 근무시간은 몇 시부터 몇 시까지인가요?",
+    "유연근무제 코어타임이 언제인가요?",
+    "계정 비밀번호를 잊었는데 IT지원팀 내선번호가 몇 번인가요?",
+])
+def test_word_boundary_collisions_do_not_fire_the_rule(q):
+    """그럼에도 1차 룰은 발동하지 않는다 — 목적어가 없기 때문이다(결합 조건).
+
+    4단계 FPR 0.0%가 여기에 걸려 있다.
+    """
+    assert match_rules(q) == [], f"오탐: {q}"
+
+
+def test_instruction_objects_never_match_hr_domain_words():
+    """지뢰 방지. INSTRUCTION_OBJECTS에 업무 단어가 들어오면 위 문항들이 즉시 오탐이 된다.
+
+    EXCLUDED_OBJECTS(D-040)의 정신을 근무시간 축으로 넓힌 것이다.
+    """
+    hr_words = ("근무시간", "근무", "시간", "휴가", "연차", "급여", "비밀번호", "계정")
+    fired = {w: m.group(0) for w in hr_words if (m := INSTRUCTION_OBJECTS.search(w))}
+    assert fired == {}, f"업무 단어가 시스템 지시 목적어로 매치된다: {fired}"

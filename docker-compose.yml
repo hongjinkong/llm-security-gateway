@@ -24,10 +24,19 @@ services:
       - TARGET_URL=http://target-app:3001
       # EVAL 5.2 증분 측정의 손잡이. 이 값만 바꿔가며 같은 측정을 반복한다.
       #   (빈 값) → 검사기 없음   pii → 탐지만   pii_mask → 마스킹+복원
+      #   injection_rule → 5단계 1차 룰
+      #   injection_similarity_observe → 5단계 2차, 관측 전용(절대 차단 안 함, D-052)
+      # 차단형 injection_similarity는 T가 동결되지 않아 쓰지 않는다(D-048/D-052).
       - GATEWAY_DETECTORS=${GATEWAY_DETECTORS:-}
       - GATEWAY_LOG_PATH=/logs/gateway.jsonl
+      # 2차 유사도(observe)는 호스트의 Ollama로 임베딩을 왕복한다. 이 값이 없으면
+      # 컨테이너 안에서 localhost:11434 = 컨테이너 자신이라 prepare()가 실패하고
+      # 게이트웨이가 아예 뜨지 않는다. 조용히 통과하지 않는 쪽이 안전하다(D-043).
+      - GATEWAY_OLLAMA_URL=${GATEWAY_OLLAMA_URL:-http://host.docker.internal:11434}
     volumes:
       - ./logs:/logs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - target-app
     healthcheck:

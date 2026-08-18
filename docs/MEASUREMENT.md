@@ -71,6 +71,11 @@ bash scripts/run_garak.sh gateway <프로브> <횟수> gw_piimask_<프로브>
 # (d) 룰 기반 인젝션 탐지 추가 — 5단계. 순서는 D-037(인젝션 탐지가 마스킹보다 앞).
 GATEWAY_DETECTORS=injection_rule,pii_mask docker compose up -d gateway
 bash scripts/run_garak.sh gateway <프로브> <횟수> gw_rule_<프로브>
+
+# (e) 2차 유사도 — 관측 전용으로 동행. 차단이 0이므로 ASR·FPR 기여도 0이다.
+#     본표에 새 행을 만들지 않는다. 점수 분포만 부록으로 싣는다(D-052/D-053).
+GATEWAY_DETECTORS=injection_rule,injection_similarity_observe,pii_mask docker compose up -d gateway
+bash scripts/run_garak.sh gateway <프로브> <횟수> gw_ruleobs_<프로브>
 ```
 
 각 구성 전에 반드시:
@@ -78,6 +83,21 @@ bash scripts/run_garak.sh gateway <프로브> <횟수> gw_rule_<프로브>
 ```bash
 bash scripts/verify_gateway.sh injection_rule,pii_mask
 ```
+
+```bash
+bash scripts/verify_gateway.sh injection_rule,injection_similarity_observe,pii_mask
+```
+
+### (e)에 관하여 — `injection_similarity`는 쓰지 않는다
+
+차단형 `injection_similarity`는 `GATEWAY_SIMILARITY_T`가 없으면 **기동 실패**한다(D-048).
+T는 캘리브레이션 2회로도 갭이 열리지 않아 동결되지 못했다(D-052). 그래서 배선에 올라가는
+이름은 `injection_similarity_observe` 하나뿐이며, `verify_gateway.sh`의 `활성 검사기` 줄이
+그 사실을 매 측정마다 기록한다 — "관찰 모드였는지"를 사람이 기억할 필요가 없다.
+
+`observe`는 코퍼스 59항목을 기동 시 임베딩하므로 **Ollama가 살아 있어야 뜬다.**
+compose는 `GATEWAY_OLLAMA_URL`을 `host.docker.internal:11434`로 넘긴다. Ollama가 죽어
+있으면 게이트웨이가 아예 뜨지 않는다 — 방어가 꺼진 채로 측정이 도는 것보다 낫다.
 
 (a)가 중요하다. 게이트웨이를 끼우기만 해도 ASR이 변하는지 먼저 확인해야,
 이후 변화를 방어 로직 탓으로 돌릴 수 있다. 단위테스트에서는 응답이 동일함을

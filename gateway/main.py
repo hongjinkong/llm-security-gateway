@@ -7,8 +7,10 @@
 4-D: PII 탐지기(탐지만). GATEWAY_DETECTORS=pii
 4-E: PII 마스킹 + 토큰 볼트.   GATEWAY_DETECTORS=pii_mask
 5-A: 룰 기반 인젝션 탐지.     GATEWAY_DETECTORS=injection_rule,pii_mask (순서는 D-037)
-5-B: 코퍼스 유사도 인젝션 탐지. GATEWAY_DETECTORS=injection_rule,injection_similarity,pii_mask
-     T가 없으면 기동하지 않는다. 캘리브레이션은 injection_similarity_observe로 (D-048).
+5-B: 코퍼스 유사도 인젝션 탐지 — **관측 전용으로만 붙인다.**
+     GATEWAY_DETECTORS=injection_rule,injection_similarity_observe,pii_mask
+     차단형 injection_similarity는 캘리브레이션 2회로도 갭이 열리지 않아 T가 동결되지
+     못했다(D-052). T 없이는 기동 실패한다(D-048). 앞으로 배선은 observe 쪽이다.
 4-F: 응답에 남은 마스킹 토큰을 원본으로 복원.
 """
 from __future__ import annotations

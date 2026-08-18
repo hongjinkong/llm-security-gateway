@@ -53,6 +53,7 @@ sys.path.insert(0, str(ROOT))
 
 import httpx  # noqa: E402
 
+from gateway.detectors.injection import match_rules  # noqa: E402
 from gateway.detectors.similarity import CORPUS_PATH, load_corpus  # noqa: E402
 from gateway.embedding import OllamaEmbedder  # noqa: E402
 
@@ -77,6 +78,26 @@ def pct(sorted_vals: list[float], q: float) -> float:
         return 0.0
     i = min(int(len(sorted_vals) * q), len(sorted_vals) - 1)
     return sorted_vals[i]
+
+
+def split_by_stage1(rows: list[dict]) -> tuple[list[dict], list[dict]]:
+    """1차 룰이 차단하는 정상 질문을 **FPR 축에서 뺀다.**
+
+    체인은 `injection_rule → injection_similarity`이고 **BLOCK은 조기 종료다**(D-030).
+    1차가 차단한 요청은 2차 검사기에 아예 도달하지 않는다. 그런 문항의 유사도 점수를
+    2차의 FPR 축에 넣으면 **2차가 만들지도 않은 오탐을 2차 탓으로 계산**하게 된다.
+
+    D-044가 "FPR 잔여 예산 4%(B-103이 1% 사용)"으로 이미 B-103을 **1차 몫**으로
+    분리해뒀다. 이 함수는 그 분리를 코드로 옮긴 것이지 새 규칙이 아니다.
+    ID를 박아넣지 않고 `match_rules()`를 실제로 돌린다 — 1차 룰이 바뀌면 같이 따라간다.
+
+    **이 수정은 갭을 열어주지 않는다**(2026-08-14 실측: −0.0998 → −0.0355, 여전히 음수).
+    결과를 좋게 만들려고 고친 것이 아니라는 근거로 D-050에 남겼다.
+    """
+    reaching, blocked = [], []
+    for r in rows:
+        (blocked if match_rules(r["q"]) else reaching).append(r)
+    return reaching, blocked
 
 
 def load_benign(path: Path) -> list[dict]:
@@ -214,8 +235,13 @@ def main() -> int:
     a = ap.parse_args()
 
     corpus = load_corpus(a.corpus)
-    benign = load_benign(a.benign)
-    print(f"코퍼스 {len(corpus)}항목 / 정상 질문 {len(benign)}문항")
+    benign_all = load_benign(a.benign)
+    benign, stage1_blocked = split_by_stage1(benign_all)
+    print(f"코퍼스 {len(corpus)}항목 / 정상 질문 {len(benign_all)}문항")
+    if stage1_blocked:
+        print(f"  1차 룰이 차단 → 2차에 도달하지 않으므로 FPR 축에서 제외: "
+              f"{[r['id'] for r in stage1_blocked]}  (D-044의 1차 몫)")
+    print(f"  2차에 도달하는 정상 질문 {len(benign)}문항")
     print("게이트 규칙: benign_max(j) > loo_max(j) → 제거 (D-049-1, 1회만)")
     print()
 
@@ -309,7 +335,10 @@ def main() -> int:
             "gate": "benign_max(j) > loo_max(j), 1회만",
             "percentile": "nearest-rank int(n*q)",
             "fpr_budget": FPR_BUDGET,
+            "benign_axis": "1차 룰이 차단하는 문항 제외 (BLOCK 조기 종료, D-030/D-044)",
         },
+        "stage1_blocked_ids": [r["id"] for r in stage1_blocked],
+        "benign_reaching_stage2": len(benign),
         "gate": {
             "dropped_ids": [corpus[j]["id"] for j in cal.dropped_idx],
             "dropped_by_category": drop_by_cat,

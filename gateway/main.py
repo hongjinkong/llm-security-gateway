@@ -7,6 +7,9 @@
 4-D: PII 탐지기(탐지만). GATEWAY_DETECTORS=pii
 4-E: PII 마스킹 + 토큰 볼트.   GATEWAY_DETECTORS=pii_mask
 5-A: 룰 기반 인젝션 탐지.     GATEWAY_DETECTORS=injection_rule,pii_mask (순서는 D-037)
+5-C: LLM Judge 인젝션 탐지. 2차 점수로 게이팅한다(G=min(LOO), D-053).
+     GATEWAY_DETECTORS=injection_rule,injection_similarity_observe,injection_judge,pii_mask
+     observe가 앞에 없으면 기동 실패한다 — 게이팅 점수의 출처이기 때문이다.
 5-B: 코퍼스 유사도 인젝션 탐지 — **관측 전용으로만 붙인다.**
      GATEWAY_DETECTORS=injection_rule,injection_similarity_observe,pii_mask
      차단형 injection_similarity는 캘리브레이션 2회로도 갭이 열리지 않아 T가 동결되지
@@ -30,6 +33,11 @@ from gateway.audit import AuditLog, digest, utcnow
 from gateway.chain import ChainResult, DetectorChain
 from gateway.detectors.base import Detector, Inspection
 from gateway.detectors.injection import InjectionRuleDetector
+from gateway.detectors.judge import (
+    InjectionJudgeDetector,
+    OllamaJudge,
+    validate_chain_order,
+)
 from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import PIIDetector, session_of
 from gateway.detectors.similarity import InjectionSimilarityDetector, threshold_from_env
@@ -62,6 +70,14 @@ OLLAMA_URL = os.environ.get("GATEWAY_OLLAMA_URL", "http://localhost:11434").rstr
 EMBED_MODEL = os.environ.get("GATEWAY_EMBED_MODEL", "bge-m3")
 EMBED_TIMEOUT = float(os.environ.get("GATEWAY_EMBED_TIMEOUT", "30"))
 
+# 5단계 3차 LLM Judge (D-053). 임베딩과 같은 Ollama를 쓰되 모델과 타임아웃이 다르다.
+# 8GB에 gemma3:4b + bge-m3가 이미 상주 중이라 세 번째 모델은 못 올린다 — 그래서
+# Judge도 타겟과 같은 gemma3:4b다. 상관된 실패 위험은 양성대조 B가 측정한다.
+JUDGE_MODEL = os.environ.get("GATEWAY_JUDGE_MODEL", "gemma3:4b")
+# 임베딩(30s)보다 길게 잡는다 — 생성은 임베딩보다 느리다. 그래도 타겟(600s)보다는
+# 훨씬 짧다. Judge가 매달리면 fail-closed로 차단되어 FPR에 잡히므로 빨리 끊는 편이 낫다.
+JUDGE_TIMEOUT = float(os.environ.get("GATEWAY_JUDGE_TIMEOUT", "60"))
+
 # 활성 검사기 목록. 쉼표 구분. 기본값은 빈 문자열 = 검사기 없음 = 4-A와 동일 동작.
 DETECTOR_NAMES = [x.strip() for x in os.environ.get("GATEWAY_DETECTORS", "").split(",") if x.strip()]
 
@@ -73,7 +89,18 @@ DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
     "injection_rule": lambda: InjectionRuleDetector(),
     "injection_similarity": lambda: _similarity(observe=False),
     "injection_similarity_observe": lambda: _similarity(observe=True),
+    "injection_judge": lambda: _judge(),
 }
+
+
+def _judge() -> Detector:
+    """3차 Judge 1개. 유사도 검사기와 같은 이유로 **Ollama용 클라이언트를 따로 만든다** —
+    app.state.client는 base_url이 타겟으로 묶여 있다. 만든 쪽이 닫는다."""
+    model = OllamaJudge(
+        httpx.AsyncClient(timeout=JUDGE_TIMEOUT),
+        model=JUDGE_MODEL, endpoint=OLLAMA_URL, owns_client=True,
+    )
+    return InjectionJudgeDetector(model)
 
 
 def _similarity(*, observe: bool) -> Detector:
@@ -93,6 +120,10 @@ def build_chain(names: list[str] | None = None) -> DetectorChain:
     unknown = [n for n in names if n not in DETECTOR_REGISTRY]
     if unknown:
         raise ValueError(f"알 수 없는 검사기: {unknown}. 등록된 것: {sorted(DETECTOR_REGISTRY)}")
+    # 3차 Judge는 앞 단계 유사도 점수로 게이팅한다. 순서가 틀리면 게이팅 정보가 비고,
+    # 조용히 전량 호출로 떨어지면 지연 예산이 터진 채로 측정이 돈다.
+    # lifespan에서 불리므로 여기서 던지면 **게이트웨이가 기동하지 못한다**(D-048 패턴).
+    validate_chain_order(names)
     return DetectorChain([DETECTOR_REGISTRY[n]() for n in names])
 
 # 홉 단위(hop-by-hop) 헤더 — "이 구간에서만 유효"한 라벨. 다음 구간으로 옮기면 안 된다.

@@ -6,6 +6,14 @@ services:
       - "8000:3001"
     environment:
       - STORAGE_DIR=/app/server/storage
+      - LLM_PROVIDER=ollama
+      - OLLAMA_BASE_PATH=http://host.docker.internal:11434
+      - OLLAMA_MODEL_PREF=gemma3:4b
+      - OLLAMA_MODEL_TOKEN_LIMIT=4096
+      - EMBEDDING_ENGINE=ollama
+      - EMBEDDING_BASE_PATH=http://host.docker.internal:11434
+      - EMBEDDING_MODEL_PREF=bge-m3:latest
+      - VECTOR_DB=lancedb
     volumes:
       - ./target/storage:/app/server/storage
     extra_hosts:

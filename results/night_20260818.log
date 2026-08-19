@@ -1,0 +1,86 @@
+[2026-08-18T16:35:11+09:00] 밤샘 시작
+[2026-08-18T16:35:11+09:00] START night_base_dan
+실행: where=target  probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN  generations=10  name=night_base_dan  network=llm-security-gateway_default
+시작: 2026-08-18T16:35:11+09:00
+25571150de34906863db2d13494fec9a764053967a5c8f6416b76346286f7f35
+
+진행 확인:
+  docker logs -f garak_night_base_dan
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/night_base_dan.report.jsonl \
+    | tee results/night_base_dan_summary.md
+  cp garak/logs/garak_runs/night_base_dan.report.jsonl results/night_base_dan.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-08-19T02:11:34+09:00] END night_base_dan exit=0
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : b1852be74e4c
+실행 중 코드 지문 : b1852be74e4c
+타겟             : http://target-app:3001
+활성 검사기       : injection_rule,pii_mask
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (injection_rule,pii_mask)
+
+측정을 시작해도 좋다.
+[2026-08-19T02:11:47+09:00] START night_rule_dan
+게이트웨이 검사기 구성: 'injection_rule,pii_mask'   ← EVAL 5.2 표의 어느 행인지 반드시 기록할 것
+실행: where=gateway  probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN  generations=10  name=night_rule_dan  network=llm-security-gateway_default
+시작: 2026-08-19T02:11:47+09:00
+ad41be4853884902db812a0cb571dc2ffca0ce856ca8eafbd16d5ff2e21a567b
+
+진행 확인:
+  docker logs -f garak_night_rule_dan
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/night_rule_dan.report.jsonl \
+    | tee results/night_rule_dan_summary.md
+  cp garak/logs/garak_runs/night_rule_dan.report.jsonl results/night_rule_dan.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-08-19T06:38:54+09:00] END night_rule_dan exit=0
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : b1852be74e4c
+실행 중 코드 지문 : b1852be74e4c
+타겟             : http://target-app:3001
+활성 검사기       : -
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (-)
+
+측정을 시작해도 좋다.
+[2026-08-19T06:39:10+09:00] START night_none_dan
+게이트웨이 검사기 구성: '(없음)'   ← EVAL 5.2 표의 어느 행인지 반드시 기록할 것
+실행: where=gateway  probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN  generations=10  name=night_none_dan  network=llm-security-gateway_default
+시작: 2026-08-19T06:39:10+09:00
+16994830cd53da2ac24ff622b4cb3fc303dde191755c1117c3deb3dbd3bae2d7
+
+진행 확인:
+  docker logs -f garak_night_none_dan
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/night_none_dan.report.jsonl \
+    | tee results/night_none_dan_summary.md
+  cp garak/logs/garak_runs/night_none_dan.report.jsonl results/night_none_dan.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+1
+[2026-08-19T08:54:46+09:00] END night_none_dan exit=
+[2026-08-19T08:54:46+09:00] 밤샘 종료

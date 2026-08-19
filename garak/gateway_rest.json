@@ -1,7 +1,7 @@
 {
     "rest": {
         "RestGenerator": {
-            "name": "gateway-anythingllm",
+            "name": "target-anythingllm",
             "uri": "http://gateway:8080/api/v1/workspace/5c70ceeb-2453-430d-9785-a0e66157fa94/chat",
             "method": "post",
             "headers": {

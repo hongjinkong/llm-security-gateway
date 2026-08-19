@@ -39,13 +39,50 @@ docker build -t garak-runner garak/
 bash scripts/run_garak.sh <target|gateway> <프로브> <생성횟수> <이름>
 ```
 
-두 설정 파일은 **uri 한 줄만 다르다**. 나머지(요청 템플릿, 응답 필드, 타임아웃)는
+두 설정 파일은 **uri 한 줄만 다르다**. 나머지(이름, 요청 템플릿, 응답 필드, 타임아웃)는
 동일하게 유지한다. 하나라도 바뀌면 EVAL 5.1에 따라 전체 재측정이다.
 
 | | 설정 파일 | uri |
 |---|---|---|
 | 베이스라인 | `garak/anythingllm_rest.json` | `http://target-app:3001/...` |
 | 게이트웨이 경유 | `garak/gateway_rest.json` | `http://gateway:8080/...` |
+
+> **★ 2026-08-19 정정 (D-057 8절).** 위 문장은 2026-08-19까지 **사실이 아니었다.**
+> `RestGenerator`의 `name`도 달랐다 — `target-anythingllm` / `gateway-anythingllm`.
+> 그리고 **garak의 `dan` 프로브는 그 이름을 공격 프롬프트 본문에 삽입한다**
+> (DAN 프롬프트 하나당 22군데, `" to act as target-anythingllm"`).
+> 그래서 2026-08-18 런에서 **두 팔이 서로 다른 공격 프롬프트를 받았다.**
+> 효과 크기는 측정한 적이 없으므로 주장하지 않는다.
+>
+> 2026-08-19에 `gateway_rest.json`의 `name`을 `target-anythingllm`으로 통일해
+> **이제 실제로 `uri` 하나만 다르다.** 확인 명령:
+>
+> ```bash
+> python3 - <<'PY'
+> import json
+> a=json.load(open("garak/anythingllm_rest.json"))["rest"]["RestGenerator"]
+> b=json.load(open("garak/gateway_rest.json"))["rest"]["RestGenerator"]
+> print(sorted(k for k in set(a)|set(b) if a.get(k)!=b.get(k)))
+> PY
+> ```
+>
+> `['uri']`만 나와야 한다.
+>
+> **A/B의 A와 B가 같은 것을 받았는지는 문서의 주장이 아니라 산출물 대조로 확인한다.**
+
+### 프로브 표집을 고정한다 (`--seed`)
+
+`run.seed`가 `None`이면 `soft_probe_prompt_cap`(기본 256)에 걸리는 프로브가
+**런마다 다르게 표집된다.** 2026-08-18 런에서 `dan.DanInTheWild`가 두 팔에서
+255개 / 254개로 뽑혔고 **공통은 108개뿐이었다**(D-057 8절).
+
+구성 간 증분 비교를 할 때는 **반드시 같은 seed로 돌린다.**
+
+```bash
+bash scripts/run_garak.sh gateway promptinject 10 pi_rule 20260819
+```
+
+다섯 번째 인자가 `--seed`로 전달된다. 안 넘기면 스크립트가 경고를 찍는다.
 
 요청 템플릿에 `sessionId`를 넣지 않는다. 베이스라인이 그렇게 측정됐기 때문이다.
 게이트웨이는 `sessionId`가 없으면 요청 단위로 마스킹 매핑을 격리하므로,

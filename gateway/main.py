@@ -15,6 +15,11 @@
      차단형 injection_similarity는 캘리브레이션 2회로도 갭이 열리지 않아 T가 동결되지
      못했다(D-052). T 없이는 기동 실패한다(D-048). 앞으로 배선은 observe 쪽이다.
 4-F: 응답에 남은 마스킹 토큰을 원본으로 복원.
+6-A: 카나리 관측. **응답을 바꾸지 않는다**(D-058 / docs/CANARY_DESIGN.md).
+     GATEWAY_DETECTORS=injection_rule,pii_mask,canary_observe
+     목록 맨 뒤 = 응답 경로 맨 앞 = 타겟 원본을 본다. 맨 뒤가 아니면 기동 실패한다.
+     값 3개(GATEWAY_CANARY_A/_B/_DOC)가 없어도 기동 실패한다 — 값 없이 관측하면
+     검출률이 조용히 0이 되고 그 0이 D-059의 입력이 된다.
 """
 from __future__ import annotations
 
@@ -32,6 +37,7 @@ from fastapi.responses import JSONResponse
 from gateway.audit import AuditLog, digest, utcnow
 from gateway.chain import ChainResult, DetectorChain
 from gateway.detectors.base import Detector, Inspection
+from gateway.detectors.canary import CanaryObserveDetector, validate_canary_position
 from gateway.detectors.injection import InjectionRuleDetector
 from gateway.detectors.judge import (
     InjectionJudgeDetector,
@@ -42,7 +48,7 @@ from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import PIIDetector, session_of
 from gateway.detectors.similarity import InjectionSimilarityDetector, threshold_from_env
 from gateway.embedding import OllamaEmbedder
-from gateway.version import code_fingerprint
+from gateway.version import canary_fingerprint, code_fingerprint
 
 load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 않는다
 
@@ -78,6 +84,16 @@ JUDGE_MODEL = os.environ.get("GATEWAY_JUDGE_MODEL", "gemma3:4b")
 # 훨씬 짧다. Judge가 매달리면 fail-closed로 차단되어 FPR에 잡히므로 빨리 끊는 편이 낫다.
 JUDGE_TIMEOUT = float(os.environ.get("GATEWAY_JUDGE_TIMEOUT", "60"))
 
+# 6단계 카나리 관측(D-058 / CANARY_DESIGN 3-2). 값의 단일 출처는 .env이고 compose가
+# 세 줄로 넘긴다(R1). **값을 읽는 곳은 여기 하나뿐이고 검사기는 환경변수를 모른다** —
+# 출처가 한 군데여야 health의 지문과 대조가 성립한다(R5).
+#
+# 기본값을 두지 않는다. 값이 없으면 빈 문자열이 되고 prepare()가 기동을 실패시킨다(R3).
+# "적당한 기본값"을 주면 검출률이 조용히 0인 채로 측정이 돌고, 그 0이 D-059의 입력이 된다.
+CANARY_A = os.environ.get("GATEWAY_CANARY_A", "")
+CANARY_B = os.environ.get("GATEWAY_CANARY_B", "")
+CANARY_DOC = os.environ.get("GATEWAY_CANARY_DOC", "")
+
 # 활성 검사기 목록. 쉼표 구분. 기본값은 빈 문자열 = 검사기 없음 = 4-A와 동일 동작.
 DETECTOR_NAMES = [x.strip() for x in os.environ.get("GATEWAY_DETECTORS", "").split(",") if x.strip()]
 
@@ -90,6 +106,7 @@ DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
     "injection_similarity": lambda: _similarity(observe=False),
     "injection_similarity_observe": lambda: _similarity(observe=True),
     "injection_judge": lambda: _judge(),
+    "canary_observe": lambda: CanaryObserveDetector(CANARY_A, CANARY_B, CANARY_DOC),
 }
 
 
@@ -140,6 +157,8 @@ def build_chain(names: list[str] | None = None) -> DetectorChain:
     # 조용히 전량 호출로 떨어지면 지연 예산이 터진 채로 측정이 돈다.
     # lifespan에서 불리므로 여기서 던지면 **게이트웨이가 기동하지 못한다**(D-048 패턴).
     validate_chain_order(names)
+    # 카나리 관측은 목록 맨 뒤 = 응답 경로 맨 앞이어야 타겟 원본을 본다(D-058 / 설계 4-1).
+    validate_canary_position(names)
     return DetectorChain([DETECTOR_REGISTRY[n]() for n in names])
 
 # 홉 단위(hop-by-hop) 헤더 — "이 구간에서만 유효"한 라벨. 다음 구간으로 옮기면 안 된다.
@@ -249,12 +268,22 @@ async def health(request: Request) -> dict:
 
     code와 detectors를 함께 보고한다. 측정 전에 이 둘만 확인하면
     "옛 이미지로 돌고 있음"과 "검사기 설정이 틀림"을 모두 걸러낼 수 있다.
+
+    `canary_fp`는 게이트웨이가 **읽은 값의 지문**이다. 값이 아니다(R4).
+    `.env`의 지문 · 마지막 `setup_target.py`의 지문과 셋이 같아야 관측이
+    성립한다 — `scripts/verify_gateway.sh`가 대조한다(R5 / 설계 3-2).
+    값이 비어 있으면 null이다.
     """
     return {
         "status": "ok",
         "target": TARGET_URL,
         "code": code_fingerprint(),
         "detectors": list(request.app.state.chain.names),
+        "canary_fp": {
+            "canary_a": canary_fingerprint(CANARY_A) if CANARY_A else None,
+            "canary_b": canary_fingerprint(CANARY_B) if CANARY_B else None,
+            "canary_doc": canary_fingerprint(CANARY_DOC) if CANARY_DOC else None,
+        },
     }
 
 

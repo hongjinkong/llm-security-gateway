@@ -34,6 +34,9 @@ services:
       #   (빈 값) → 검사기 없음   pii → 탐지만   pii_mask → 마스킹+복원
       #   injection_rule → 5단계 1차 룰
       #   injection_similarity_observe → 5단계 2차, 관측 전용(절대 차단 안 함, D-052)
+      #   canary_observe → 6단계 카나리 관측. 응답을 바꾸지 않는다(D-058)
+      #                    **반드시 목록 맨 뒤**여야 한다(응답 경로 맨 앞 = 타겟 원본).
+      #                    아니면 게이트웨이가 기동하지 않는다.
       # 차단형 injection_similarity는 T가 동결되지 않아 쓰지 않는다(D-048/D-052).
       - GATEWAY_DETECTORS=${GATEWAY_DETECTORS:-}
       - GATEWAY_LOG_PATH=/logs/gateway.jsonl
@@ -41,6 +44,19 @@ services:
       # 컨테이너 안에서 localhost:11434 = 컨테이너 자신이라 prepare()가 실패하고
       # 게이트웨이가 아예 뜨지 않는다. 조용히 통과하지 않는 쪽이 안전하다(D-043).
       - GATEWAY_OLLAMA_URL=${GATEWAY_OLLAMA_URL:-http://host.docker.internal:11434}
+      # 6단계 카나리 관측(D-058 / CANARY_DESIGN 3-2). 값의 단일 출처는 .env다 —
+      # eval/setup_target.py가 타겟에 심을 때 읽는 그 파일, 그 키다(R1).
+      #
+      # `:?` 는 값이 비면 **컨테이너를 띄우기 전에** compose가 죽는다. 이 저장소에서
+      # 처음 쓰는 형태이고, 그래서 `.env`가 없으면 up뿐 아니라 ps/logs/down까지
+      # 전부 실패한다(compose는 파일을 읽는 순간 보간한다). 알고 택한 것이다 —
+      # 값 없이 관측이 돌면 검출률이 조용히 0이 되고 그 0이 D-059의 입력이 된다.
+      #
+      # 게이트웨이 안에서 한 번 더 막힌다(canary.py prepare()가 RuntimeError).
+      # 두 겹인 이유는 맥북에서 uvicorn을 직접 띄우는 경로에는 compose가 없기 때문이다.
+      - GATEWAY_CANARY_A=${CANARY_A_TOKEN:?}
+      - GATEWAY_CANARY_B=${CANARY_B_TOKEN:?}
+      - GATEWAY_CANARY_DOC=${DOC_CANARY_TOKEN:?}
     volumes:
       - ./logs:/logs
     extra_hosts:

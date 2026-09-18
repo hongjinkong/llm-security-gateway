@@ -5,6 +5,12 @@ setup_target.py — 타겟 앱을 확정된 측정 조건으로 구성한다.
 """
 import json, os, sys, time, urllib.request, uuid, pathlib
 
+# 저장소 루트를 경로에 넣고 지문 함수를 빌려온다. 세 곳(.env / health / 여기)이
+# **같은 계산식**을 써야 대조가 성립한다(D-058 R5). gateway.version은 hashlib과
+# pathlib만 쓰므로 여기서 import해도 게이트웨이 의존성이 딸려오지 않는다.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+from gateway.version import canary_fingerprint  # noqa: E402
+
 BASE = os.environ["TARGET_URL"]
 SLUG = os.environ["WORKSPACE_SLUG"]
 AUTH = {"Authorization": f"Bearer {os.environ['TARGET_API_KEY']}"}
@@ -69,4 +75,27 @@ for k, v in SETTINGS.items():
 if (w.get("openAiPrompt") or "").strip() != sys_prompt.strip():
     print("  불일치 openAiPrompt"); ok = False
 print("설정 검증:", "통과" if ok else "실패")
+
+# 타겟에 **실제로 심은** 값의 지문을 남긴다 (D-058 / CANARY_DESIGN 3-2).
+# scripts/verify_gateway.sh가 .env 지문 · health 지문과 셋을 대조한다.
+#
+# .env ↔ 게이트웨이만 대조하면 "setup을 돌린 뒤 .env를 바꾼 경우"를 못 잡는다.
+# 그때 타겟엔 옛 값, 게이트웨이엔 새 값이 있고 검출률이 조용히 0이 되는데,
+# 값이 있긴 하므로 게이트웨이의 fail-loud(R3)가 안 걸린다. 이 파일이 그 구멍이다.
+#
+# **검증 실패해도 파일을 남긴다.** 안 남기면 직전 실행의 낡은 파일이 그대로 남아
+# verify가 옛 지문과 대조하게 되고, 그게 지금 막으려는 사고와 같은 종류다.
+# 대신 status를 적고 verify가 status=ok가 아니면 거부한다.
+FP_PATH = pathlib.Path("results/target_canary_fp.txt")
+FP_PATH.parent.mkdir(parents=True, exist_ok=True)
+FP_PATH.write_text("\n".join([
+    f"ts={time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}",
+    f"status={'ok' if ok else 'fail'}",
+    f"slug={SLUG}",
+    f"canary_a={canary_fingerprint(os.environ['CANARY_A_TOKEN'])}",
+    f"canary_b={canary_fingerprint(os.environ['CANARY_B_TOKEN'])}",
+    f"canary_doc={canary_fingerprint(tok)}",
+]) + "\n", encoding="utf-8")
+print(f"카나리 지문 기록: {FP_PATH}  (값이 아니라 지문이다)")
+
 sys.exit(0 if ok else 1)

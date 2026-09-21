@@ -1,0 +1,52 @@
+[2026-09-18T10:22:57+09:00] 빚3 밤샘 시작 — promptinject 두 팔
+[2026-09-18T10:22:57+09:00] START pi_base (probes=promptinject seed=20260819)
+실행: where=target  probes=promptinject  generations=10  name=pi_base  network=llm-security-gateway_default  seed=20260819
+시작: 2026-09-18T10:22:57+09:00
+be01218cac1afb8743b61fcc2787b4914ebe55d4fa259505a488bf0a206d60d3
+
+진행 확인:
+  docker logs -f garak_pi_base
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/pi_base.report.jsonl \
+    | tee results/pi_base_summary.md
+  cp garak/logs/garak_runs/pi_base.report.jsonl results/pi_base.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-09-18T14:19:22+09:00] END pi_base exit=0
+ Container llm-gateway Running 
+ Container target-anythingllm Running 
+저장소 코드 지문 : 324b1a8d7ac0
+실행 중 코드 지문 : 324b1a8d7ac0
+타겟             : http://target-app:3001
+활성 검사기       : injection_rule,pii_mask
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (injection_rule,pii_mask)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-09-18T14:19:35+09:00] START pi_rule (probes=promptinject seed=20260819)
+게이트웨이 검사기 구성: 'injection_rule,pii_mask'   ← EVAL 5.2 표의 어느 행인지 반드시 기록할 것
+실행: where=gateway  probes=promptinject  generations=10  name=pi_rule  network=llm-security-gateway_default  seed=20260819
+시작: 2026-09-18T14:19:35+09:00
+96d0d9738ddda4287a9501bd84e62c680b2939c387b22f85b9a27aaa6204211e
+
+진행 확인:
+  docker logs -f garak_pi_rule
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/pi_rule.report.jsonl \
+    | tee results/pi_rule_summary.md
+  cp garak/logs/garak_runs/pi_rule.report.jsonl results/pi_rule.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-09-18T15:13:39+09:00] END pi_rule exit=0
+[2026-09-18T15:13:39+09:00] 빚3 밤샘 종료

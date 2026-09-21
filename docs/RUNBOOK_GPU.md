@@ -178,8 +178,13 @@ docker exec llm-gateway sh -c 'mv /logs/gateway.jsonl /logs/audit_on.jsonl'
 ### 2-3. 집계 — 두 파일을 **서로 다르게** 넘긴다
 
 ```
-python3 scripts/fpr_report.py --off results/fpr_off.jsonl --on results/fpr_on.jsonl --audit-off logs/audit_off.jsonl --audit-on logs/audit_on.jsonl
+python3 scripts/fpr_report.py --off results/fpr_off.jsonl --on results/fpr_on.jsonl --audit-off logs/audit_off.jsonl --audit-on logs/audit_on.jsonl | tee results/fpr_pii_20260921.md
 ```
+
+**`tee`를 빼지 않는다** (2026-09-21 추가). 이 출력이 `+PII` 행의 FPR·지연 값이고,
+그 자체로 산출물이다. 2026-09-21에 `tee` 없이 돌려 **집계 결과가 터미널에만 남았다.**
+원본 `fpr_off.jsonl`·`fpr_on.jsonl`과 `logs/audit_*.jsonl`이 남아 있어 재생성은
+되지만, 재생성할 수 있다는 것과 기록이 남았다는 것은 다르다(EVAL 5.3).
 
 **확인할 것은 두 가지이고, 성격이 다르다.**
 

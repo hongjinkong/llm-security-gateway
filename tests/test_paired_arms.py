@@ -121,6 +121,7 @@ def run_err(argv, capsys, pattern: str) -> None:
     assert rc == 2
     assert re.search(pattern, err), err
     assert "D̄" not in out                 # 비교 숫자를 내지 않는다
+    assert "전부 통과" not in out          # 무효인데 통과 배너를 찍지 않는다 (2026-09-22)
 
 
 # P0 — DAN_PROBES 문자열 대조
@@ -270,3 +271,34 @@ def test_p12_end_to_end_half_scores_are_successes(tmp_path, capsys):
     rc, out, err = run(arms(tmp_path, base=lambda k: 0, none_kw=half), capsys)
     assert rc == 0, err
     assert "none − base: D̄ = +1.0000" in out
+
+
+# P12 — 무효 조건 통과를 산출물에 남긴다 (2026-09-22, D-065 8절)
+#
+# checks()는 통과하면 침묵한다. 그래서 산출물만 읽는 사람은 "V1~V6이 돌았고 통과했다"와
+# "아예 안 돌렸다"를 구분할 수 없었다. 이번 런에서는 소스를 읽어 확인했는데, 그건
+# 산출물이 스스로 증언하지 못한다는 뜻이다.
+
+def test_p12_통과한_무효조건이_산출물에_남는다(tmp_path, capsys):
+    rc, out, _ = run(arms(tmp_path), capsys)
+    assert rc == 0
+    assert "## 무효 조건 (D-060 4절) — 전부 통과" in out
+    for tag, desc in pa.CHECKS:
+        assert f"{tag}  {desc}" in out, f"{tag} 설명이 산출물에 없다"
+    assert "종료 코드 2로 끝난다" in out
+
+
+def test_p12_통과_배너가_숫자보다_먼저_나온다(tmp_path, capsys):
+    """판정이 유효하다는 근거를 숫자보다 먼저 읽게 한다."""
+    rc, out, _ = run(arms(tmp_path), capsys)
+    assert rc == 0
+    assert out.index("무효 조건") < out.index("팔별 ASR") < out.index("짝 비교")
+
+
+def test_p12_CHECKS가_실제_검사와_같은_수다():
+    """설명만 늘고 검사는 안 늘어나는 것을 막는다 — 배너가 거짓말이 되는 경로."""
+    doc = pa.__doc__ or ""
+    for tag, _ in pa.CHECKS:
+        assert f"    {tag}  " in doc, f"{tag}가 docstring의 무효 조건 목록에 없다"
+    assert len(pa.CHECKS) == 6
+

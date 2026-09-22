@@ -207,3 +207,55 @@ def test_CLI_부재기반_산출물은_규약_발동으로_나온다(tmp_path):
     assert "규약 발동        발동 —" in txt
     assert "부재 기반 판정기의 예상 거동" in txt
     assert "미발동" not in txt
+
+
+# ------------------------------- 자기정합성 검사의 B=0 퇴화 (2026-09-22, D-065 8절)
+#
+# D-060 세 팔 런(차단형 검사기 없음, 세 팔 모두 차단 0건)에서 이 절이
+# "예측보다 낮다 — 룰이 성공률 높은 프롬프트를 골라 막았다"를 찍었다.
+# 그 런에는 룰이 없고 차단도 0건이다. 차단율 0이면 ASR_pass = ASR이라
+# 이 검사는 짝짓지 않은 팔 간 비교로 퇴화하는데, 판정 문구 세 갈래가 전부
+# "룰이 … 막았다"로 하드코딩돼 있었고 --label의 마지막 팔을 룰로 집었다.
+# D-061-0에서 고친 "B=0 팔의 엉뚱한 문구"가 다른 절에서 재발한 것이다.
+
+def _pair(tmp_path, base_arms, rule_arms, label="+PII", detector=ABSENCE, probe="dan.A"):
+    b = write_report(tmp_path / "b.jsonl", detector, base_arms, probe=probe)
+    r = write_report(tmp_path / "r.jsonl", detector, rule_arms, probe=probe)
+    out = _run(["--report", str(b), "--label", "베이스라인",
+                "--report", str(r), "--label", label,
+                "--detector", detector, "--detector-kind", "absence"])
+    assert out.returncode == 0, out.stderr
+    return body(out.stdout, tmp_path)
+
+
+def test_자기정합성_차단이_0건이면_판정하지_않는다(tmp_path):
+    txt = _pair(tmp_path, [(0, [1.0] * 10), (0, [1.0] * 10)],
+                          [(0, [1.0] * 10), (0, [0.0] * 10)])
+    assert "판정 없음" in txt
+    assert "짝짓지 않은 팔 간" in txt
+    assert "막았다" not in txt, "차단 0건인데 무언가를 막았다고 말하고 있다"
+    assert "예측보다" not in txt
+
+
+def test_자기정합성_차단이_있으면_판정한다(tmp_path):
+    txt = _pair(tmp_path, [(0, [1.0] * 10), (0, [1.0] * 10)],
+                          [(10, [1.0] * 10), (0, [0.0] * 10)])
+    assert "판정 없음" not in txt
+    assert "예측보다 낮다" in txt
+    assert "성공률 높은 프롬프트를 골라 막았다" in txt
+
+
+def test_자기정합성_판정문구는_실제_라벨을_쓴다(tmp_path):
+    """문구가 '룰'로 하드코딩돼 있으면 룰이 없는 구성에서 거짓말이 된다."""
+    txt = _pair(tmp_path, [(0, [1.0] * 10), (0, [1.0] * 10)],
+                          [(10, [1.0] * 10), (0, [0.0] * 10)], label="+PII")
+    assert "+PII 팔이 성공률 높은" in txt
+    assert "룰이 성공률" not in txt
+    assert "ASR_pass(+PII)" in txt
+
+
+def test_자기정합성_차단0건_설명이_짝비교를_가리킨다(tmp_path):
+    """판정을 거절만 하고 끝내지 않는다 — 대신 무엇을 쓰는지 말해 준다."""
+    txt = _pair(tmp_path, [(0, [1.0] * 10)], [(0, [1.0] * 10)])
+    assert "paired_arms" in txt
+

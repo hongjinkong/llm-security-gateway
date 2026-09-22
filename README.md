@@ -845,7 +845,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-단위 테스트 449개 (가짜 타겟 사용, 외부 의존 없음 — Ollama도 필요 없다):
+단위 테스트 456개 (가짜 타겟 사용, 외부 의존 없음 — Ollama도 필요 없다):
 
 ```bash
 pytest -q

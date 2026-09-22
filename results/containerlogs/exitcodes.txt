@@ -1,2 +1,3 @@
-/garak_pi_base exit=0 oom=false
-/garak_pi_rule exit=0 oom=false
+/garak_dan_c_base exit=0 oom=false
+/garak_dan_c_none exit=0 oom=false
+/garak_dan_c_pii exit=0 oom=false

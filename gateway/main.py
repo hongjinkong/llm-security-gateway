@@ -28,6 +28,7 @@ import time
 import uuid
 from collections.abc import Callable, Mapping
 from contextlib import asynccontextmanager
+from urllib.parse import unquote
 
 import httpx
 from dotenv import load_dotenv
@@ -214,7 +215,24 @@ async def audit(request: Request, call_next):
     state.session = None
 
     t0 = time.perf_counter()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        # ★ 2026-09-22: 이 자리가 비어 있었다. 기록이 처리 **완료 후에만** 이뤄져서,
+        # 처리 중 예외가 나면 거기 도달하지 못했다. 타겟 연결 오류를 일으키면
+        # HTTP 500이 나가고 **감사 로그는 0줄**이었다 — "요청 1건당 1줄"이라는
+        # 설계 의도와 다르고, 장애 요청이 평가·운영 기록에서 통째로 빠진다.
+        #
+        # 남기는 것은 예외 **타입 이름뿐**이다. 메시지에는 요청 본문 조각이 섞여
+        # 들어오는 라이브러리가 흔하다 — 본문을 안 남긴다는 규칙이 뒷문으로 깨진다.
+        try:
+            if not request.url.path.startswith(INTERNAL_PREFIX):
+                request.app.state.audit.write(_audit_record(
+                    request, None, (time.perf_counter() - t0) * 1000,
+                    error=type(exc).__name__))
+        except Exception:
+            pass          # 기록 실패가 원래 예외를 가리지 않게 한다
+        raise
     total_ms = (time.perf_counter() - t0) * 1000
 
     response.headers["X-Gateway-Request-Id"] = state.request_id
@@ -222,14 +240,34 @@ async def audit(request: Request, call_next):
     if request.url.path.startswith(INTERNAL_PREFIX):
         return response
 
+    request.app.state.audit.write(_audit_record(request, response, total_ms, error=None))
+    return response
+
+
+def _audit_record(request: Request, response: Response | None,
+                  total_ms: float, error: str | None) -> dict:
+    """감사 로그 한 줄. 예외로 끝난 요청도 **같은 모양으로** 남긴다.
+
+    모양이 갈리면 집계 도구가 한쪽을 조용히 빠뜨린다 — 그게 이 프로젝트가
+    FPR 집계기에서 이미 겪은 실패다(D-064).
+    """
+    state = request.state
     upstream_ms = getattr(state, "upstream_ms", None)
-    request.app.state.audit.write({
+    return {
         "ts": utcnow(),
         "request_id": state.request_id,
         "method": request.method,
         "path": request.url.path,
-        "query": request.url.query,
-        "status": response.status_code,
+        # ★ 2026-09-22: 예전에는 쿼리 문자열을 원문 그대로 남겼다. 본문과 Authorization
+        # 헤더는 안 남기면서 URL은 보호 밖이었다 — URL에 개인정보나 토큰이 실리면 그대로
+        # 기록된다. 본문에 이미 쓰는 규칙("원문은 남기지 않는다, 크기와 지문만")을
+        # URL에도 적용하되, **키 이름은 남긴다**: "URL에 token이 실려 왔다"는 사실은
+        # 운영에 필요하고, 위험한 것은 값이다.
+        "query_keys": _query_keys(request.url.query),
+        "query_bytes": len(request.url.query),
+        # 예외로 끝난 요청은 상위 미들웨어가 500으로 바꾼다. 그 사실을 그대로 적는다.
+        "status": response.status_code if response is not None else 500,
+        "error": error,
         # EVAL 4절: 종단 지연 / 타겟 호출 / 게이트웨이 내부 처리를 분리한다.
         "total_ms": round(total_ms, 2),
         "upstream_ms": None if upstream_ms is None else round(upstream_ms, 2),
@@ -237,17 +275,33 @@ async def audit(request: Request, call_next):
         # 본문 원문은 남기지 않는다. 크기와 지문만.
         "req_bytes": getattr(state, "req_bytes", None),
         "req_sha256_12": getattr(state, "req_digest", None),
-        "res_bytes": _int_or_none(response.headers.get("content-length")),
+        "res_bytes": (_int_or_none(response.headers.get("content-length"))
+                      if response is not None else None),
         "blocked": getattr(state, "blocked", False),
         "client": request.client.host if request.client else None,
         **_chain_fields(getattr(state, "chain_result", None)),
         "response_detectors": [s.as_dict() for s in getattr(state, "response_steps", [])],
-    })
-    return response
+    }
 
 
 def _int_or_none(v: str | None) -> int | None:
     return int(v) if v is not None and v.isdigit() else None
+
+
+def _query_keys(query: str) -> list[str]:
+    """쿼리 파라미터의 **이름만** 정렬해 돌려준다. 값은 담지 않는다.
+
+    `parse_qsl`을 쓰지 않는 이유: 값이 잠깐이라도 중간 자료구조에 들어가는 경로를
+    만들지 않는다. 여기서는 '='의 앞부분만 본다. 중복 이름은 한 번만 센다.
+    """
+    keys = set()
+    for part in query.split("&"):
+        if not part:
+            continue
+        name = unquote(part.split("=", 1)[0])
+        if name:
+            keys.add(name)
+    return sorted(keys)
 
 
 def _chain_fields(result: ChainResult | None) -> dict:

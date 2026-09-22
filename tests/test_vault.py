@@ -8,6 +8,7 @@ import pytest
 from gateway.detectors.base import Action, Inspection
 from gateway.detectors.pii import PIIDetector, session_of
 from gateway.vault import TokenVault
+import gateway.vault as vault_mod
 
 RRN = "900101-1234563"
 PHONE = "010-2345-6789"
@@ -59,6 +60,82 @@ def test_expired_session_is_purged():
     v = TokenVault(ttl=0.0)
     v.token_for("s1", "rrn", RRN)
     assert v.session_count == 0
+
+
+# ---------- TTL 만료 — 복원 경로 (2026-09-22, 외부 검토로 재현된 결함) ----------
+#
+# `restore()`가 만료 정리를 거치지 않고 세션을 꺼낸 뒤 `touched`부터 갱신했다.
+# TTL 10초로 저장하고 11초 뒤 복원했더니 **원문이 그대로 돌아왔다.**
+#
+# 바로 위 `test_expired_session_is_purged`가 이걸 못 잡은 이유: 그 테스트는
+# `session_count`를 읽는데 **그 접근이 `_purge_expired()`를 부른다.**
+# 복원 경로를 한 번도 지나지 않았다. 그래서 아래는 시계를 직접 돌리고 `restore()`만 부른다.
+#
+# 시계를 가짜로 쓰는 이유: `sleep`은 느리고 불안정하다. `_Session.touched`의
+# default_factory는 진짜 `monotonic`을 묶어 두지만 `_get()`이 곧바로 덮어쓰므로 상관없다.
+
+class _Clock:
+    def __init__(self, t: float = 1000.0) -> None:
+        self.t = t
+
+    def monotonic(self) -> float:
+        return self.t
+
+    def tick(self, dt: float) -> None:
+        self.t += dt
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    c = _Clock()
+    monkeypatch.setattr(vault_mod, "time", c)
+    return c
+
+
+def test_만료된_세션은_복원되지_않는다(clock):
+    v = TokenVault(ttl=10.0)
+    tok = v.token_for("s1", "phone", PHONE)
+    clock.tick(11.0)
+    out, n = v.restore("s1", f"연락처는 {tok} 입니다")
+    assert PHONE not in out, "만료된 개인정보가 복원됐다"
+    assert n == 0
+    assert out == f"연락처는 {tok} 입니다"
+
+
+def test_만료_전에는_복원된다(clock):
+    """무조건 복원을 막는 구현으로 바꿔도 통과하지 않게 한다."""
+    v = TokenVault(ttl=10.0)
+    tok = v.token_for("s1", "phone", PHONE)
+    clock.tick(9.0)
+    assert v.restore("s1", tok) == (PHONE, 1)
+
+
+def test_복원도_만료_시계를_갱신한다(clock):
+    """TTL은 마지막 접근 기준이다(설계). 대화가 이어지는 동안 매핑이 사라지면 복원이 깨진다.
+    절대 수명 상한이 없다는 뜻이기도 하므로 여기에 고정해 둔다."""
+    v = TokenVault(ttl=10.0)
+    tok = v.token_for("s1", "phone", PHONE)
+    for _ in range(5):
+        clock.tick(6.0)
+        assert v.restore("s1", tok) == (PHONE, 1)
+    clock.tick(11.0)
+    assert v.restore("s1", tok) == (tok, 0)
+
+
+def test_ttl_0이면_복원_경로에서도_즉시_만료된다(clock):
+    v = TokenVault(ttl=0.0)
+    tok = v.token_for("s1", "rrn", RRN)
+    clock.tick(0.001)
+    assert v.restore("s1", tok) == (tok, 0)
+
+
+def test_만료는_다른_세션의_복원을_막지_않는다(clock):
+    v = TokenVault(ttl=10.0)
+    t1 = v.token_for("s1", "phone", PHONE)
+    clock.tick(11.0)
+    t2 = v.token_for("s2", "phone", PHONE)
+    assert v.restore("s1", t1) == (t1, 0)
+    assert v.restore("s2", t2) == (PHONE, 1)
 
 
 def test_capacity_is_bounded():

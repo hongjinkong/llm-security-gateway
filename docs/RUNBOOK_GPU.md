@@ -290,6 +290,23 @@ grep -E "START|END|검증실패" results/night_ctl.log
 
 **§0-1을 안 읽었으면 지금 읽는다.**
 
+**0) 판정 도구가 돌 수 있는지 먼저 본다 — 런이 아직 돌고 있어도 안전하다.**
+
+`scripts/paired_arms.py`는 상단에서 `from scipy.stats import t`를 한다.
+이 런의 본체인 §4-3이 **import 단계에서** 죽으면 밤중에 알게 되고, 그때는
+설치에 네트워크가 필요하다. 회수 전에 확인해 둔다. 호스트 파이썬이라
+돌고 있는 컨테이너에 영향이 없다.
+
+```
+python3 -c "import numpy, scipy; print(numpy.__version__, scipy.__version__)"
+```
+
+없다고 나오면:
+
+```
+python3 -m pip install "numpy==2.5.2" "scipy==1.18.1"
+```
+
 **1) 끝났는지 확인한다.**
 
 ```

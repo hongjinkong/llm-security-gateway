@@ -6772,7 +6772,7 @@ junit(test 뒤, 명령 고정, 실패 후에도 도는 `if`), 업로드(근거 �
   `agents/aibitat/providers/genericOpenAi.js`는 `GENERIC_OPENAI_STREAMING_DISABLED`(`OPENAI`)를 읽는다.
   두 소스를 컨테이너에서 `grep`해 각 키를 확인했다.
 - 수정: AnythingLLM 소스를 고치거나 이미지를 직접 만들지 않는다. Compose에 두 키를 모두 문자열
-  `true`로 설정해 일반 채팅·Agent 경로를 동시에 비스특리밍으로 고정한다.
+  `true`로 설정해 일반 채팅·Agent 경로를 동시에 비스트리밍으로 고정한다.
 - D-073의 `stream:true` 명시적 거부 정책은 **바꾸지 않는다**. 버퍼형 SSE 변환은 근본 원인을 고치지 않는
   불필요한 우회였으므로 구현하지 않는다.
 - 검증: Compose 계약 테스트는 두 키가 모두 `true`임을 요구한다. 구현 전 실패를 확인하고,
@@ -6953,3 +6953,47 @@ junit(test 뒤, 명령 고정, 실패 후에도 도는 `if`), 업로드(근거 �
   Compose, 검사기 구성은 `66c3912` 이후 한 줄도 바꾸지 않았다.
 - 이 표는 B2가 "gateway가 응답하는가"가 아니라 "AnythingLLM → gateway → Ollama 배선이
   실제로 이어지는가"를 보는 검증이었음을 보여준다. 배선 검증의 가치가 여기에 있다.
+
+## D-079. chatMode 재현성 — 환경변수 고정 불가, 수동 단계로 문서화한다 (c)
+
+- 날짜: 2026-09-24, 집 맥북. D-078 3절 "미확인"을 고정 이미지 소스로 확인한 뒤 기록. 코드 변경 없음.
+- 확인 방법: 서버를 띄우지 않고 `docker run --rm --entrypoint sh <고정 digest> -c "grep/sed ..."`로
+  이미지 안의 파일만 읽었다.
+
+### 1. 확인된 사실
+
+- `/app/server/prisma/schema.prisma:136` — `chatMode String? @default("chat")`.
+  스키마 기본값은 `chat`이다.
+- `/app/server/models/workspace.js`의 생성 함수는 `prisma.workspaces.create({ data: { name, chatMode:
+  "automatic", ...this.validateFields(additionalFields), slug } })`이다. **UI로 새로 만든 워크스페이스는
+  조건 없이 `automatic`이 된다.** 스키마 기본값 `chat`은 이 경로에서 쓰이지 않는다.
+- 같은 파일의 `process.env` 참조는 355·671·680행 셋뿐이고 모두 `LLM_PROVIDER`·`MODEL_ROUTER_ID`다.
+  **chatMode를 정하는 환경변수는 없다.** → (a) 불가.
+- `VALID_CHAT_MODES: ["chat", "query", "automatic"]`, 쓰기 허용 필드 목록에 `chatMode`가 있다.
+  검증기는 목록 밖 값이나 빈 값을 `"automatic"`으로 바꾼다. v1 API `/v1/workspace/:slug/update`
+  엔드포인트가 존재한다. 즉 **API로 바꾸는 길은 있다.** 단, 엔드포인트 본문 처리 코드는 직접 읽지 않았다.
+
+### 2. (b)를 택하지 않는 이유
+
+- `eval/setup_target.py`는 이미 이 update API로 `chatMode`를 설정·검증한다. 그 값은 `"query"`이며
+  `EVAL_CRITERIA.md`(동결) 305행의 측정 조건이다. B2용 `chat`으로 바꾸면 동결 기준과 충돌한다.
+- 이 스크립트는 문서 삭제·재업로드·카나리 삽입·지문 기록까지 하는 **평가용 타겟 구성 스크립트**다.
+  B2 배선 검증에 끌어오면 두 목적이 섞인다.
+- B2 전용 스크립트를 새로 만들어도 storage를 초기화하면 AnythingLLM API 키가 사라진다. 결국
+  "UI에서 API 키 발급"이라는 수동 단계가 남고, 이는 "UI에서 채팅 모드 선택"과 수고가 같다. 얻는 것 없이
+  코드와 테스트만 늘어난다(YAGNI).
+- 부수 확인: `query`도 `automatic`이 아니므로, `setup_target.py`를 거친 평가 경로에서는 D-078의 agent
+  자동 전환 조건(`chatMode === "automatic"`)이 성립하지 않는다(소스 조건으로부터의 추론이며, 새로 실행하지 않음).
+
+### 3. 결정 — (c) 한계를 명시하고 B2 재현 절차에 수동 단계를 둔다
+
+- chatMode는 Compose 계약 테스트로 고정되지 않는다. 이 한계를 받아들인다.
+- AnythingLLM 소스·이미지 패치, 모델 교체, gateway 확장은 하지 않는다(D-073·D-075 유지).
+- **B2 재현 시 필수 수동 단계** (D-075 A3 전에 수행, 실행 기록에 남긴다):
+  1. AnythingLLM UI → 대상 워크스페이스 설정 → 채팅 설정 → 채팅 모드를 **`chat`**으로 선택·저장한다.
+     (새로 만든 워크스페이스는 항상 `automatic`이다. storage 초기화 뒤에는 반드시 다시 한다.)
+  2. Agent 도구는 0/9로 둔다(D-077). chatMode가 `chat`이면 agent 전환에는 영향이 없지만 실행 #4와 같은
+     구성을 유지하기 위해서다.
+  3. A3에서 `@agent` 전환 메시지가 뜨거나 감사 로그 `req_sha256_12`가 agent 경로(`42452715fbb6`)와 같으면
+     이 단계가 빠진 것이다. 그 실행은 실패로 기록하고 새 번호로 다시 판정한다.
+- 실행 #4의 합격 증거는 이 수동 단계를 거친 storage 상태에서 얻은 것이다. 실행 #1~#4 기록은 그대로 둔다.

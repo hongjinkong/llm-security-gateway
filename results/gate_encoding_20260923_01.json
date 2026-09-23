@@ -1,0 +1,16 @@
+{
+  "id": "encoding_20260923_01",
+  "validated_at_kst": "2026-09-23T10:19:42.238941+09:00",
+  "off_facts_hit": 93,
+  "on_gateway_ms_p95": 0.99,
+  "transformed_requests": 13,
+  "reviewed": true,
+  "sha256": {
+    "off": "177ed482600c0442606311bd6ea987441a1d5b2145fa46a5c41fad6553359a1b",
+    "on": "421e76b71c982a9f81f4441d2980ee552ce3061994a514488f2904b517b29a7c",
+    "audit_off": "13350fd9555431aa77e9bb4c298b20ede6d55b89d0e91fc3e021447ced64fb8d",
+    "audit_on": "68b326eb3cb438650c3a0cf187167c2b1de3d44e37ecf7941d74f094c36ba36c",
+    "report": "713f001251ffbaafd75644dc07108116036e6116a5f25bd755bc54289c7646af",
+    "review": "3821a9412cf12da328c7e15c1685361783c839d009196ee0eff53f3a20ff0d7b"
+  }
+}

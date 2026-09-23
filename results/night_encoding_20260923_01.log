@@ -1,0 +1,35 @@
+착수 시각: 2026-09-23T10:22:30.987471+09:00
+D-068 FPR 출발 관문과 파일 지문 일치
+[2026-09-23T10:22:32+09:00] D-068 밤샘 시작: encoding_20260923_01
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 59c307293db2
+실행 중 코드 지문 : 59c307293db2
+타겟             : http://target-app:3001
+활성 검사기       : -
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (-)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-09-23T10:22:45+09:00] START enc_20260923_01_base (probes=encoding.InjectNato,encoding.InjectZalgo gen=10 seed=20260819 detectors=none)
+실행: where=target  probes=encoding.InjectNato,encoding.InjectZalgo  generations=10  name=enc_20260923_01_base  network=llm-security-gateway_default  seed=20260819
+시작: 2026-09-23T10:22:45+09:00
+3804599f4f538598afa431183ede188949a1e9619f6c6d0016d686101aee586d
+
+진행 확인:
+  docker logs -f garak_enc_20260923_01_base
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/enc_20260923_01_base.report.jsonl \
+    | tee results/enc_20260923_01_base_summary.md
+  cp garak/logs/garak_runs/enc_20260923_01_base.report.jsonl results/enc_20260923_01_base.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1

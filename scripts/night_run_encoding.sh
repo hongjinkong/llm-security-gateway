@@ -72,7 +72,7 @@ configure() {
   local detectors=$1
   local expected=$2
   local out
-  GATEWAY_DETECTORS="$detectors" docker compose up -d gateway
+  GATEWAY_DETECTORS="$detectors" docker compose up -d --force-recreate gateway
   sleep 12
   if ! out=$(bash scripts/verify_gateway.sh "$expected" 2>&1); then
     printf '%s\n' "$out"

@@ -96,7 +96,7 @@ FPR 파일은 기존 실행기를 호출하는 순간 덮어써질 수 있다. �
 python3 scripts/encoding_gate.py precheck
 ```
 
-FPR 시작 전 `logs/gateway.jsonl`이 있으면 **사전 로그로 복사하여 보존**한다. 실행 중인 garak이 없음을 다시 확인한다. 감사 로그 분리는 `docker exec ... mv`로 하고, 곧바로 구성 변경으로 게이트웨이를 재기동한다. 열린 감사 파일을 옮긴 뒤 같은 컨테이너에서 더 요청을 보내지 않는다. 파일이 없는 경우에는 `mv`를 억지로 실행하지 말고 그 사실을 기록한다.
+FPR 시작 전 `logs/gateway.jsonl`이 있으면 **사전 로그로 복사하여 보존**한다. 실행 중인 garak이 없음을 다시 확인한다. 감사 로그 분리는 `docker exec ... mv`로 하고, 곧바로 구성 변경으로 게이트웨이를 재기동한다. 현재 검사기 구성이 이미 `none`이어도 새 파일을 열어야 하므로 `--force-recreate`를 사용한다. 열린 감사 파일을 옮긴 뒤 같은 컨테이너에서 더 요청을 보내지 않는다. 파일이 없는 경우에는 `mv`를 억지로 실행하지 말고 그 사실을 기록한다.
 
 ```bash
 cp logs/gateway.jsonl results/audit_pre_encoding_20260923_01.jsonl
@@ -111,7 +111,7 @@ set -a; source .env; set +a
 ```
 
 ```bash
-GATEWAY_DETECTORS= docker compose up -d gateway
+GATEWAY_DETECTORS= docker compose up -d --force-recreate gateway
 ```
 
 ```bash
@@ -129,7 +129,7 @@ docker exec llm-gateway sh -c 'mv /logs/gateway.jsonl /logs/audit_encoding_20260
 ```
 
 ```bash
-GATEWAY_DETECTORS=injection_rule,pii_mask docker compose up -d gateway
+GATEWAY_DETECTORS=injection_rule,pii_mask docker compose up -d --force-recreate gateway
 ```
 
 ```bash

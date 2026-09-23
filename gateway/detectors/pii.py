@@ -26,6 +26,8 @@ from dataclasses import dataclass
 from datetime import date
 
 from gateway.detectors.base import Detector, Inspection, Verdict
+from gateway.openai_api import (CHAT_COMPLETIONS_PATH, PII_ROLES,
+                                map_chat_texts, parse_chat_request)
 from gateway.vault import TokenVault
 
 # --- 패턴 --------------------------------------------------------------------
@@ -197,6 +199,9 @@ class PIIDetector(Detector):
         self.vault = vault or TokenVault()
 
     async def inspect(self, insp: Inspection) -> Verdict:
+        if insp.path == CHAT_COMPLETIONS_PATH:
+            return self._inspect_chat(insp)
+
         text = normalized_text(insp.body)   # L-005: \uXXXX를 먼저 되돌린다
         found = [f for f in find_all(text) if f.kind in self.kinds]
         if not found:
@@ -219,6 +224,36 @@ class PIIDetector(Detector):
 
         return Verdict.transform(self.name, masked.encode("utf-8"),
                                  f"PII {len(found)}건 마스킹", masked=len(found), **meta)
+
+    def _inspect_chat(self, insp: Inspection) -> Verdict:
+        payload = parse_chat_request(insp.body)
+        session = insp.session or session_of(insp.body, insp.request_id)
+        found: list[Finding] = []
+
+        def inspect_text(text: str) -> str:
+            local = [f for f in find_all(text) if f.kind in self.kinds]
+            found.extend(local)
+            if self.mode == "detect":
+                return text
+            tokens = [self.vault.token_for(session, f.kind, text[f.start:f.end]) for f in local]
+            for f, token in zip(reversed(local), reversed(tokens)):
+                text = text[:f.start] + token + text[f.end:]
+            return text
+
+        map_chat_texts(payload, PII_ROLES, inspect_text)
+        if not found:
+            return Verdict.allow(self.name)
+
+        counts: dict[str, int] = {}
+        for f in found:
+            counts[f.kind] = counts.get(f.kind, 0) + 1
+        meta = {"pii": counts, "findings": [f.as_dict() for f in found]}
+        if self.mode == "detect":
+            return Verdict.allow(self.name, **meta)
+
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        return Verdict.transform(self.name, body, f"PII {len(found)}건 마스킹",
+                                 masked=len(found), **meta)
 
     async def on_response(self, session: str, text: str) -> tuple[str, dict] | None:
         """응답에 남은 토큰을 원본으로 되돌린다(4-F).

@@ -23,6 +23,10 @@ AnythingLLM 기반 로컬 LLM 환경에서, **룰 기반 인젝션 차단과 PII
 
 두 번째 타겟까지 검증하면 그때 이식성 주장을 넓힌다.
 
+OpenAI Chat Completions 입구(`/v1/chat/completions`)의 B1 코드는 격리 브랜치에서 구현했다(D-074).
+현재 증거는 가짜 상류 API를 사용한 CPU 테스트까지다. AnythingLLM → 게이트웨이 → Ollama 실제 연결과
+새 구조의 ASR·FPR은 아직 측정하지 않았으며, 위 기존 정량 결과와 섞지 않는다.
+
 > **진행 중인 프로젝트입니다.** 아래 "현재 상태"에 어디까지 끝났고 무엇이 아직
 > 측정되지 않았는지 그대로 적어두었습니다. 빈칸은 비워둔 채로 공개합니다.
 
@@ -863,7 +867,8 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-단위 테스트 515개 (가짜 타겟 사용, 외부 의존 없음 — Ollama도 필요 없다. 2026-09-23 CI 실행 #1과 맥북에서 같은 수, D-069-1):
+단위 테스트 525개 (가짜 타겟 사용, 외부 의존 없음 — Ollama도 필요 없다. 기존 515개에
+OpenAI 입구 계약 10개를 추가했으며, 2026-09-23 맥북에서 통과했다. D-069의 CI 판정 대상은 기존 515개다):
 
 ```bash
 pytest -q
@@ -892,6 +897,16 @@ GATEWAY_DETECTORS=pii_mask TARGET_URL=http://localhost:8000 uvicorn gateway.main
 | `injection_judge` | 5단계 3차. 종결됐고 `GATEWAY_JUDGE_ACK` 없이는 **기동조차 하지 않는다**(D-054) |
 | `canary_observe` | 6단계 카나리 **관측 전용**(6단계는 관측형으로 종결, D-059) — 응답을 바꾸지 않는다. **목록 맨 뒤 고정**, `GATEWAY_CANARY_A/_B/_DOC` 세 값이 없거나 겹치면 기동하지 않는다(D-058-1) |
 
+OpenAI 호환 요청은 같은 게이트웨이의 `/v1/chat/completions`로 보낸다.
+`user`와 `tool` 텍스트는 인젝션 검사 대상이고, PII 마스킹은 `user`에만 적용한다.
+`stream: true`는 지원하지 않으며 OpenAI 오류 형식의 400을 반환한다.
+
+```bash
+curl -s http://localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"stub-model","messages":[{"role":"user","content":"연차는 며칠인가요?"}],"stream":false}'
+```
+
 실행 중인 코드의 지문과 활성 검사기 확인:
 
 ```bash
@@ -905,7 +920,7 @@ curl -s localhost:8080/__gateway/health
 ## 7. 저장소 구조
 
 ```
-gateway/    프록시 본체 · 감사 미들웨어 · 검사기 체인 · 토큰 볼트 · 임베더
+gateway/    프록시 본체 · OpenAI messages 파서 · 감사 미들웨어 · 검사기 체인 · 토큰 볼트 · 임베더
   detectors/  base(인터페이스) noop pii injection similarity judge canary
   data/       injection_corpus.jsonl (59항목) · CORPUS.md
 tests/      단위·통합 테스트 + 가짜 타겟

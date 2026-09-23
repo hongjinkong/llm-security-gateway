@@ -49,6 +49,8 @@ from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import PIIDetector, session_of
 from gateway.detectors.similarity import InjectionSimilarityDetector, threshold_from_env
 from gateway.embedding import OllamaEmbedder
+from gateway.openai_api import (CHAT_COMPLETIONS_PATH, ChatRequestError,
+                                parse_chat_request)
 from gateway.version import canary_fingerprint, code_fingerprint
 
 load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 않는다
@@ -348,6 +350,18 @@ async def passthrough(request: Request, full_path: str) -> Response:
     request.state.req_bytes = len(body)
     request.state.req_digest = digest(body)
 
+    chat_request = None
+    if request.url.path == CHAT_COMPLETIONS_PATH:
+        try:
+            chat_request = parse_chat_request(body)
+        except ChatRequestError as exc:
+            return JSONResponse(status_code=400, content={"error": {
+                "message": str(exc),
+                "type": "invalid_request_error",
+                "param": exc.param,
+                "code": exc.code,
+            }})
+
     chain = request.app.state.chain
     # 세션 식별은 요청의 속성이지 검사기의 사정이 아니다. 여기서 한 번 정해 공유한다.
     session = session_of(body, request.state.request_id)
@@ -365,6 +379,20 @@ async def passthrough(request: Request, full_path: str) -> Response:
     if result.blocked:
         request.state.blocked = True
         # 차단 시 타겟을 호출하지 않는다 → upstream_ms는 None으로 남는다.
+        if chat_request is not None:
+            return JSONResponse(status_code=200, content={
+                "id": f"chatcmpl-{request.state.request_id}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": chat_request.get("model", "gateway"),
+                "choices": [{
+                    "index": 0,
+                    "message": {"role": "assistant", "content": BLOCKED_MESSAGE},
+                    "finish_reason": "content_filter",
+                }],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                "gateway_blocked": True,
+            })
         return JSONResponse(status_code=200, content={
             "id": request.state.request_id,
             "type": "textResponse",

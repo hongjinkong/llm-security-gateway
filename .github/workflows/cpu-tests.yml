@@ -1,0 +1,67 @@
+# D-069: README 6절 설치·테스트 절차를 새 체크아웃에서 그대로 실행한다.
+# 모양의 계약은 tests/test_ci_readme_sync.py(D-069·D-071)다. 이 파일만 고쳐 CI를 통과시키지 않는다.
+# 액션은 커밋 SHA로 고정한다(태그는 옮겨질 수 있다). 옆의 주석은 확인 당시의 태그다(2026-09-23).
+name: cpu-tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-tests:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
+    steps:
+      - name: Checkout (README 6절 git clone · cd 대응)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1, node24
+        with:
+          persist-credentials: false
+
+      - name: Python ${{ matrix.python }}
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0, node24
+        with:
+          python-version: ${{ matrix.python }}
+
+      - id: install
+        name: Install (README 6절 그대로)
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+
+      - id: pip-check
+        name: pip freeze · pip check (D-069 A2)
+        run: |
+          source .venv/bin/activate
+          pip freeze > pip-freeze.txt
+          pip check
+
+      - id: test
+        name: pytest -q (README 6절 그대로)
+        env:
+          PYTEST_ADDOPTS: "--junitxml=junit.xml -rs"
+        run: |
+          source .venv/bin/activate
+          pytest -q
+
+      - id: junit
+        name: junit 판정 (D-069 A4)
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci_junit_check.py junit.xml
+
+      - name: 근거 파일 업로드
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1, node24
+        with:
+          name: ci-evidence-py${{ matrix.python }}
+          path: |
+            junit.xml
+            pip-freeze.txt

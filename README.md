@@ -851,6 +851,10 @@ EVAL 5.1에 따라 그때까지의 FPR·지연이 전부 무효가 되기 때문
 
 ## 6. 실행 방법
 
+Python 3.12 이상이 필요하다(`requirements.txt`의 `numpy`·`scipy` 핀이 3.12 이상을 요구한다).
+CI는 새 체크아웃에서 아래 설치·테스트 명령을 글자 그대로 실행한다(Python 3.12·3.14,
+`.github/workflows/cpu-tests.yml`, D-069). 둘이 어긋나면 `tests/test_ci_readme_sync.py`가 실패한다.
+
 ```bash
 git clone <이 저장소>
 cd llm-security-gateway

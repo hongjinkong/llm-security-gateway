@@ -8,9 +8,12 @@
   - 결함 복원: 막으려던 문제를 되살린다 → 지정한 테스트가 실패해야 한다
   - 과잉 수정·부작용: 정상인 것까지 막거나 보고 숫자를 오염시킨다 → 역시 실패해야 한다
     결함 복원만으로는 "고쳤다"와 "기능을 죽였다"를 구분하지 못한다.
+  - 무해 변경(D-071): 계약과 무관한 변경(스텝 이름, README 데모 블록, 빈 줄 등) → **통과해야 한다.**
+    테스트가 너무 빡빡하면 README 문장 하나 고칠 때마다 CI가 깨지고, 그러면 사람들은 테스트를 끈다.
 
 검출의 조건: 지정한 테스트가 **전부** 실패했고, 실패가 assert 실패이며, 수집·설정 오류가
-없다. 변이가 문법을 깨서 "실패"가 나온 것은 검출로 세지 않는다.
+없다. 변이가 문법을 깨서 "실패"가 나온 것은 검출로 세지 않는다(.py는 compile, .yml은 YAML 파싱으로 막는다).
+무해 변경의 조건: 종료 0, 실패·오류·skip 0, 테스트 수가 기준선과 같다.
 
 사용: python3 scripts/mutate_ci.py
 측정이 아니다. docker·Ollama·GPU·네트워크를 쓰지 않는다.
@@ -28,6 +31,10 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 J = "scripts/ci_junit_check.py"
 JT = "tests/test_ci_junit_check.py"
+W = ".github/workflows/cpu-tests.yml"
+R = "README.md"
+ST = "tests/test_ci_readme_sync.py"
+PASS_KINDS = {"무해 변경"}
 
 INVALID_TESTS = [
     "test_missing_file_is_invalid", "test_truncated_file_is_invalid",
@@ -73,6 +80,98 @@ MUTATIONS = [
        '    total["passed"] = total["tests"]')],
      ["test_skip_is_rejected", "test_xfail_is_rejected",
       "test_failure_is_rejected", "test_fixture_error_is_rejected"]),
+
+    # ---- README 동기화 (D-069 3절 1, D-071). 잡혀야 하는 것: README와 다른 설치·환경·실패 무시
+    ("S1", "결함 복원", "워크플로에만 pip install numpy (D-066 5절 상태의 재현)", W, ST,
+     [("          pip install -r requirements.txt\n",
+       "          pip install -r requirements.txt\n          pip install numpy\n")],
+     ["test_install_step_runs_readme_install_commands_verbatim"]),
+    ("S2", "결함 복원", "README만 requirements 파일명을 바꾼다", R, ST,
+     [("source .venv/bin/activate\npip install -r requirements.txt\n```",
+       "source .venv/bin/activate\npip install -r requirements-gateway.txt\n```")],
+     ["test_install_step_runs_readme_install_commands_verbatim"]),
+    ("S3", "결함 복원", "PYTEST_ADDOPTS에 -k — 테스트가 조용히 빠진다", W, ST,
+     [('PYTEST_ADDOPTS: "--junitxml=junit.xml -rs"',
+       'PYTEST_ADDOPTS: "--junitxml=junit.xml -rs -k \'not slow\'"')],
+     ["test_environment_is_not_changed_outside_pytest_reporting"]),
+    ("S4", "결함 복원", "setup-python cache: pip — README에 없는 설치 경로(V2)", W, ST,
+     [("          python-version: ${{ matrix.python }}\n",
+       "          python-version: ${{ matrix.python }}\n          cache: pip\n")],
+     ["test_only_known_actions_with_known_inputs"]),
+    ("S5", "결함 복원", "matrix에서 README 하한 3.12 제거", W, ST,
+     [('python: ["3.12", "3.14"]', 'python: ["3.14"]')],
+     ["test_matrix_covers_readme_minimum_python"]),
+    ("S6", "결함 복원", "matrix 따옴표 제거 — YAML이 숫자로 읽는다", W, ST,
+     [('python: ["3.12", "3.14"]', "python: [3.12, 3.14]")],
+     ["test_matrix_covers_readme_minimum_python"]),
+    ("S7", "결함 복원", "test 스텝 continue-on-error — 실패를 삼킨다", W, ST,
+     [("      - id: test\n", "      - id: test\n        continue-on-error: true\n")],
+     ["test_no_failure_swallowing_anywhere",
+      "test_core_steps_have_no_condition_directory_shell_or_failure_override"]),
+    ("S8", "결함 복원", "python-version 직접 기입 — matrix가 장식이 된다", W, ST,
+     [("python-version: ${{ matrix.python }}", 'python-version: "3.12"')],
+     ["test_setup_python_uses_the_matrix_value"]),
+    ("S9", "결함 복원", "test 스텝 activate 삭제 — venv 밖 pytest", W, ST,
+     [("          source .venv/bin/activate\n          pytest -q\n", "          pytest -q\n")],
+     ["test_test_step_runs_readme_test_command_after_reactivating"]),
+    ("S10", "결함 복원", "junit 판정 스텝 삭제 — A4 없는 초록 (D-071)", W, ST,
+     [("      - id: junit\n        name: junit 판정 (D-069 A4)\n        if: ${{ !cancelled() }}\n"
+       "        run: python3 scripts/ci_junit_check.py junit.xml\n\n", "")],
+     ["test_junit_verdict_runs_after_tests_even_when_they_fail",
+      "test_verify_steps_have_no_directory_shell_or_failure_override"]),
+    ("S11", "결함 복원", "junit 스텝 if 제거 — 테스트 실패 시 판정이 건너뛰어진다 (D-071)", W, ST,
+     [("        name: junit 판정 (D-069 A4)\n        if: ${{ !cancelled() }}\n",
+       "        name: junit 판정 (D-069 A4)\n")],
+     ["test_junit_verdict_runs_after_tests_even_when_they_fail"]),
+    ("S12", "결함 복원", "pip-check 스텝 삭제 — A2 미판정 (D-071)", W, ST,
+     [("      - id: pip-check\n        name: pip freeze · pip check (D-069 A2)\n        run: |\n"
+       "          source .venv/bin/activate\n          pip freeze > pip-freeze.txt\n          pip check\n\n", "")],
+     ["test_pip_check_step_records_the_installed_environment",
+      "test_verify_steps_have_no_directory_shell_or_failure_override",
+      "test_evidence_is_uploaded_even_when_tests_fail"]),
+    ("S13", "결함 복원", "pip check를 freeze보다 먼저 — 충돌 시 freeze가 사라진다 (D-071)", W, ST,
+     [("          pip freeze > pip-freeze.txt\n          pip check\n",
+       "          pip check\n          pip freeze > pip-freeze.txt\n")],
+     ["test_pip_check_step_records_the_installed_environment"]),
+    ("S14", "결함 복원", "근거 파일 업로드 삭제 (D-071)", W, ST,
+     [("\n      - name: 근거 파일 업로드\n        if: ${{ !cancelled() }}\n"
+       "        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1, node24\n"
+       "        with:\n          name: ci-evidence-py${{ matrix.python }}\n          path: |\n"
+       "            junit.xml\n            pip-freeze.txt\n", "\n")],
+     ["test_evidence_is_uploaded_even_when_tests_fail"]),
+    ("S15", "결함 복원", "업로드에서 pip-freeze.txt 누락 (D-071)", W, ST,
+     [("            junit.xml\n            pip-freeze.txt\n", "            junit.xml\n")],
+     ["test_evidence_is_uploaded_even_when_tests_fail"]),
+    ("S16", "결함 복원", "업로드 if 제거 — 실패한 실행의 근거가 안 남는다 (D-071)", W, ST,
+     [("      - name: 근거 파일 업로드\n        if: ${{ !cancelled() }}\n", "      - name: 근거 파일 업로드\n")],
+     ["test_evidence_is_uploaded_even_when_tests_fail"]),
+    ("S17", "결함 복원", "잡 defaults.run.working-directory — 스텝 검사 우회 (D-071)", W, ST,
+     [("    runs-on: ubuntu-24.04\n",
+       "    runs-on: ubuntu-24.04\n    defaults:\n      run:\n        working-directory: gateway\n")],
+     ["test_no_default_directory_shell_or_other_image"]),
+    ("S18", "결함 복원", "잡 container — 다른 이미지에서 실행(V2) (D-071)", W, ST,
+     [("    runs-on: ubuntu-24.04\n", "    runs-on: ubuntu-24.04\n    container: python:3.12\n")],
+     ["test_no_default_directory_shell_or_other_image"]),
+    ("S19", "결함 복원", "runs-on: ubuntu-latest (D-071)", W, ST,
+     [("    runs-on: ubuntu-24.04\n", "    runs-on: ubuntu-latest\n")],
+     ["test_runner_is_the_one_d069_describes"]),
+
+    # ---- 무해 변경: 통과해야 한다 (과잉 수정 방지)
+    ("P1", "무해 변경", "스텝 name 변경", W, ST,
+     [("        name: Install (README 6절 그대로)\n", "        name: 설치\n")], []),
+    ("P2", "무해 변경", "README 6절 uvicorn 데모 블록 변경", R, ST,
+     [("uvicorn tests.stub_target:app --port 8000", "uvicorn tests.stub_target:app --port 8001")], []),
+    ("P3", "무해 변경", "README 7절 변경", R, ST,
+     [("tests/      단위·통합 테스트 + 가짜 타겟\n", "tests/      단위·통합 테스트 + 가짜 타겟 + CI 동기화 검사\n")], []),
+    ("P4", "무해 변경", "README 설치 블록에 빈 줄·들여쓰기", R, ST,
+     [("cd llm-security-gateway\npython3 -m venv .venv\nsource .venv/bin/activate\n",
+       "cd llm-security-gateway\n\npython3 -m venv .venv\n  source .venv/bin/activate\n")], []),
+    ("P5", "무해 변경", "upload-artifact 입력 변경(name·retention-days)", W, ST,
+     [("          name: ci-evidence-py${{ matrix.python }}\n",
+       "          name: evidence-${{ matrix.python }}\n          retention-days: 30\n")], []),
+    ("P6", "무해 변경", "junit if를 always()로 — 같은 동작", W, ST,
+     [("        if: ${{ !cancelled() }}\n        run: python3 scripts/ci_junit_check.py junit.xml\n",
+       "        if: ${{ always() }}\n        run: python3 scripts/ci_junit_check.py junit.xml\n")], []),
 ]
 
 
@@ -100,6 +199,9 @@ def failed_tests(report: ET.Element) -> tuple[set[str], list[str], bool]:
                 names.add(c.get("name"))
             else:
                 other.append(f"{c.get('name')}: {msg[:120]}")
+    for c in report.iter("testcase"):
+        if c.find("skipped") is not None:
+            other.append(f"{c.get('name')}: skip")
     return names, other, report.find(".//error") is not None
 
 
@@ -113,12 +215,14 @@ def main() -> int:
         originals = {f: (root / f).read_text(encoding="utf-8") for f in files}
 
         test_files = sorted({m[4] for m in MUTATIONS})
+        baseline: dict[str, int] = {}
         for tf in test_files:
             code, report, out = run(root, tf)
             n = len(list(report.iter("testcase")))
             if code != 0:
                 print(f"기준선 실패: {tf}\n{out}")
                 return 1
+            baseline[tf] = n
             print(f"기준선: {tf} {n} passed", flush=True)
 
         missed = []
@@ -129,18 +233,32 @@ def main() -> int:
                 if mutated.count(old) != 1:
                     raise RuntimeError(f"{mid}: 앵커가 유일하지 않다 ({mutated.count(old)}회): {old!r}")
                 mutated = mutated.replace(old, new)
+            if mutated == src:
+                raise RuntimeError(f"{mid}: 변이가 아무것도 바꾸지 않았다")
             if target.endswith(".py"):
                 compile(mutated, target, "exec")
+            elif target.endswith((".yml", ".yaml")):
+                import yaml
+                yaml.safe_load(mutated)
             (root / target).write_text(mutated, encoding="utf-8")
             try:
                 code, report, out = run(root, tf)
             finally:
                 (root / target).write_text(src, encoding="utf-8")
             names, other, has_error = failed_tests(report)
-            missing = [t for t in expect if t not in names]
-            ok = code == 1 and not missing and not other and not has_error
-            print(f"{mid} [{kind}] {desc}: {'검출' if ok else '★ 검증 실패'} "
-                  f"(실패 {len(names)}개, 지정 {len(expect)}개)", flush=True)
+            if kind in PASS_KINDS:
+                n = len(list(report.iter("testcase")))
+                missing = []
+                ok = code == 0 and not names and not other and not has_error and n == baseline[tf]
+                print(f"{mid} [{kind}] {desc}: {'통과 유지' if ok else '★ 과잉 검출'} "
+                      f"(테스트 {n}개/기준 {baseline[tf]}개, 실패 {len(names)}개)", flush=True)
+                if names:
+                    print(f"    무해한 변경에 실패한 테스트: {sorted(names)}")
+            else:
+                missing = [t for t in expect if t not in names]
+                ok = code == 1 and not missing and not other and not has_error
+                print(f"{mid} [{kind}] {desc}: {'검출' if ok else '★ 검증 실패'} "
+                      f"(실패 {len(names)}개, 지정 {len(expect)}개)", flush=True)
             if not ok:
                 missed.append(mid)
                 if missing:
@@ -151,9 +269,14 @@ def main() -> int:
                     print("    수집·설정 오류가 있다")
 
     print("-" * 60)
-    print(f"{len(MUTATIONS) - len(missed)}/{len(MUTATIONS)} 검출. 원본 파일 무수정.")
+    must_fail = [m for m in MUTATIONS if m[1] not in PASS_KINDS]
+    must_pass = [m for m in MUTATIONS if m[1] in PASS_KINDS]
+    miss_f = [m[0] for m in must_fail if m[0] in missed]
+    miss_p = [m[0] for m in must_pass if m[0] in missed]
+    print(f"잡혀야 함 {len(must_fail) - len(miss_f)}/{len(must_fail)} 검출, "
+          f"통과해야 함 {len(must_pass) - len(miss_p)}/{len(must_pass)} 통과. 원본 파일 무수정.")
     if missed:
-        print(f"검출 실패: {', '.join(missed)}")
+        print(f"검증 실패: {', '.join(missed)}")
         return 1
     return 0
 

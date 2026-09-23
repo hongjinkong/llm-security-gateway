@@ -6498,6 +6498,15 @@ pip 캐시, 다른 인덱스, 제약 파일, 사전 설치, setup-python의 추�
 - 남은 것: 워크플로, README 6절 Python 요건, 동기화 테스트 변이, 로컬 전체 수(A5 기준값), 푸시, 판정.
   `tests/test_ci_readme_sync.py`는 워크플로 없이는 실패하므로 워크플로와 같은 커밋에 넣는다.
 
+### D-069-1. 첫 CI 판정 기록
+
+**판정 전 기준값 (CI 결과를 보기 전에 기록, 2026-09-23 맥북)**
+
+- A5 기준값 **N_local = 515** — 맥북 기존 `.venv`(Python 3.14), 사용자 실행 `pytest -q` → `515 passed in 24.49s`,
+  skip 0·실패 0. 측정한 작업 트리는 판정 대상 커밋과 같다(이후 차이는 이 DECISIONS.md 기록뿐이며 테스트에 영향 없음).
+- 판정 대상 커밋: 워크플로·동기화 테스트·README 6절·`mutate_ci.py`·이 기록을 담은 한 커밋. SHA는 커밋 후 아래에 적는다.
+- 기준은 D-069 4~6절 그대로다. 바꾸지 않는다.
+
 ## D-070. 제품 방향 — 외부 AI 공급자(GPT·Claude·Gemini) 앞 API 게이트웨이로 확장한다
 
 - 날짜: 2026-09-23, 집 맥북. 사용자 승인("진행해"). 외부 검토(GPT 대화)의 제안을 코드로 확인한 뒤 결정.
@@ -6552,3 +6561,72 @@ GPT·Claude·Gemini 앞에 끼워 쓰는 보안 게이트웨이다.
 B2에서 AnythingLLM Generic OpenAI 경로가 게이트웨이를 거치게 구성되지 않거나, 스트리밍 강제로 기능이
 깨지면 입구 위치를 다시 검토한다. 외부 공급자 이용이 비용·약관상 불가능하면 B3를 로컬 OpenAI 호환 서버로 대체하고
 그 한계를 README에 적는다.
+
+## D-071. D-069 동기화 테스트 보강 — "해야 할 일을 빼면"도 잡는다 (첫 CI 전)
+
+- 날짜: 2026-09-23, 집 맥북. 사용자 승인. **워크플로 작성 전, 첫 CI 실행 전**이다.
+- 지위: D-069의 합격(A1~A5)·무효(V1~V5)·실패 분류는 **바꾸지 않는다.** 그 기준을 판정할 근거가 CI에
+  반드시 생기도록 `tests/test_ci_readme_sync.py`의 계약을 넓힌다.
+
+### 1. 발견한 빈틈 (근거: 코드 읽기와 grep)
+
+기존 11개 테스트는 "README에 없는 일을 **하면**" 잡는다. "해야 할 일을 **빼면**"은 잡지 않는다.
+`grep`으로 확인한 결과, 테스트는 `pip-check`·`junit` 스텝, `if`, `defaults`, `container`, `services`,
+`runs-on`을 전혀 읽지 않는다. `upload-artifact`는 **허용** 목록에만 있고 **요구**되지 않는다.
+
+| 빈틈 | 그대로 두면 |
+|---|---|
+| junit 판정 스텝이 없어도 통과 | skip이 있어도 CI 초록 → A4가 판정된 적 없는 초록 |
+| junit 스텝이 기본 조건(success())이어도 통과 | 테스트가 실패한 실행에서 판정이 건너뛰어져 D-069 6절 분류 근거가 사라진다 |
+| `pip-check` 스텝이 없어도 통과 | A2 미판정, `pip freeze` 비교 근거(6절 ModuleNotFoundError 행) 없음 |
+| 근거 파일 업로드가 없어도 통과 | D-069-1 기록과 실패 분류를 로그 화면에만 의존 |
+| 워크플로·잡 `defaults.run`, 잡 `container`·`services` | 스텝 단위 검사를 우회해 다른 디렉터리·셸·이미지에서 실행(V2) |
+| `runs-on` 미검사 | 7절은 Ubuntu 24.04 전제. `ubuntu-latest`는 예고 없이 바뀐다 |
+
+### 2. 결정
+
+`tests/test_ci_readme_sync.py`에 6개 테스트를 추가한다(11 → 17). pip-check(install 뒤, `pip freeze`를
+`pip check`보다 **먼저** — run 스텝은 `bash -e`라 check가 실패하면 뒤 줄이 실행되지 않아 분류 근거가 사라진다),
+junit(test 뒤, 명령 고정, 실패 후에도 도는 `if`), 업로드(근거 파일 두 개, 실패 후에도 도는 `if`),
+검증 스텝 키 제한, `defaults`·`container`·`services` 금지, `runs-on: ubuntu-24.04`.
+업로드의 다른 입력(`name`·`retention-days` 등)은 **묶지 않는다** — 과잉 수정 방지 변이로 확인한다.
+
+### 3. 검증 방법
+
+워크플로 없이는 17개가 모두 "워크플로가 없다"로 떨어지므로, 테스트 먼저의 실패는 새 테스트에 대한
+증거가 아니다. 증거는 `scripts/mutate_ci.py`의 동기화 변이로 만든다. 위 빈틈마다 결함 복원 변이
+(junit 스텝 삭제·`if` 제거, pip-check 삭제, 업로드 삭제, `defaults.run.working-directory`, `container`,
+`runs-on: ubuntu-latest`)가 **지정한 새 테스트에서** 잡혀야 하고, 업로드 `name` 변경 같은 과잉 수정
+변이는 통과해야 한다.
+
+### 4. 결과 (2026-09-23, 맥북 `.venv` 3.14, 사용자 실행, 첫 CI 전)
+
+- 워크플로 작성 전 README 요건 없이: `1 failed, 16 passed` — 예측과 같다(`test_matrix_covers_readme_minimum_python`,
+  "README 6절에 'Python 3.x 이상' 요건이 없다"). README 6절에 요건 문장 추가 후 `17 passed`.
+- 작성 중 발견: `pip check` → `pip freeze` 순서면 `bash -e`에서 check 실패 시 freeze가 사라진다.
+  첫 CI 전이므로 테스트와 워크플로를 함께 freeze 먼저로 고쳤다(2절에 반영).
+- `scripts/mutate_ci.py`에 "무해 변경"(통과해야 함) 종류를 추가했다. 판정: 종료 0, 실패·오류·skip 0,
+  테스트 수 = 기준선. 변이가 아무것도 바꾸지 않으면 중단, `.yml` 변이는 YAML 파싱으로 문법 파손을 막는다.
+- 실행 결과: 기준선 junit 16 · 동기화 17 passed. **잡혀야 함 28/28 검출**(J1~J5·O1~O4 기존 9 +
+  S1~S19 동기화 19), **통과해야 함 6/6 통과**(P1 스텝 이름, P2 6절 uvicorn, P3 7절, P4 빈 줄·들여쓰기,
+  P5 업로드 name·retention-days, P6 junit `if: always()`). 원본 파일 무수정.
+- S10·S12·S14~S19는 D-071 이전 11개 테스트가 읽지 않는 키를 건드린다(1절 grep). 이전 테스트로 이 변이들을
+  실제로 돌려 본 것은 아니다 — "놓쳤을 것"의 근거는 코드 읽기다.
+
+## D-072. CI 액션을 태그가 아니라 커밋 SHA로 고정한다 — node24 v7 계열
+
+- 날짜: 2026-09-23, 집 맥북. 사용자 승인. 첫 CI 실행 전.
+- 확인(2026-09-23): `git ls-remote`로 태그를 받고 태그 시점의 `action.yml`의 `runs.using`을 직접 읽었다.
+
+| 액션 | 태그 | 커밋 SHA | 런타임 | v7 변경 중 관련 사항 |
+|---|---|---|---|---|
+| actions/checkout | v7.0.1 (= v7) | `3d3c42e5aac5ba805825da76410c181273ba90b1` | node24 | ESM 전환, fork PR 체크아웃 차단 |
+| actions/setup-python | v7.0.0 (= v7) | `5fda3b95a4ea91299a34e894583c3862153e4b97` | node24 | `pip-install` 입력 제거(원래 안 씀) |
+| actions/upload-artifact | v7.0.1 (= v7) | `043fb46d1a93c77aae656e7c1c64a875d1fc6a0a` | node24 | `archive` 입력 추가(기본 true, 영향 없음) |
+
+- 근거: 태그는 액션 저장소가 다른 커밋으로 옮길 수 있다. 태그로 쓰면 같은 우리 커밋을 재실행해도
+  다른 액션 코드가 돌 수 있어 D-069 V1(판정한 실행 = 판정 대상 코드)의 의미가 약해지고, 공급망 변조에도
+  열려 있다. SHA 옆 주석에 확인 당시 태그를 적는다.
+- 동기화 테스트는 `uses`를 `@` 앞의 이름으로 검사하므로 SHA 고정과 충돌하지 않는다.
+- 되돌릴 조건·갱신: 액션을 올릴 때는 새 태그의 SHA와 `runs.using`을 같은 방식으로 확인하고 이 표에
+  후속으로 적는다. 자동 갱신 도구는 넣지 않는다.

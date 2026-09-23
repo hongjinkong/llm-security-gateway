@@ -863,7 +863,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-단위 테스트 477개 (가짜 타겟 사용, 외부 의존 없음 — Ollama도 필요 없다):
+단위 테스트 515개 (가짜 타겟 사용, 외부 의존 없음 — Ollama도 필요 없다. 2026-09-23 CI 실행 #1과 맥북에서 같은 수, D-069-1):
 
 ```bash
 pytest -q

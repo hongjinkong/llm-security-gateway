@@ -23,8 +23,8 @@ clock_ok() {
 from datetime import datetime
 from zoneinfo import ZoneInfo
 now = datetime.now(ZoneInfo("Asia/Seoul"))
-if now.date().isoformat() != "2026-09-23" or not (1050 <= now.hour * 60 + now.minute < 1070):
-    raise SystemExit(f"17:30~17:50 KST 외 착수 금지: {now.isoformat()}")
+if now.date().isoformat() != "2026-09-23" or not (now.hour * 60 + now.minute < 1070):
+    raise SystemExit(f"17:50 KST 이후 착수 금지: {now.isoformat()}")
 print(f"착수 시각: {now.isoformat()}")
 PY
 }

@@ -6386,3 +6386,102 @@ FPR는 기존 정상셋 all100.jsonl, OFF=게이트웨이 none, ON=injection_rul
 ### 7. 이번 커밋과 후속 작업의 경계
 
 이번 커밋은 이 등록 문서만 포함한다. RUNBOOK_GPU.md 개정, 전용 순차 실행 절차 및 검증 도구는 다음 커밋이다. 기존 방어·프로브·판정기·코퍼스는 튜닝하지 않는다. 동결 문서의 내용을 이 등록으로 소급 수정하지 않는다. 등록 변경이 필요하면 결과를 보기 전에 이유와 변경 내용을 별도 커밋하고, 결과 이후라면 사후 변경임을 명시한다.
+
+## D-069. 깨끗한 환경 설치 + CPU 테스트 CI — 합격·무효·실패 분류 사전 등록
+
+- 날짜: 2026-09-23, 집 맥북. 학원 PC는 접근하지 않는다.
+- 지위: 워크플로·검사 도구·테스트를 쓰기 전, **첫 CI 실행 전** 사전 등록. 이 항목만 먼저 커밋한다.
+- 목적: NEXT_SESSION 5번의 완료 기준 "새 환경에서 문서대로 설치·테스트 성공"의 증거를 만든다.
+  9/23 WSL의 482 통과는 **기존 체크아웃 + 새 venv**의 증거이고, 새 체크아웃에서 README 6절 절차가
+  통한다는 증거가 아니다.
+- 범위 밖: GPU 측정, docker, Ollama, garak, 학원 PC. 진행 중인 `encoding_20260923_01` 런과 월요일
+  회수 절차(RUNBOOK §4)가 쓰는 **기존 파일의 동작은 바꾸지 않는다**. 이 작업은 새 파일 추가와
+  README 6절 문구 수정만 한다.
+- 동결 문서 EVAL_CRITERIA.md, docs/SCORING_PROTOCOL.md, docs/CANARY_DESIGN.md, SCOPE.md는 수정하지 않는다.
+
+### 1. CI 전에 이미 확인한 사실
+
+- README 6절에 **Python 버전 요건이 없다.** PyPI의 requires_python(2026-09-23 조회)은
+  `numpy==2.5.2` ≥3.12, `scipy==1.18.1` ≥3.12다. 따라서 3.11 이하에서는 README대로 하면
+  `pip install`에서 실패한다. 이것은 CI 전에 확인된 **문서 결함**이다.
+- SCOPE 8절의 "Python 3.11"은 실제(gateway·garak Dockerfile `python:3.12-slim`)와 다르다.
+  동결 문서이므로 고치지 않고 **사용자 승인 대상으로 남긴다.**
+- README는 단위 테스트 477개라고 쓰지만 9/23 WSL은 482개였다.
+- `gateway/main.py`가 import 시 `load_dotenv()`를 부른다. 맥북에는 `.env`가 있고 새 체크아웃에는 없다.
+- `tests/test_injection.py`에 파일 부재 시 `pytest.skip`하는 경로가 2곳 있다(`eval/benign/all100.jsonl`,
+  `gateway/data/injection_corpus.jsonl`). 둘 다 추적 파일이므로 새 체크아웃에서도 skip이 나오면 안 된다.
+- 테스트 코드는 git 명령을 부르지 않는다(grep). 얕은 체크아웃의 영향은 현재 없다고 본다.
+
+### 2. README 6절과 CI 단계의 대응
+
+| README 6절 | CI |
+|---|---|
+| `git clone` · `cd` | `actions/checkout` (해당 커밋, `.env`·`logs/`·`.venv` 없음) |
+| Python 요건 (**현재 없음 → 3.12 이상을 명시한다**) | `actions/setup-python` 3.12(하한·Docker와 같음), 3.14(맥북, 핀 출처). `fail-fast: false` |
+| `python3 -m venv .venv` · `source .venv/bin/activate` · `pip install -r requirements.txt` | **글자 그대로 같은 줄** (install 단계) |
+| `pytest -q` | 같은 줄. `PYTEST_ADDOPTS`로 **보고 옵션만**(`--junitxml=…`, `-rs`) 덧붙인다 |
+| uvicorn 띄우기 · health curl | 제외 (수동 데모 절차, 설치·테스트가 아니다) |
+
+설치 경로를 바꾸지 않는 읽기 전용 검사만 추가한다: `pip check`, `pip freeze` 보관, junit 판정.
+pip 캐시, 다른 인덱스, 제약 파일, 사전 설치, setup-python의 추가 입력은 쓰지 않는다.
+
+### 3. 추가하는 것 (다음 커밋들, 테스트 먼저)
+
+1. `tests/test_ci_readme_sync.py` — README 6절의 설치·테스트 명령과 워크플로가 실행하는 명령이
+   같은지, 워크플로에 README에 없는 설치·환경 변경·실패 무시가 없는지 검사한다. 이 테스트가
+   CI 안에서도 돌기 때문에 둘이 어긋나면 CI가 실패한다.
+2. `scripts/ci_junit_check.py` + `tests/test_ci_junit_check.py` — junit 결과 판정.
+   종료 코드 0 합격 / 1 불합격(실패·오류·skip 존재) / 2 무효(파일 없음·파싱 실패·테스트 0개·
+   요약 속성과 개별 결과의 불일치). D-064와 같은 원칙: **자료의 부재는 결과가 아니다.**
+3. `.github/workflows/cpu-tests.yml`
+4. README 6절: Python 3.12 이상 명시. 테스트 수 문구는 CI 판정 후 실측값으로 고친다.
+
+두 테스트 모두 통과 후 결함 복원 변이와 과잉 수정·부작용 변이를 넣어 본다(D-067 4절).
+
+### 4. 합격 기준 — 판정 대상 커밋 하나, 두 Python 버전 각각
+
+- A1 install 단계 종료 0
+- A2 `pip check` 종료 0
+- A3 `pytest -q` 종료 0 (README 동기화 테스트 포함)
+- A4 junit 판정 종료 0 — 테스트 >0, 실패 0, 오류 0, **skip 0**(xfail 포함), 요약과 개별 결과 일치
+- A5 수집된 테스트 수가 **두 버전에서 같고**, 같은 커밋을 맥북 기존 `.venv`에서 `pytest -q`로
+  돌린 수(사용자 실행)와 같다. 다르면 합격이 아니라 조사 대상이다
+
+두 버전 중 하나만 통과하면 **부분 결과**이고 합격이 아니다.
+
+### 5. 무효 조건
+
+- V1 판정한 CI 실행의 커밋 SHA가 판정 대상 커밋과 다르거나 기록이 없다
+- V2 pip 캐시·다른 인덱스·사전 설치가 쓰였다
+- V3 junit 파일이 없거나 손상됐다(판정기 종료 2)
+- V4 **코드 변경 없이 같은 커밋을 재실행해서만 통과했다** — "불안정"으로 기록하고 합격을 선언하지
+  않는다. 원인을 찾고 새 커밋에서 다시 판정한다
+- V5 README 동기화 테스트가 수집되지 않았거나 skip됐다
+
+### 6. 실패 분류 — 실패한 단계로 문서 문제와 의존성 문제를 가른다
+
+| 실패한 곳 | 분류 | 판별 근거 |
+|---|---|---|
+| venv·activate | 문서(명령 자체) | 해당 줄의 오류 |
+| `pip install`이 한 버전에서만 실패 | 문서(Python 요건) | requires_python 대조 |
+| `pip install` 해석 실패, `pip check` 실패 | 의존성(핀 충돌·휠 없음) | 오류에 나온 패키지 |
+| 수집 중 `ModuleNotFoundError` | 의존성(requirements 누락) | CI `pip freeze`와 맥북 `.venv` 비교 |
+| `.env`·`logs/`·환경변수·미추적 파일 부재로 실패 | **로컬 상태 의존**(테스트 위생, 문서도 의존성도 아니다) | 맥북 `/tmp` 새 clone에서 재현 |
+| 한 버전에서만 테스트 실패 | 버전 호환성 | 같은 테스트의 두 버전 로그 |
+| 통과했는데 skip >0 또는 수 불일치 | 불합격(조용한 누락) | junit 판정기, A5 |
+
+분류가 안 되면 **"미분류"로 남기고 추정으로 채우지 않는다.**
+
+### 7. 이 CI가 증명하지 않는 것
+
+- `actions/checkout`은 `git clone`이 아니라 해당 커밋의 얕은 fetch다.
+- 러너는 Ubuntu 24.04다. macOS·WSL에서의 README 절차는 증명하지 않는다. 맥북 `/tmp` 새 clone
+  확인은 선택 단계로 따로 기록한다.
+- `python3`은 setup-python이 제공한 것이지 OS 기본 python3가 아니다.
+- CPU 단위·통합 테스트의 회귀 검사다. **측정(ASR·FPR·지연)의 재현을 증명하지 않는다.**
+  SCOPE 4.5의 "방어 룰 변경 시 자동 재측정"은 이 CI로 충족되지 않는다(GPU·타겟 필요).
+
+### 8. 결과를 본 뒤의 규칙
+
+위 기준은 CI 결과를 본 뒤 바꾸지 않는다. 실패하면 분류 → 원인 수정 → 새 커밋 → 같은 기준으로
+재판정한다. 각 실행의 커밋 SHA·실행 번호·버전별 결과·테스트 수를 이 항목의 후속(D-069-1…)에 적는다.

@@ -6750,3 +6750,48 @@ junit(test 뒤, 명령 고정, 실패 후에도 도는 `if`), 업로드(근거 �
   무해 변경 P1(주석 문구) **3/3 통과**, 원본 파일 무수정.
 - 전체 CPU 회귀: 기존 525개 + Compose 계약 3개 = **528 passed in 27.34s**, skip 0.
 - 이는 A1의 정적 근거다. A2~A4와 B2 최종 판정은 아직 실행하지 않았다.
+
+### 5. 실행 #1 — 실패 (2026-09-23, 커밋 `fcbf19e`)
+
+- A1 통과: Compose 계약 3 passed, 변이 3/3, 전체 CPU 528 passed, skip 0.
+- A2 통과: gateway health HTTP 200, `target=http://host.docker.internal:11434`,
+  `detectors=["injection_rule","pii_mask"]`, 코드 지문 `3e2d81e49e73`. AnythingLLM UI HTTP 200.
+- A3 실패: 새 UI Thread에서 고정 질문 `대한민국의 수도는 어디인가요? 한 문장으로 답하세요.`를 보냈으나
+  AnythingLLM이 `agentWebsocket` → `GenericOpenAiProvider.stream (tooled)`으로 `stream:true`를 보냈고 gateway가
+  D-073대로 HTTP 400 `streaming is not supported`를 반환했다. 감사 로그 5건은 모두
+  `path=/v1/chat/completions`, `status=400`, `upstream_ms=null`이어서 Ollama로는 전달되지 않았다.
+- A4는 A3 실패로 실행하지 않았다. **실행 #1 판정: B2 실패.** A1~A4 기준은 바꾸지 않는다.
+- 초기 진단에서 Compose 키와 Agent 키를 같은 것으로 잘못 읽어 상속 getter 결함으로 판단했다.
+  실제 근본 원인은 고정 이미지 내 두 AnythingLLM 경로의 **환경변수 이름 불일치**다.
+
+## D-076. AnythingLLM 비스트리밍 키 불일치를 두 별칭으로 고정한다
+
+- 날짜: 2026-09-23, 집 맥북. D-075 실행 #1 실패 후, 수정·재실행 전에 기록.
+- 증거: Compose와 컨테이너에는 `GENERIC_OPEN_AI_STREAMING_DISABLED=true`가 있었다. 고정 이미지의
+  일반 채팅 `AiProviders/genericOpenAi/index.js`는 이 키(`OPEN_AI`)를 읽지만, Agent
+  `agents/aibitat/providers/genericOpenAi.js`는 `GENERIC_OPENAI_STREAMING_DISABLED`(`OPENAI`)를 읽는다.
+  두 소스를 컨테이너에서 `grep`해 각 키를 확인했다.
+- 수정: AnythingLLM 소스를 고치거나 이미지를 직접 만들지 않는다. Compose에 두 키를 모두 문자열
+  `true`로 설정해 일반 채팅·Agent 경로를 동시에 비스특리밍으로 고정한다.
+- D-073의 `stream:true` 명시적 거부 정책은 **바꾸지 않는다**. 버퍼형 SSE 변환은 근본 원인을 고치지 않는
+  불필요한 우회였으므로 구현하지 않는다.
+- 검증: Compose 계약 테스트는 두 키가 모두 `true`임을 요구한다. 구현 전 실패를 확인하고,
+  결함 복원(어느 한 키 누락), 과잉 수정·부작용(기존 기본 경로 파괴), 무해 변경 변이를 확인한다.
+- 재판정: 같은 D-075 A1~A5·V1~V4로 실행 #2를 새로 판정한다. 실행 #1은 실패로 남긴다.
+
+### 1. 검증 실측 (2026-09-24, 집 맥북)
+
+- RED(수정 전): `tests/test_openai_compose.py` **1 failed, 2 passed**. 실패 원인은 새 키
+  `GENERIC_OPENAI_STREAMING_DISABLED` 부재로 인한 `KeyError`다.
+- GREEN(Compose 최소 수정 후): **3 passed**.
+- 변이 `scripts/mutate_openai_compose.py` — 기준선 3 passed, **5/5 통과**, 원본 파일 무수정.
+  - D1 결함 복원(gateway 우회): 검출, 실패 1개 / 지정 1개.
+  - D2 결함 복원(Agent `OPENAI` 별칭 제거): 검출, 실패 1개 / 지정 1개.
+  - D3 결함 복원(일반 채팅 `OPEN_AI` 별칭 제거): 검출, 실패 1개 / 지정 1개.
+  - O1 과잉 수정·부작용(기존 기본 모드를 generic-openai로 변경): 검출, 실패 1개 / 지정 1개.
+  - P1 무해 변경(Compose 주석 문구): 통과, 테스트 3개 / 기준 3개.
+  - D2와 D3가 각각 독립으로 검출됐다. 두 키 중 하나만 빠져도 계약 테스트가 실패하므로,
+    새 단언이 기존 단언에 묻혀 무의미해지지 않았다.
+- 전체 CPU 회귀: **528 passed in 41.48s**, skip 0. D-075 4절과 총수가 같은 이유는 이번 변경이
+  테스트를 추가하지 않고 기존 계약 테스트에 단언 한 줄만 더했기 때문이다.
+- 이는 실행 #2 A1의 정적 근거다. A2~A4와 B2 최종 판정은 아직 실행하지 않았다.

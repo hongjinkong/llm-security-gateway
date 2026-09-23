@@ -27,6 +27,7 @@ def test_generic_openai_mode_routes_through_gateway_without_streaming():
     assert target["GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT"] == "4096"
     assert target["GENERIC_OPEN_AI_API_KEY"] == "local-only"
     assert target["GENERIC_OPEN_AI_STREAMING_DISABLED"] == "true"
+    assert target["GENERIC_OPENAI_STREAMING_DISABLED"] == "true"
 
 
 def test_embeddings_stay_on_local_ollama():

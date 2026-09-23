@@ -6699,3 +6699,54 @@ junit(test 뒤, 명령 고정, 실패 후에도 도는 `if`), 업로드(근거 �
 - README 6절 갱신 후 CI 동기화 테스트 **17 passed in 0.03s**.
 - 이 결과는 B1 코드 계약의 증거다. AnythingLLM·Ollama 실제 연결(B2), 외부 공급자 기능 검증(B3),
   새 구조의 ASR·FPR 측정은 아직 하지 않았다.
+
+## D-075. B2 로컬 연결 검증을 결과 전에 고정한다
+
+- 날짜: 2026-09-23, 집 맥북. `codex/openai-gateway` 브랜치에서 B2 실제 기동 전에 기록.
+- 지위: **기능·배선 검증**이다. 보안 성능평가가 아니므로 garak·공격 프롬프트·ASR·FPR 수치를
+  만들지 않는다. 새 구조의 평가 기준은 별도 결정으로 구현·측정 전에 동결하고 ASR과 FPR을 항상 함께
+  측정한다.
+
+### 1. 고정 구성
+
+- AnythingLLM: `docker-compose.yml`에 고정된 오픈소스 이미지. LLM 공급자는 B2에서만
+  `generic-openai`, base path는 `http://gateway:8080/v1`, 스트리밍은 문자열 `"true"`로 비활성화한다.
+- gateway: 현재 브랜치의 OpenAI Chat Completions 입구, `injection_rule,pii_mask` 순서. 상류는
+  `http://host.docker.internal:11434` 로컬 Ollama로 전환한다.
+- Ollama: 호스트의 `gemma3:4b`. 임베딩은 기존처럼 gateway를 거치지 않고
+  `http://host.docker.internal:11434` 의 `bge-m3:latest`를 쓴다.
+- 외부 API·실제 서비스·외부 API 키는 사용하지 않는다. PII는 실제가 아닌 합성 전화번호만 쓴다.
+- 기존 Compose 기본값은 `AnythingLLM → Ollama`, `gateway → AnythingLLM`로 남겨 예전 실험 경로를 보존하고,
+  B2는 환경변수로만 두 경로를 전환한다.
+
+### 2. 사전 합격 기준
+
+- A1 정적 계약: Compose 계약 테스트가 기존 기본 경로 보존, B2 base path, 비스트리밍,
+  로컬 임베딩 경로를 모두 확인한다.
+- A2 기동 식별: gateway health가 HTTP 200이고 `target=http://host.docker.internal:11434`,
+  `detectors=["injection_rule","pii_mask"]`를 보고한다. AnythingLLM UI도 접속된다.
+- A3 정상 경로: AnythingLLM UI에서 일반 질문 1건을 보내 빈 값이 아닌 응답을 받는다. 그 요청의 감사 로그는
+  `path=/v1/chat/completions`, `status=200`, `blocked=false`, `transformed=false`, `upstream_ms`가 null이 아니어야 한다.
+- A4 PII 경로: AnythingLLM UI에서 `다음 문자열만 그대로 출력: 010-2345-6789`를 보내 응답에
+  `010-2345-6789`가 있고 `[PII:`가 없다. 그 감사 로그는 `blocked=false`, `transformed=true`,
+  `upstream_ms`가 null이 아니어야 한다.
+- A5 고정 결과: A1~A4가 모두 만족될 때만 B2 합격이다. 하나라도 어긋나면 실패 상태·로그를 그대로
+  기록하고 원인을 고친 다음 새 실행으로 다시 판정한다.
+
+### 3. 무효 조건과 한계
+
+- V1 AnythingLLM을 거치지 않은 gateway 직접 요청을 A3·A4 대신 쓴다.
+- V2 외부 호스트·API·실제 PII를 쓴다.
+- V3 health·감사 로그가 없어 경로를 확인할 수 없거나, 실행 커밋·Compose 구성을 기록하지 않는다.
+- V4 결과를 본 뒤 A1~A4, 프롬프트, 실행 구성을 바꾸고 같은 실행으로 판정한다.
+- AnythingLLM 고정 이미지가 비스트리밍 설정을 무시하고 `stream:true`를 보내면 B2 실패다. D-073을 조용히
+  바꾸지 않고, 증거와 함께 후속 결정으로 재검토한다.
+
+### 4. 실제 기동 전 정적 검증 결과
+
+- 테스트 먼저: Compose 변경 전 예상한 `2 failed, 1 passed`(기존 고정 경로, Generic OpenAI
+  경로 미구현)를 확인했다. 최소 변경 후 `3 passed`.
+- 변이 검사: 결함 복원 D1(gateway 우회), 과잉 수정·부작용 O1(기존 기본 경로 파괴),
+  무해 변경 P1(주석 문구) **3/3 통과**, 원본 파일 무수정.
+- 전체 CPU 회귀: 기존 525개 + Compose 계약 3개 = **528 passed in 27.34s**, skip 0.
+- 이는 A1의 정적 근거다. A2~A4와 B2 최종 판정은 아직 실행하지 않았다.

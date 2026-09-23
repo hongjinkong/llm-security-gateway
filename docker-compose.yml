@@ -6,10 +6,16 @@ services:
       - "8000:3001"
     environment:
       - STORAGE_DIR=/app/server/storage
-      - LLM_PROVIDER=ollama
+      - LLM_PROVIDER=${ANYTHINGLLM_LLM_PROVIDER:-ollama}
       - OLLAMA_BASE_PATH=http://host.docker.internal:11434
       - OLLAMA_MODEL_PREF=gemma3:4b
       - OLLAMA_MODEL_TOKEN_LIMIT=4096
+      # B2: AnythingLLM Generic OpenAI → gateway → 로컬 Ollama.
+      - GENERIC_OPEN_AI_BASE_PATH=http://gateway:8080/v1
+      - GENERIC_OPEN_AI_MODEL_PREF=${ANYTHINGLLM_MODEL:-gemma3:4b}
+      - GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT=4096
+      - GENERIC_OPEN_AI_API_KEY=local-only
+      - GENERIC_OPEN_AI_STREAMING_DISABLED=true
       - EMBEDDING_ENGINE=ollama
       - EMBEDDING_BASE_PATH=http://host.docker.internal:11434
       - EMBEDDING_MODEL_PREF=bge-m3:latest
@@ -28,8 +34,8 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # 컨테이너 안에서는 compose 서비스 이름으로 타겟을 부른다(호스트 포트 8000이 아님).
-      - TARGET_URL=http://target-app:3001
+      # 기본은 compose의 target-app. B2에서만 호스트 Ollama로 전환한다.
+      - TARGET_URL=${GATEWAY_TARGET_URL:-http://target-app:3001}
       # EVAL 5.2 증분 측정의 손잡이. 이 값만 바꿔가며 같은 측정을 반복한다.
       #   (빈 값) → 검사기 없음   pii → 탐지만   pii_mask → 마스킹+복원
       #   injection_rule → 5단계 1차 룰

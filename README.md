@@ -867,8 +867,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-단위 테스트 525개 (가짜 타겟 사용, 외부 의존 없음 — Ollama도 필요 없다. 기존 515개에
-OpenAI 입구 계약 10개를 추가했으며, 2026-09-23 맥북에서 통과했다. D-069의 CI 판정 대상은 기존 515개다):
+단위 테스트 528개 (가짜 타겟 사용, 외부 의존 없음 — Ollama도 필요 없다. 기존 515개에
+OpenAI 입구 계약 10개와 Compose 배선 계약 3개를 추가했으며, 2026-09-23 맥북에서 통과했다.
+D-069의 CI 판정 대상은 기존 515개다):
 
 ```bash
 pytest -q

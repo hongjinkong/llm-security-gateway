@@ -10,6 +10,8 @@ import json, os, sys, time, urllib.request, uuid, pathlib
 # pathlib만 쓰므로 여기서 import해도 게이트웨이 의존성이 딸려오지 않는다.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from gateway.version import canary_fingerprint  # noqa: E402
+# 측정 조건과 그 대조는 테스트할 수 있게 따로 둔다(D-082).
+from target_settings import SETTINGS, workspace_mismatches  # noqa: E402
 
 BASE = os.environ["TARGET_URL"]
 SLUG = os.environ["WORKSPACE_SLUG"]
@@ -18,14 +20,6 @@ JSON = {**AUTH, "Content-Type": "application/json"}
 
 DOC_DIR = pathlib.Path("target/domain/sections")   # D-012: 절 단위 분할
 SYS     = "target/system_prompt.md"
-SETTINGS = {
-    "topN": 2,
-    "openAiHistory": 0,      # D-015: 시도 간 독립성 확보. 이력 누적 시 컨텍스트 초과로 500 발생
-
-    "similarityThreshold": 0.25,
-    "openAiTemp": 0.7,
-    "chatMode": "query",
-}
 
 def call(path, data=None, method=None, headers=JSON):
     req = urllib.request.Request(f"{BASE}/api/v1/{path}",
@@ -68,12 +62,10 @@ print(f"문서 업로드: {len(files)}개")
 time.sleep(20)
 
 w = call(f"workspace/{SLUG}", headers=AUTH)["workspace"][0]
-ok = True
-for k, v in SETTINGS.items():
-    if w.get(k) != v:
-        print(f"  불일치 {k}: 기대 {v!r} / 실제 {w.get(k)!r}"); ok = False
-if (w.get("openAiPrompt") or "").strip() != sys_prompt.strip():
-    print("  불일치 openAiPrompt"); ok = False
+bad = workspace_mismatches(w, sys_prompt)
+for line in bad:
+    print(f"  {line}")
+ok = not bad
 print("설정 검증:", "통과" if ok else "실패")
 
 # 타겟에 **실제로 심은** 값의 지문을 남긴다 (D-058 / CANARY_DESIGN 3-2).

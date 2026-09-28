@@ -6714,6 +6714,332 @@ junit(test 뒤, 명령 고정, 실패 후에도 도는 `if`), 업로드(근거 �
 - 평가 경계: 새 구조는 기존 수치와 섞지 않고 새 기준을 구현·측정 전에 동결하며 ASR과 FPR을 함께 측정한다.
   공격은 로컬 구성에만 보내고 외부 공급자는 정상 요청과 합성 PII를 이용한 기능 검증만 한다.
 
+## D-074. D-070 구현을 회수·v1 태그 전에 격리 브랜치에서 시작한다
+
+- 날짜: 2026-09-23, 집 맥북. 사용자가 기존 착수 조건과의 충돌을 확인한 뒤 조기 구현을 승인했다.
+- 변경 범위: D-073의 "9/28 회수와 v1 태그 이후"라는 **착수 시점만** 바꾼다. 구현은
+  `codex/openai-gateway` 브랜치에 격리하고, 현재 v1이나 D-068 결과로 간주하지 않는다. 학원 PC의 실행 상태는
+  추측하거나 건드리지 않는다.
+- 이유: 문서로 고정한 B1 계약을 먼저 코드와 테스트로 검토할 수 있게 하되, 기존 `main`과 진행 중인 측정의
+  재현 상태를 보존한다. 병합·v1 태그·새 측정 착수는 D-068 회수 뒤 별도 판단한다.
+- 역할 계약: OpenAI Chat Completions의 `user`와 `tool` 역할 텍스트를 인젝션 검사한다. 표준 `tool` 역할을
+  식별 가능한 비신뢰 RAG 자료로 본다. `system`·`developer`는 신뢰 지시로 보고 제외한다. PII 마스킹은
+  `user` 역할에만 적용한다. 이 구분이 없는 RAG는 D-073의 알려진 한계로 남는다.
+- 스트리밍·응답: `stream: true`는 OpenAI 오류 형식의 400으로 거부한다. 보안 차단은 로컬 평가의 표본 수를
+  보존하도록 HTTP 200의 Chat Completion 형식과 `finish_reason: content_filter`로 응답하고, 차단 사유는
+  감사 로그에만 남긴다.
+
+### 구현·검증 결과 (2026-09-23, 맥북 Python 3.14.7, 사용자 실행)
+
+- 테스트 먼저: `tests/test_openai_gateway.py`를 구현 전에 실행해 예상한 `1 passed, 9 failed`를 확인했다.
+  통과 1개는 기존 투명 중계 양성대조이고, 9개 실패는 스트림·검증·역할 범위·응답 형식의 미구현 지점이었다.
+- 구현 후 새 계약 테스트 `10 passed in 2.38s`.
+- 변이 검사 `scripts/mutate_openai_gateway.py`: 결함 복원 2종(D1 tool 검사 제거, D2 stream 통과),
+  과잉 수정·부작용 1종(O1 system·tool PII 마스킹), 무해 변경 1종(P1 오류 설명 문구) 모두 예상대로 **4/4 통과**.
+  임시 복사본만 바꿨고 원본 파일은 수정하지 않았다.
+- 전체 CPU 회귀: 기존 515개 + 새 10개 = **525 passed in 26.88s**, skip 0.
+- README 6절 갱신 후 CI 동기화 테스트 **17 passed in 0.03s**.
+- 이 결과는 B1 코드 계약의 증거다. AnythingLLM·Ollama 실제 연결(B2), 외부 공급자 기능 검증(B3),
+  새 구조의 ASR·FPR 측정은 아직 하지 않았다.
+
+## D-075. B2 로컬 연결 검증을 결과 전에 고정한다
+
+- 날짜: 2026-09-23, 집 맥북. `codex/openai-gateway` 브랜치에서 B2 실제 기동 전에 기록.
+- 지위: **기능·배선 검증**이다. 보안 성능평가가 아니므로 garak·공격 프롬프트·ASR·FPR 수치를
+  만들지 않는다. 새 구조의 평가 기준은 별도 결정으로 구현·측정 전에 동결하고 ASR과 FPR을 항상 함께
+  측정한다.
+
+### 1. 고정 구성
+
+- AnythingLLM: `docker-compose.yml`에 고정된 오픈소스 이미지. LLM 공급자는 B2에서만
+  `generic-openai`, base path는 `http://gateway:8080/v1`, 스트리밍은 문자열 `"true"`로 비활성화한다.
+- gateway: 현재 브랜치의 OpenAI Chat Completions 입구, `injection_rule,pii_mask` 순서. 상류는
+  `http://host.docker.internal:11434` 로컬 Ollama로 전환한다.
+- Ollama: 호스트의 `gemma3:4b`. 임베딩은 기존처럼 gateway를 거치지 않고
+  `http://host.docker.internal:11434` 의 `bge-m3:latest`를 쓴다.
+- 외부 API·실제 서비스·외부 API 키는 사용하지 않는다. PII는 실제가 아닌 합성 전화번호만 쓴다.
+- 기존 Compose 기본값은 `AnythingLLM → Ollama`, `gateway → AnythingLLM`로 남겨 예전 실험 경로를 보존하고,
+  B2는 환경변수로만 두 경로를 전환한다.
+
+### 2. 사전 합격 기준
+
+- A1 정적 계약: Compose 계약 테스트가 기존 기본 경로 보존, B2 base path, 비스트리밍,
+  로컬 임베딩 경로를 모두 확인한다.
+- A2 기동 식별: gateway health가 HTTP 200이고 `target=http://host.docker.internal:11434`,
+  `detectors=["injection_rule","pii_mask"]`를 보고한다. AnythingLLM UI도 접속된다.
+- A3 정상 경로: AnythingLLM UI에서 일반 질문 1건을 보내 빈 값이 아닌 응답을 받는다. 그 요청의 감사 로그는
+  `path=/v1/chat/completions`, `status=200`, `blocked=false`, `transformed=false`, `upstream_ms`가 null이 아니어야 한다.
+- A4 PII 경로: AnythingLLM UI에서 `다음 문자열만 그대로 출력: 010-2345-6789`를 보내 응답에
+  `010-2345-6789`가 있고 `[PII:`가 없다. 그 감사 로그는 `blocked=false`, `transformed=true`,
+  `upstream_ms`가 null이 아니어야 한다.
+- A5 고정 결과: A1~A4가 모두 만족될 때만 B2 합격이다. 하나라도 어긋나면 실패 상태·로그를 그대로
+  기록하고 원인을 고친 다음 새 실행으로 다시 판정한다.
+
+### 3. 무효 조건과 한계
+
+- V1 AnythingLLM을 거치지 않은 gateway 직접 요청을 A3·A4 대신 쓴다.
+- V2 외부 호스트·API·실제 PII를 쓴다.
+- V3 health·감사 로그가 없어 경로를 확인할 수 없거나, 실행 커밋·Compose 구성을 기록하지 않는다.
+- V4 결과를 본 뒤 A1~A4, 프롬프트, 실행 구성을 바꾸고 같은 실행으로 판정한다.
+- AnythingLLM 고정 이미지가 비스트리밍 설정을 무시하고 `stream:true`를 보내면 B2 실패다. D-073을 조용히
+  바꾸지 않고, 증거와 함께 후속 결정으로 재검토한다.
+
+### 4. 실제 기동 전 정적 검증 결과
+
+- 테스트 먼저: Compose 변경 전 예상한 `2 failed, 1 passed`(기존 고정 경로, Generic OpenAI
+  경로 미구현)를 확인했다. 최소 변경 후 `3 passed`.
+- 변이 검사: 결함 복원 D1(gateway 우회), 과잉 수정·부작용 O1(기존 기본 경로 파괴),
+  무해 변경 P1(주석 문구) **3/3 통과**, 원본 파일 무수정.
+- 전체 CPU 회귀: 기존 525개 + Compose 계약 3개 = **528 passed in 27.34s**, skip 0.
+- 이는 A1의 정적 근거다. A2~A4와 B2 최종 판정은 아직 실행하지 않았다.
+
+### 5. 실행 #1 — 실패 (2026-09-23, 커밋 `fcbf19e`)
+
+- A1 통과: Compose 계약 3 passed, 변이 3/3, 전체 CPU 528 passed, skip 0.
+- A2 통과: gateway health HTTP 200, `target=http://host.docker.internal:11434`,
+  `detectors=["injection_rule","pii_mask"]`, 코드 지문 `3e2d81e49e73`. AnythingLLM UI HTTP 200.
+- A3 실패: 새 UI Thread에서 고정 질문 `대한민국의 수도는 어디인가요? 한 문장으로 답하세요.`를 보냈으나
+  AnythingLLM이 `agentWebsocket` → `GenericOpenAiProvider.stream (tooled)`으로 `stream:true`를 보냈고 gateway가
+  D-073대로 HTTP 400 `streaming is not supported`를 반환했다. 감사 로그 5건은 모두
+  `path=/v1/chat/completions`, `status=400`, `upstream_ms=null`이어서 Ollama로는 전달되지 않았다.
+- A4는 A3 실패로 실행하지 않았다. **실행 #1 판정: B2 실패.** A1~A4 기준은 바꾸지 않는다.
+- 초기 진단에서 Compose 키와 Agent 키를 같은 것으로 잘못 읽어 상속 getter 결함으로 판단했다.
+  실제 근본 원인은 고정 이미지 내 두 AnythingLLM 경로의 **환경변수 이름 불일치**다.
+
+## D-076. AnythingLLM 비스트리밍 키 불일치를 두 별칭으로 고정한다
+
+- 날짜: 2026-09-23, 집 맥북. D-075 실행 #1 실패 후, 수정·재실행 전에 기록.
+- 증거: Compose와 컨테이너에는 `GENERIC_OPEN_AI_STREAMING_DISABLED=true`가 있었다. 고정 이미지의
+  일반 채팅 `AiProviders/genericOpenAi/index.js`는 이 키(`OPEN_AI`)를 읽지만, Agent
+  `agents/aibitat/providers/genericOpenAi.js`는 `GENERIC_OPENAI_STREAMING_DISABLED`(`OPENAI`)를 읽는다.
+  두 소스를 컨테이너에서 `grep`해 각 키를 확인했다.
+- 수정: AnythingLLM 소스를 고치거나 이미지를 직접 만들지 않는다. Compose에 두 키를 모두 문자열
+  `true`로 설정해 일반 채팅·Agent 경로를 동시에 비스트리밍으로 고정한다.
+- D-073의 `stream:true` 명시적 거부 정책은 **바꾸지 않는다**. 버퍼형 SSE 변환은 근본 원인을 고치지 않는
+  불필요한 우회였으므로 구현하지 않는다.
+- 검증: Compose 계약 테스트는 두 키가 모두 `true`임을 요구한다. 구현 전 실패를 확인하고,
+  결함 복원(어느 한 키 누락), 과잉 수정·부작용(기존 기본 경로 파괴), 무해 변경 변이를 확인한다.
+- 재판정: 같은 D-075 A1~A5·V1~V4로 실행 #2를 새로 판정한다. 실행 #1은 실패로 남긴다.
+
+### 1. 검증 실측 (2026-09-24, 집 맥북)
+
+- RED(수정 전): `tests/test_openai_compose.py` **1 failed, 2 passed**. 실패 원인은 새 키
+  `GENERIC_OPENAI_STREAMING_DISABLED` 부재로 인한 `KeyError`다.
+- GREEN(Compose 최소 수정 후): **3 passed**.
+- 변이 `scripts/mutate_openai_compose.py` — 기준선 3 passed, **5/5 통과**, 원본 파일 무수정.
+  - D1 결함 복원(gateway 우회): 검출, 실패 1개 / 지정 1개.
+  - D2 결함 복원(Agent `OPENAI` 별칭 제거): 검출, 실패 1개 / 지정 1개.
+  - D3 결함 복원(일반 채팅 `OPEN_AI` 별칭 제거): 검출, 실패 1개 / 지정 1개.
+  - O1 과잉 수정·부작용(기존 기본 모드를 generic-openai로 변경): 검출, 실패 1개 / 지정 1개.
+  - P1 무해 변경(Compose 주석 문구): 통과, 테스트 3개 / 기준 3개.
+  - D2와 D3가 각각 독립으로 검출됐다. 두 키 중 하나만 빠져도 계약 테스트가 실패하므로,
+    새 단언이 기존 단언에 묻혀 무의미해지지 않았다.
+- 전체 CPU 회귀: **528 passed in 41.48s**, skip 0. D-075 4절과 총수가 같은 이유는 이번 변경이
+  테스트를 추가하지 않고 기존 계약 테스트에 단언 한 줄만 더했기 때문이다.
+- 이는 실행 #2 A1의 정적 근거다. A2~A4와 B2 최종 판정은 아직 실행하지 않았다.
+
+## D-077. AnythingLLM Agent 자동 라우팅을 끄고 실행 #3으로 재판정한다
+
+- 날짜: 2026-09-24, 집 맥북. D-075 실행 #2 실패 후, 조치·재실행 전에 기록.
+
+### 1. 실행 #2 — 실패 (2026-09-24, 커밋 `66c3912`)
+
+- A1 통과: Compose 계약 3 passed, 변이 5/5, 전체 CPU 528 passed, skip 0.
+- A2 통과: gateway health HTTP 200, `target=http://host.docker.internal:11434`,
+  `detectors=["injection_rule","pii_mask"]`, 코드 지문 `3e2d81e49e73`. AnythingLLM UI HTTP 200.
+  `docker exec`로 컨테이너 환경에 `GENERIC_OPENAI_STREAMING_DISABLED=true`와
+  `GENERIC_OPEN_AI_STREAMING_DISABLED=true`가 **둘 다** 주입된 것을 확인했다.
+- A3 실패: 새 Thread에서 고정 질문을 보냈으나 정상 응답이 없었다. 화면 오류는
+  `The agent model failed to respond: 400 registry.ollama.ai/library/gemma3:4b does not support tools`.
+- A4는 A3 실패로 실행하지 않았다. **실행 #2 판정: B2 실패.** A1~A5 기준은 바꾸지 않는다.
+
+### 2. D-076의 효과는 입증됐다 — 실패 지점이 한 칸 뒤로 밀렸다
+
+- 감사 로그 비교가 근거다. 실행 #1의 마지막 항목은 `status=400`, `upstream_ms=null`,
+  `detectors=[]`였다. 실행 #2의 신규 항목(6번째 줄)은 `status=400`이지만
+  **`upstream_ms=164.11`**, `chain_ms=8.493`,
+  `detectors=[{injection_rule, allow}, {pii_mask, allow}]`다.
+- `upstream_ms`가 null이 아니라는 것은 요청이 gateway를 통과해 **Ollama까지 실제로 도달**했다는 뜻이다.
+  실행 #1은 gateway가 `stream:true`를 거부해 반송했고, 실행 #2는 gateway를 통과한 뒤
+  upstream이 거절했다. 400을 낸 주체가 gateway에서 Ollama로 바뀌었다.
+- 컨테이너 로그에 직접 증거가 있다.
+  `[AgentHandler] [DEBUG] Provider does not support agent streaming - will use synchronous execution!`
+  Agent 경로가 D-076에서 추가한 `GENERIC_OPENAI_STREAMING_DISABLED`를 읽고 동기 실행으로 전환했다.
+  실행 #1에서 나왔던 `GenericOpenAiProvider.stream (tooled)`는 더 이상 나오지 않는다.
+- 따라서 D-076은 되돌리지 않는다. 두 키 설정과 D-073의 `stream:true` 거부 정책을 모두 유지한다.
+
+### 3. 실행 #1 실패에는 독립된 원인이 둘 있었다
+
+- 원인 A: AnythingLLM UI의 Agent 토글이 켜져 있어 모든 메시지가 `@agent` 없이도
+  Agent WebSocket(`/app/server/endpoints/agentWebsocket.js`)으로 나갔다.
+- 원인 B: Agent 경로가 읽는 비스트리밍 환경변수 이름이 일반 채팅 경로와 달랐다.
+- D-076은 원인 B만 고쳤다. 원인 A는 그때 확인되지 않았고 실행 #2에서 드러났다.
+  Agent 경로는 `tools`를 포함해 요청하는데 `gemma3:4b`는 tool calling을 지원하지 않는다.
+- 확인 경위: 사용자가 `@agent`를 입력하지 않았음에도 로그가
+  `workspace_thread_created → sent_chat → [AgentHandler] Start`로 이어졌고, 스택 최상단이
+  `agentWebsocket.js:58`이었다. 서버가 메시지 내용을 보고 전환한 것이 아니라 프론트엔드가
+  처음부터 Agent WebSocket으로 연결했다. UI를 직접 확인해 Agent 토글과 워크스페이스
+  agent 설정이 켜져 있음을 확인했다. `./target/storage` 볼륨이 유지되므로 실행 #1의 UI 상태가
+  남아 있었다. 추측이 아니라 화면과 로그 양쪽으로 확인했다.
+
+### 4. 조치와 재판정 방식
+
+- 조치: AnythingLLM UI에서 Agent 토글과 워크스페이스 agent 설정을 끄고, 일반 채팅 경로로
+  A3·A4를 수행한다. Compose·모델(`gemma3:4b`)·임베딩(`bge-m3:latest`)·검사기
+  (`injection_rule,pii_mask`)·고정 이미지 digest는 **바꾸지 않는다**.
+- AnythingLLM 소스나 이미지를 패치하지 않는다. tools를 지원하는 모델로 교체하지도 않는다.
+  B2는 기능·배선 검증이며 모델 교체는 D-075가 고정한 구성을 벗어난다.
+- 재판정: Agent 토글을 끄는 것이 구성 변경인지 기준 준수인지 해석 여지가 있으므로,
+  **실행 #2를 실패로 확정하고 실행 #3을 A1~A5·V1~V4로 새로 판정한다.** D-075의 무효 조건
+  "결과를 본 뒤 구성을 바꾸고 같은 실행으로 판정하면 무효"를 확실히 피한다.
+  실행 #1·#2의 실패 기록은 삭제하거나 덮어쓰지 않는다.
+- 실행 #3의 A1 정적 근거는 실행 #2와 동일하다. 커밋이 `66c3912`로 같고 코드·테스트를
+  바꾸지 않았기 때문이다. A2는 컨테이너 재생성 후 다시 수집한다.
+
+### 5. 실행 #3 — 실패 (2026-09-24, 커밋 `66c3912`)
+
+- 조치 결과: UI의 "에이전트의 역량"을 **0/9**, "앱 통합"을 **0/3**으로 전부 껐다. 이것으로
+  실행 #2의 `400 ... does not support tools`는 사라졌다. 컨테이너 로그가
+  `[AgentLLM - gemma3:4b] Untooled.complete`와 `Will assume chat completion without tool call inputs.`로
+  바뀌었고 오류가 한 줄도 없었다.
+- A1 통과(실행 #2와 동일 근거), A2 통과(health 200, target·detectors 일치, UI 200, 두 키 주입).
+- A3 **실패**: 감사 로그 8·9번째 항목은 `status=200`, `blocked=false`, `transformed=false`,
+  `upstream_ms=26731.26 / 13982.54`로 기준 수치를 만족했으나 **화면에 응답이 표시되지 않았다.**
+  A3는 "빈 값이 아닌 정상 응답"을 요구하므로 로그 수치만으로 통과시키지 않는다.
+- 화면에는 여전히 `@agent: Swapping over to agent chat.`이 떴다. agent 세션이
+  `agent_chat_sent`까지 기록하고도 WebSocket으로 프론트에 결과를 전달하지 못했다.
+- A4는 A3 실패로 실행하지 않았다. **실행 #3 판정: B2 실패.**
+- 이로써 D-077 4절의 조치는 **부분적으로만 맞았다**. 도구를 끄는 것은 `tools` 파라미터를
+  없앴을 뿐 agent 진입 자체를 막지 못했다. 둘은 별개다. 진짜 분기 조건은 D-078에서 확정했다.
+
+## D-078. AnythingLLM 워크스페이스 chatMode를 chat으로 고정한다
+
+- 날짜: 2026-09-24, 집 맥북. D-075 실행 #3 실패 후, 고정 이미지 소스를 읽어 원인을 확정하고 기록.
+
+### 1. 근본 원인 — 고정 이미지 소스가 직접 말한다
+
+- 파일: `/app/server/utils/chats/agents.js` (컨테이너에서 `grep -rl`로 위치를 특정한 뒤 `cat`).
+  UI를 추적하는 방식이 두 번 빗나간 뒤 소스를 직접 읽어 확정했다.
+- `grepAgents()`의 분기는 다음과 같다.
+
+  ```js
+  let nativeToolingEnabled = false;
+  if (workspace?.chatMode === "automatic")
+    nativeToolingEnabled = await Workspace.supportsNativeToolCalling(workspace);
+
+  const agentHandles = WorkspaceAgentInvocation.parseAgents(message);
+  if (agentHandles.length > 0 || nativeToolingEnabled) { /* agent 세션으로 전환 */ }
+  ```
+
+- 조건은 둘 중 하나다. 메시지에 `@agent`가 있거나(`agentHandles.length > 0`),
+  `nativeToolingEnabled`가 참이거나. 사용자는 `@agent`를 입력하지 않았으므로 후자였다.
+- `nativeToolingEnabled`는 **`workspace.chatMode === "automatic"`일 때만** 계산된다.
+  즉 워크스페이스 채팅 모드가 "자동"이어서 AnythingLLM이 모델의 도구 호출 지원 여부를 스스로
+  확인한 뒤 agent로 보냈다.
+- **활성화된 도구 개수는 이 분기와 무관하다.** 도구를 0/9로 꺼도 `chatMode`가 `automatic`이면
+  agent로 간다. 실행 #3이 실패한 이유가 이것이다.
+
+### 2. 조치
+
+- AnythingLLM UI에서 워크스페이스 채팅 모드를 **`automatic` → `chat`** 으로 변경했다.
+- AnythingLLM 소스나 고정 이미지를 패치하지 않았다. Compose·모델(`gemma3:4b`)·임베딩
+  (`bge-m3:latest`)·검사기(`injection_rule,pii_mask`)·이미지 digest·gateway 코드는 모두 그대로다.
+  커밋은 실행 #2·#3과 같은 `66c3912`다.
+
+### 3. 한계 — 이 설정은 Compose로 고정되지 않는다
+
+- `chatMode`는 환경변수가 아니라 AnythingLLM의 워크스페이스 레코드이며 `./target/storage`의
+  SQLite DB에 저장된다. 따라서 **Compose 계약 테스트로 고정할 수 없고**, storage를 초기화하면
+  기본값으로 돌아갈 수 있다.
+- 환경변수로 이 값을 고정할 수 있는지는 **확인하지 않았다.** 추측하지 않고 미확인으로 남긴다.
+- 결과적으로 아래 실행 #4의 증거는 이 storage 상태에 의존한다. 재현성 강화(환경변수 고정 가능
+  여부 조사, 또는 storage 초기 상태를 스크립트로 세우기)는 후속 과제로 남긴다.
+
+### 4. 실행 #4 — 합격 (2026-09-24, 커밋 `66c3912`)
+
+- **A1 통과**: Compose 계약 3 passed, 변이 5/5, 전체 CPU 528 passed(skip 0). 커밋 `66c3912`로
+  실행 #2·#3과 동일하며 코드·테스트를 바꾸지 않았다.
+- **A2 통과**: gateway health HTTP 200, `target=http://host.docker.internal:11434`,
+  `detectors=["injection_rule","pii_mask"]`, 코드 지문 `3e2d81e49e73`, AnythingLLM UI HTTP 200,
+  컨테이너에 두 비스트리밍 키 모두 주입 확인.
+- **A3 통과**: AnythingLLM UI의 새 Thread에서 고정 질문을 보내
+  화면에 `대한민국의 수도는 서울입니다.`가 표시됐다. `@agent` 전환 메시지는 나오지 않았다.
+  감사 로그 11번째 항목(`ts=2026-09-23T15:51:58.480+00:00`, `request_id=f66a91d5751141cf`):
+  `status=200`, `blocked=false`, `transformed=false`, `upstream_ms=34459.46`, `gateway_ms=395.41`.
+  `req_sha256_12`가 `792ec8ec9a99`로 agent 경로 시도들(`42452715fbb6`)과 다르다 —
+  요청 경로가 실제로 바뀌었다는 증거다.
+- **A4 통과**: 같은 Thread에서 합성 PII `다음 문자열만 그대로 출력: 010-2345-6789`를 보내
+  화면에 `010-2345-6789`가 그대로 나왔고 `[PII:` 내부 토큰은 없었다.
+  감사 로그 12번째 항목(`ts=2026-09-23T15:56:09.867+00:00`, `request_id=eb686f2cedc24cd1`):
+  `status=200`, `blocked=false`, **`transformed=true`**, `upstream_ms=24376.24`.
+  요청 경로 `pii_mask`는 `action=transform`, `masked=1`, `pii={"phone":1}`,
+  `findings=[{kind:phone, start:16, end:29, len:13, confidence:strong}]`.
+  응답 경로 `pii_mask`는 `action=restore`, `restored=1`, **`residual_tokens=0`**.
+  잔여 토큰 0이 화면 결과와 일치한다.
+- **A5 통과 → B2 합격.** 무효 조건도 모두 피했다. (1) 모든 질문을 AnythingLLM UI를 통해 보냈고
+  gateway를 직접 호출하지 않았다. (2) 로컬 시스템만 대상으로 했고 합성 PII만 썼으며 공격
+  프롬프트·garak·ASR/FPR 측정은 하지 않았다. (3) health·감사 로그·실행 커밋·Compose 구성
+  증거를 모두 남겼다. (4) 구성을 바꿀 때마다 실행 번호를 새로 부여했다(#1→#2→#3→#4).
+- 실행 #1~#3의 실패 기록은 삭제하거나 덮어쓰지 않는다.
+
+### 5. 실패 원인이 매 실행 한 칸씩 뒤로 밀렸다
+
+| 실행 | A3 실패 원인 | 실패 지점 | 해결 |
+|---|---|---|---|
+| #1 | gateway가 `stream:true` 거부, `upstream_ms=null` | gateway | D-076 비스트리밍 키 두 별칭 |
+| #2 | agent 경로 + `tools`, `gemma3:4b` 미지원으로 400 | upstream(Ollama) | 도구 0/9 |
+| #3 | agent 경로 유지, 200을 받고도 화면 미표시 | AnythingLLM 프론트 전달 | `chatMode` → `chat` |
+| #4 | — | — | **합격** |
+
+- gateway 측 결함은 #1에서 끝났다. #2·#3의 원인은 모두 AnythingLLM 앱 설정이었고 gateway 코드,
+  Compose, 검사기 구성은 `66c3912` 이후 한 줄도 바꾸지 않았다.
+- 이 표는 B2가 "gateway가 응답하는가"가 아니라 "AnythingLLM → gateway → Ollama 배선이
+  실제로 이어지는가"를 보는 검증이었음을 보여준다. 배선 검증의 가치가 여기에 있다.
+
+## D-079. chatMode 재현성 — 환경변수 고정 불가, 수동 단계로 문서화한다 (c)
+
+- 날짜: 2026-09-24, 집 맥북. D-078 3절 "미확인"을 고정 이미지 소스로 확인한 뒤 기록. 코드 변경 없음.
+- 확인 방법: 서버를 띄우지 않고 `docker run --rm --entrypoint sh <고정 digest> -c "grep/sed ..."`로
+  이미지 안의 파일만 읽었다.
+
+### 1. 확인된 사실
+
+- `/app/server/prisma/schema.prisma:136` — `chatMode String? @default("chat")`.
+  스키마 기본값은 `chat`이다.
+- `/app/server/models/workspace.js`의 생성 함수는 `prisma.workspaces.create({ data: { name, chatMode:
+  "automatic", ...this.validateFields(additionalFields), slug } })`이다. **UI로 새로 만든 워크스페이스는
+  조건 없이 `automatic`이 된다.** 스키마 기본값 `chat`은 이 경로에서 쓰이지 않는다.
+- 같은 파일의 `process.env` 참조는 355·671·680행 셋뿐이고 모두 `LLM_PROVIDER`·`MODEL_ROUTER_ID`다.
+  **chatMode를 정하는 환경변수는 없다.** → (a) 불가.
+- `VALID_CHAT_MODES: ["chat", "query", "automatic"]`, 쓰기 허용 필드 목록에 `chatMode`가 있다.
+  검증기는 목록 밖 값이나 빈 값을 `"automatic"`으로 바꾼다. v1 API `/v1/workspace/:slug/update`
+  엔드포인트가 존재한다. 즉 **API로 바꾸는 길은 있다.** 단, 엔드포인트 본문 처리 코드는 직접 읽지 않았다.
+
+### 2. (b)를 택하지 않는 이유
+
+- `eval/setup_target.py`는 이미 이 update API로 `chatMode`를 설정·검증한다. 그 값은 `"query"`이며
+  `EVAL_CRITERIA.md`(동결) 305행의 측정 조건이다. B2용 `chat`으로 바꾸면 동결 기준과 충돌한다.
+- 이 스크립트는 문서 삭제·재업로드·카나리 삽입·지문 기록까지 하는 **평가용 타겟 구성 스크립트**다.
+  B2 배선 검증에 끌어오면 두 목적이 섞인다.
+- B2 전용 스크립트를 새로 만들어도 storage를 초기화하면 AnythingLLM API 키가 사라진다. 결국
+  "UI에서 API 키 발급"이라는 수동 단계가 남고, 이는 "UI에서 채팅 모드 선택"과 수고가 같다. 얻는 것 없이
+  코드와 테스트만 늘어난다(YAGNI).
+- 부수 확인: `query`도 `automatic`이 아니므로, `setup_target.py`를 거친 평가 경로에서는 D-078의 agent
+  자동 전환 조건(`chatMode === "automatic"`)이 성립하지 않는다(소스 조건으로부터의 추론이며, 새로 실행하지 않음).
+
+### 3. 결정 — (c) 한계를 명시하고 B2 재현 절차에 수동 단계를 둔다
+
+- chatMode는 Compose 계약 테스트로 고정되지 않는다. 이 한계를 받아들인다.
+- AnythingLLM 소스·이미지 패치, 모델 교체, gateway 확장은 하지 않는다(D-073·D-075 유지).
+- **B2 재현 시 필수 수동 단계** (D-075 A3 전에 수행, 실행 기록에 남긴다):
+  1. AnythingLLM UI → 대상 워크스페이스 설정 → 채팅 설정 → 채팅 모드를 **`chat`**으로 선택·저장한다.
+     (새로 만든 워크스페이스는 항상 `automatic`이다. storage 초기화 뒤에는 반드시 다시 한다.)
+  2. Agent 도구는 0/9로 둔다(D-077). chatMode가 `chat`이면 agent 전환에는 영향이 없지만 실행 #4와 같은
+     구성을 유지하기 위해서다.
+  3. A3에서 `@agent` 전환 메시지가 뜨거나 감사 로그 `req_sha256_12`가 agent 경로(`42452715fbb6`)와 같으면
+     이 단계가 빠진 것이다. 그 실행은 실패로 기록하고 새 번호로 다시 판정한다.
+- 실행 #4의 합격 증거는 이 수동 단계를 거친 storage 상태에서 얻은 것이다. 실행 #1~#4 기록은 그대로 둔다.
+
 ## D-080. v1 정리 — 빚 9를 미이행으로 닫고 v1 태그를 찍는다
 
 - 날짜: 2026-09-28, 집 맥북. 사용자 결정: "빚9 분석하지 않고 닫자".

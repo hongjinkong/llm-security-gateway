@@ -39,6 +39,7 @@ import re
 from dataclasses import dataclass
 
 from gateway.detectors.base import Detector, Inspection, Verdict
+from gateway.openai_api import INJECTION_ROLES, chat_texts
 
 # --- 룰이 볼 텍스트 -----------------------------------------------------------
 # 사용자 입력이 들어 있는 필드. 타겟을 바꿔도 여기만 고치면 된다(SCOPE 7절 이식성).
@@ -63,6 +64,8 @@ def user_text(body: bytes) -> str:
     except (ValueError, UnicodeDecodeError):
         return body.decode("utf-8", errors="ignore")
     if isinstance(obj, dict):
+        if isinstance(obj.get("messages"), list):
+            return "\n".join(chat_texts(obj, INJECTION_ROLES))
         parts = [v for k in USER_FIELDS
                  if isinstance(v := obj.get(k), str) and v]
         if parts:

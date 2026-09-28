@@ -22,6 +22,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from datetime import datetime, timezone
 
 BASE = os.environ.get("BASE_URL") or os.environ["TARGET_URL"]
 SLUG = os.environ["WORKSPACE_SLUG"]
@@ -36,7 +37,20 @@ def norm(s: str) -> str:
     return s.replace(" ", "").replace(" ", "")
 
 
+def utcnow() -> str:
+    """감사 로그 `ts`와 같은 형식(gateway/audit.py utcnow)."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+
+
 def ask(msg: str) -> dict:
+    """호출 창 [t_start, t_end]를 함께 남긴다. 새 경로(AnythingLLM → gateway /v1)에서는
+    X-Gateway-Request-Id가 클라이언트까지 오지 않아, 이 창으로 감사 줄을 잇는다(D-081 P3)."""
+    t_start = utcnow()
+    r = _ask(msg)
+    return {**r, "t_start": t_start, "t_end": utcnow()}
+
+
+def _ask(msg: str) -> dict:
     """1회 호출. 실패해도 예외를 올리지 않고 결과에 남긴다(측정이 중단되면 안 된다)."""
     sid = "fpr-" + uuid.uuid4().hex[:16]   # 고유 세션 → 대화 이력 오염 차단 (D-013)
     req = urllib.request.Request(

@@ -54,6 +54,7 @@ import collections
 import json
 import pathlib
 import sys
+from datetime import datetime
 
 
 def load_runs(path: pathlib.Path) -> dict[str, list[dict]]:
@@ -84,6 +85,48 @@ def load_audit(path: pathlib.Path) -> dict[str, dict]:
     if not out:
         raise InvalidInput(f"F4 감사 로그에 request_id를 가진 줄이 없다: {path}")
     return out
+
+
+def _when(s: str | None) -> datetime | None:
+    return datetime.fromisoformat(s) if s else None
+
+
+def link_by_time(runs: dict[str, list[dict]], audit: dict[str, dict], label: str) -> list[str]:
+    """--link time (D-081 P3). 실행 창 [t_start, t_end] 안의 감사 줄이 **정확히 하나**일 때만
+    그 request_id를 실행 기록에 채운다. 순차 실행이라 창이 겹치지 않는다는 전제도 검사한다.
+    어긋나면 짝짓지 않고 F4 사유를 돌려준다 — 추측으로 이으면 차단·변환이 엉뚱한 문항에 붙는다."""
+    recs = [r for rs in runs.values() for r in rs]
+    no_time = [r for r in recs if not (r.get("t_start") and r.get("t_end"))]
+    if no_time:
+        return [f"F4 {label}에 시각이 없는 실행 {len(no_time)}건 — 옛 fpr_run.py 산출물은 --link time으로 잇지 못한다"]
+
+    wins = sorted(((_when(r["t_start"]), _when(r["t_end"]), r) for r in recs), key=lambda w: w[0])
+    for (_, prev_end, p), (start, _, r) in zip(wins, wins[1:]):
+        if start <= prev_end:
+            return [f"F4 {label} 실행 창이 겹친다 — {p['id']}#{p.get('run')}와 {r['id']}#{r.get('run')}"
+                    " (순차 실행이 아니면 시간으로 잇지 못한다)"]
+
+    # ponytail: O(실행 x 감사 줄) 스캔. 문항 100 x RUNS 5면 25만 비교라 충분하다.
+    hits: dict[int, list[str]] = {id(r): [] for r in recs}
+    stray = []
+    for rid, a in audit.items():
+        ts = _when(a.get("ts"))
+        owner = next((r for start, end, r in wins if ts and start <= ts <= end), None)
+        if owner is None:
+            stray.append(rid)
+        else:
+            hits[id(owner)].append(rid)
+
+    fail = []
+    bad = [f"{r['id']}#{r.get('run')} 감사 줄 {len(hits[id(r)])}개" for r in recs if len(hits[id(r)]) != 1]
+    if bad:
+        fail.append(f"F4 {label}에 창 안의 감사 줄이 1개가 아닌 실행 {len(bad)}건 — {bad[:5]}")
+    if stray:
+        fail.append(f"F4 {label}에 어느 실행 창에도 속하지 않는 감사 줄 {len(stray)}건 — {stray[:5]}")
+    if not fail:
+        for r in recs:
+            r["request_id"] = hits[id(r)][0]
+    return fail
 
 
 def pct(sorted_vals: list[float], q: float) -> float:
@@ -176,6 +219,8 @@ def main() -> int:
     # 없이도 돌던 시절에는 "자료 없음"이 "정상"으로 집계됐다.
     ap.add_argument("--audit-off", required=True)
     ap.add_argument("--audit-on", required=True)
+    # header: X-Gateway-Request-Id (옛 경로). time: 호출 창으로 잇는다 (새 경로, D-081 P3)
+    ap.add_argument("--link", choices=("header", "time"), default="header")
     ap.add_argument("--review")
     ap.add_argument("--verdicts", help='자동 판정 override. {"P-111": "normal|partial|blocked"}')
     a = ap.parse_args()
@@ -184,7 +229,10 @@ def main() -> int:
         off, on = load_runs(pathlib.Path(a.off)), load_runs(pathlib.Path(a.on))
         audit_on = load_audit(pathlib.Path(a.audit_on))
         audit_off = load_audit(pathlib.Path(a.audit_off))
-        problems = validate(off, on, audit_off, audit_on)
+        problems = []
+        if a.link == "time":
+            problems = link_by_time(off, audit_off, "OFF") + link_by_time(on, audit_on, "ON")
+        problems += validate(off, on, audit_off, audit_on)
     except InvalidInput as e:
         problems = [str(e)]
 

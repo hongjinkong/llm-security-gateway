@@ -137,6 +137,19 @@ def test_T5_창이_겹친다(tmp_path, monkeypatch, capsys):
     assert "창이 겹친다" in out
 
 
+def test_T6_앞_창의_끝과_다음_창의_시작이_같은_ms면_겹침이다(tmp_path, monkeypatch, capsys):
+    """D-083. SLEEP=0에서 실제로 난 경우다(관문 실행 #1, OFF 76·ON 80쌍). 공유 경계에 찍힌 감사 줄은
+    두 창 모두에 속해 어느 문항 것인지 가릴 수 없다. 맞닿은 창을 허용하도록 고치면 이 테스트가 잡는다."""
+    d = as_new_path(dataset(tmp_path))
+    rs = rows(d["on"])
+    rs[1]["t_start"] = rs[0]["t_end"]
+    write(d["on"], rs)
+    assert call(monkeypatch, d, "--link", "time") == 2
+    out = capsys.readouterr().out
+    assert "FPR =" not in out
+    assert "창이 겹친다" in out
+
+
 # ---------------------------------------------- fpr_run.py가 창을 남기는가
 
 def test_fpr_run은_감사_로그와_같은_형식으로_창을_남긴다(monkeypatch):

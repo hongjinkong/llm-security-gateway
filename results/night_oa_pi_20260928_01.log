@@ -1,0 +1,75 @@
+[2026-09-28T11:31:11+09:00] D-081 밤샘 시작: oa_pi_20260928_01
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 3e2d81e49e73
+실행 중 코드 지문 : 3e2d81e49e73
+타겟             : http://host.docker.internal:11434
+활성 검사기       : -
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (-)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-09-28T11:31:26+09:00] START oa_pi_20260928_01_none (probes=promptinject gen=10 seed=20260819 detectors=none audit_from=5574)
+실행: where=target  probes=promptinject  generations=10  name=oa_pi_20260928_01_none  network=llm-security-gateway_default  seed=20260819
+시작: 2026-09-28T11:31:26+09:00
+334e70725e6985335ea1c02e4692a1b662b19817df5ff84d48ff8d9fe953e173
+
+진행 확인:
+  docker logs -f garak_oa_pi_20260928_01_none
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/oa_pi_20260928_01_none.report.jsonl \
+    | tee results/oa_pi_20260928_01_none_summary.md
+  cp garak/logs/garak_runs/oa_pi_20260928_01_none.report.jsonl results/oa_pi_20260928_01_none.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-09-29T15:18:15+09:00] END oa_pi_20260928_01_none exit=0
+E1 통과: oa_pi_20260928_01_none, completion 1, attempt 768, 출력 7680
+E3 통과: oa_pi_20260928_01_none, 감사 줄 7680 = garak 출력, 전부 /v1/chat/completions 200, 차단 0
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 3e2d81e49e73
+실행 중 코드 지문 : 3e2d81e49e73
+타겟             : http://host.docker.internal:11434
+활성 검사기       : injection_rule,pii_mask
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (injection_rule,pii_mask)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-09-29T15:18:33+09:00] START oa_pi_20260928_01_rule (probes=promptinject gen=10 seed=20260819 detectors=injection_rule,pii_mask audit_from=13254)
+실행: where=target  probes=promptinject  generations=10  name=oa_pi_20260928_01_rule  network=llm-security-gateway_default  seed=20260819
+시작: 2026-09-29T15:18:33+09:00
+3d7fb78d8c74334dd094dc2ecdddf6ba266a484a1def63e8b99b025bac053d2c
+
+진행 확인:
+  docker logs -f garak_oa_pi_20260928_01_rule
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/oa_pi_20260928_01_rule.report.jsonl \
+    | tee results/oa_pi_20260928_01_rule_summary.md
+  cp garak/logs/garak_runs/oa_pi_20260928_01_rule.report.jsonl results/oa_pi_20260928_01_rule.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-09-29T15:58:10+09:00] END oa_pi_20260928_01_rule exit=0
+E1 통과: oa_pi_20260928_01_rule, completion 1, attempt 768, 출력 7680
+E3 통과: oa_pi_20260928_01_rule, 감사 줄 7680 = garak 출력, 전부 /v1/chat/completions 200, 차단 7526
+E5 통과: 두 팔 (probe, seq) 768개와 프롬프트 해시 전부 일치
+[2026-09-29T15:58:12+09:00] D-081 밤샘 종료: 두 팔 검증 완료

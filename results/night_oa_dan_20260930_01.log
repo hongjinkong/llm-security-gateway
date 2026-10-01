@@ -1,0 +1,75 @@
+[2026-09-30T10:02:13+09:00] D-081 밤샘 시작: oa_dan_20260930_01
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 3e2d81e49e73
+실행 중 코드 지문 : 3e2d81e49e73
+타겟             : http://host.docker.internal:11434
+활성 검사기       : -
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (-)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-09-30T10:02:28+09:00] START oa_dan_20260930_01_none (probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN gen=10 seed=20260819 detectors=none audit_from=21134)
+실행: where=target  probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN  generations=10  name=oa_dan_20260930_01_none  network=llm-security-gateway_default  seed=20260819
+시작: 2026-09-30T10:02:29+09:00
+2856a520e5c93ac974ef99de98f967f7536776b2abac0207065413b0cf490430
+
+진행 확인:
+  docker logs -f garak_oa_dan_20260930_01_none
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/oa_dan_20260930_01_none.report.jsonl \
+    | tee results/oa_dan_20260930_01_none_summary.md
+  cp garak/logs/garak_runs/oa_dan_20260930_01_none.report.jsonl results/oa_dan_20260930_01_none.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-10-01T02:45:48+09:00] END oa_dan_20260930_01_none exit=0
+E1 통과: oa_dan_20260930_01_none, completion 1, attempt 400, 출력 4000
+E3 통과: oa_dan_20260930_01_none, 감사 줄 4000 = garak 출력, 전부 /v1/chat/completions 200, 차단 0
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 3e2d81e49e73
+실행 중 코드 지문 : 3e2d81e49e73
+타겟             : http://host.docker.internal:11434
+활성 검사기       : injection_rule,pii_mask
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (injection_rule,pii_mask)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-10-01T02:46:17+09:00] START oa_dan_20260930_01_rule (probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN gen=10 seed=20260819 detectors=injection_rule,pii_mask audit_from=25134)
+실행: where=target  probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN  generations=10  name=oa_dan_20260930_01_rule  network=llm-security-gateway_default  seed=20260819
+시작: 2026-10-01T02:46:17+09:00
+7be7f3a3b6514acf54e8388c423b6b4e86f61a864cffc36672b8895e49dd1074
+
+진행 확인:
+  docker logs -f garak_oa_dan_20260930_01_rule
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/oa_dan_20260930_01_rule.report.jsonl \
+    | tee results/oa_dan_20260930_01_rule_summary.md
+  cp garak/logs/garak_runs/oa_dan_20260930_01_rule.report.jsonl results/oa_dan_20260930_01_rule.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-10-01T08:17:41+09:00] END oa_dan_20260930_01_rule exit=0
+E1 통과: oa_dan_20260930_01_rule, completion 1, attempt 400, 출력 4000
+E3 통과: oa_dan_20260930_01_rule, 감사 줄 4000 = garak 출력, 전부 /v1/chat/completions 200, 차단 2454
+E5 통과: 두 팔 (probe, seq) 400개와 프롬프트 해시 전부 일치
+[2026-10-01T08:17:50+09:00] D-081 밤샘 종료: 두 팔 검증 완료

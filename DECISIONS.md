@@ -7774,3 +7774,45 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 
 - 실제 공급자 연결(GPT·Gemini·Claude) 전부. 스트리밍. 이전 assistant 답변에 복원된 PII가 다음 요청으로 재전송되는 경로(user-only 정책 한계).
 - 테스트: 2026-10-01 맥북 `pytest -q` 580 passed (기존 561 + 신규 19). garak·GPU·외부 API는 실행하지 않았다.
+
+## D-086. B3 준비 — chat 상류 경로 매핑, 상류 장애 OpenAI 형식 502/504, 스텁 계약 테스트 (측정 없음)
+
+- 날짜: 2026-10-01, 집 맥북. 브랜치 `codex/b3-prep-20261001`(`codex/review-fixes-20261001` 위). 실제 공급자 호출 없음.
+- 결정(사용자, 2026-10-01): B3 첫 공급자는 **OpenAI**, 남은 크레딧 $8.82. D-085 §3의 두 미결정 항목을 구현한다.
+- 지위: 동결 기준·D-081 등록·results/·logs/ 불변. 1·2·3밤은 이 코드 이전으로 측정했다.
+
+### 1. 바꾼 것
+
+- `GATEWAY_CHAT_UPSTREAM_PATH`(기본 `/v1/chat/completions` = 기존 동작): `/v1/chat/completions` 요청의 **상류 경로만** 바꾼다.
+  `/`로 시작하지 않으면 기동 실패. health에 `chat_upstream_path`로 보고한다. 다른 경로는 받은 경로 그대로.
+  OpenAI·Claude는 기본값, Gemini는 `/v1beta/openai/chat/completions`. **docker-compose에는 아직 넘기지 않았다**
+  (기본값으로 충분한 OpenAI 먼저, compose 계약 테스트를 건드리지 않기 위해).
+- `/v1/chat/completions`의 상류 장애: 연결 실패 등 `httpx.RequestError` → **502** `upstream_unavailable`,
+  `httpx.TimeoutException` → **504** `upstream_timeout`, 본문 `{"error": {message, type: "upstream_error", param: null, code}}`.
+  감사 줄 `error`에는 예외 **타입 이름만**(메시지 미기록), 타임아웃은 `upstream_ms`에 실제 대기 시간, 연결 실패는 `None`.
+- **옛 경로(AnythingLLM API, v1 측정 경로)는 바꾸지 않았다** — 예외 → 500, `test_audit_log` 계약 그대로.
+- 401·429는 원래부터 상류 상태·본문·`retry-after`·`x-ratelimit-*`를 그대로 중계한다(이번에 스텁으로 고정).
+
+### 2. 스텁 계약 테스트 (`tests/test_upstream_contract.py`, 12개)
+
+스텁(`tests/stub_target.py`)이 받은 원본 본문을 기록하고(`/__stub/received`), model 이름으로 401·429·지연을 흉내낸다.
+
+| 계약 | 결과 |
+|---|---|
+| 기본 경로 불변 / 매핑은 chat만 / 잘못된 매핑은 기동 실패 | 통과 |
+| 401·429 그대로 중계(헤더 포함) | 통과 |
+| 연결 실패 502·타임아웃 504 OpenAI 형식, 감사 줄 타입 이름 / 옛 경로 500 유지 | 통과 |
+| 상류가 받은 user 텍스트에 합성 PII 5종(줄바꿈 전화번호 포함) 원문 0, 토큰 5 / system 텍스트는 원문(알려진 한계) | 통과 |
+| 다른 세션(`sessionId` 다름·없음)이 토큰 문자열로 남의 원본을 꺼내지 못함 | 통과 |
+| 감사 로그에 키·`Bearer`·원문 PII 없음 | 통과 |
+
+- 변이: `gateway/main.py`를 이전 상태로 되돌리면 매핑·502·504 관련 5개가 실패한다. 나머지 7개는 기존 동작을 고정하는 테스트라 그대로 통과한다.
+- 전체: 2026-10-01 맥북 `pytest -q` **592 passed**.
+
+### 3. 이것이 증명하지 않는 것
+
+- 실제 OpenAI의 응답·오류 형식, 지연, 비용. 실제 공급자에서는 "원문 미전송"을 상류 본문으로 확인할 수 없다 — 위 3행이 그 대신이며,
+  실제 연결 검증은 "같은 코드가 스텁에서 원문을 보내지 않았다 + 실제 응답이 복원됐다"까지만 말할 수 있다.
+- 스트리밍, assistant 이력 속 PII 재전송(user-only 한계), 다중 워커.
+
+### 4. 다음 — B3 OpenAI 기능 검증은 새 번호로 사전 등록한 뒤 실행한다 (맥북, 3밤 회수 뒤)

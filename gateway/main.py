@@ -59,6 +59,10 @@ load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 �
 # 기본값 8000은 D-002의 포트 계약(게이트웨이 8080 / 타겟 8000).
 TARGET_URL = os.environ.get("TARGET_URL", "http://localhost:8000").rstrip("/")
 TARGET_TIMEOUT = float(os.environ.get("GATEWAY_TIMEOUT", "600"))  # D-023: 긴 생성 대비
+# D-086: TARGET_URL은 origin이다. chat completions만 상류 경로를 바꿀 수 있다 — Gemini의 OpenAI 호환
+# 엔드포인트는 /v1beta/openai/chat/completions라 "origin + 받은 경로"로는 맞출 수 없다(D-085 §3).
+# 기본값은 받은 경로와 같다 = 기존 동작. 다른 경로는 건드리지 않는다.
+CHAT_UPSTREAM_PATH = os.environ.get("GATEWAY_CHAT_UPSTREAM_PATH", CHAT_COMPLETIONS_PATH)
 AUDIT_LOG_PATH = os.environ.get("GATEWAY_LOG_PATH", "logs/gateway.jsonl")
 
 # 게이트웨이 자체 경로. 감사 로그에서 제외한다.
@@ -175,6 +179,8 @@ HOP_BY_HOP = frozenset({
 async def lifespan(app: FastAPI):
     # 앱 수명 동안 클라이언트 1개만 두고 연결을 재사용한다.
     # 요청마다 새로 만들면 매번 TCP 핸드셰이크 → EVAL 4절 p95 목표를 혼자 다 까먹는다.
+    if not CHAT_UPSTREAM_PATH.startswith("/"):
+        raise RuntimeError(f"GATEWAY_CHAT_UPSTREAM_PATH는 /로 시작하는 경로여야 한다: {CHAT_UPSTREAM_PATH!r}")
     app.state.client = httpx.AsyncClient(base_url=TARGET_URL, timeout=TARGET_TIMEOUT)
     app.state.audit = AuditLog(AUDIT_LOG_PATH)
     app.state.chain = build_chain()
@@ -215,6 +221,7 @@ async def audit(request: Request, call_next):
     state.chain_result = None
     state.response_steps = []
     state.session = None
+    state.upstream_error = None  # 상류 호출 실패를 OpenAI 형식 응답으로 바꿨을 때의 예외 타입 이름
 
     t0 = time.perf_counter()
     try:
@@ -269,7 +276,7 @@ def _audit_record(request: Request, response: Response | None,
         "query_bytes": len(request.url.query),
         # 예외로 끝난 요청은 상위 미들웨어가 500으로 바꾼다. 그 사실을 그대로 적는다.
         "status": response.status_code if response is not None else 500,
-        "error": error,
+        "error": error or getattr(state, "upstream_error", None),
         # EVAL 4절: 종단 지연 / 타겟 호출 / 게이트웨이 내부 처리를 분리한다.
         "total_ms": round(total_ms, 2),
         "upstream_ms": None if upstream_ms is None else round(upstream_ms, 2),
@@ -333,6 +340,7 @@ async def health(request: Request) -> dict:
     return {
         "status": "ok",
         "target": TARGET_URL,
+        "chat_upstream_path": CHAT_UPSTREAM_PATH,
         "code": code_fingerprint(),
         "detectors": list(request.app.state.chain.names),
         "canary_fp": {
@@ -406,12 +414,29 @@ async def passthrough(request: Request, full_path: str) -> Response:
     body = result.body   # TRANSFORM이 있었으면 바뀐 본문으로 중계한다
 
     t0 = time.perf_counter()
-    upstream = await request.app.state.client.request(
-        method=request.method,
-        url=httpx.URL(path=f"/{full_path}", query=request.url.query.encode()),
-        headers=_clean(request.headers, _DROP_REQ),
-        content=body,
-    )
+    try:
+        upstream = await request.app.state.client.request(
+            method=request.method,
+            url=httpx.URL(path=CHAT_UPSTREAM_PATH if chat_request is not None else f"/{full_path}",
+                          query=request.url.query.encode()),
+            headers=_clean(request.headers, _DROP_REQ),
+            content=body,
+        )
+    except httpx.RequestError as exc:
+        # D-086: OpenAI 입구는 상류 장애를 OpenAI 형식 502/504로 돌려준다. 옛 경로는 예전대로
+        # 예외를 올려 500(감사 줄은 미들웨어가 남긴다) — v1 측정 경로의 계약을 바꾸지 않는다.
+        if chat_request is None:
+            raise
+        timed_out = isinstance(exc, httpx.TimeoutException)
+        if timed_out:   # 상류에서 실제로 시간을 썼다. 연결조차 못 했으면 None으로 둔다.
+            request.state.upstream_ms = (time.perf_counter() - t0) * 1000
+        request.state.upstream_error = type(exc).__name__   # 메시지는 남기지 않는다
+        return JSONResponse(status_code=504 if timed_out else 502, content={"error": {
+            "message": "upstream timed out" if timed_out else "upstream unavailable",
+            "type": "upstream_error",
+            "param": None,
+            "code": "upstream_timeout" if timed_out else "upstream_unavailable",
+        }})
     request.state.upstream_ms = (time.perf_counter() - t0) * 1000
 
     content = upstream.content

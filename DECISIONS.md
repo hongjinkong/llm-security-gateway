@@ -7710,3 +7710,67 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 ### 5. 되돌릴 조건
 
 - 독립 시도가 필요한 주장(예: 프롬프트 단위 짝 비교의 독립성 가정)을 하게 되면, 그 전에 (나)를 새 번호로 등록하고 새 이름으로 잰다.
+
+## D-085. 리뷰 결함 3건 최소 수정과 외부 공급자 URL 계약 정리 (측정 없음)
+
+- 날짜: 2026-10-01, 집 맥북. 작업 브랜치 `codex/review-fixes-20261001`(main `9706815`에서 분기, 미커밋).
+  학원 PC 3밤(`oa_enc_20261001_01`)은 진행 중이며 이 작업과 무관하다 — 학원 PC 상태는 여기 적지 않는다.
+- 지위: EVAL_CRITERIA·SCOPE·SCORING_PROTOCOL·CANARY_DESIGN, D-081 등록 내용, 기존 results/·logs/는 바꾸지 않는다.
+  **1·2·3밤은 이 수정 전 코드로 측정했다.** 이 수정본의 테스트 통과는 기존 평가 수치가 수정본 성능을 입증한다는 뜻이 아니다.
+
+### 1. 결함과 수정 (전부 실패 테스트로 먼저 재현)
+
+| # | 결함 | 재현 | 수정 |
+|---|---|---|---|
+| 1 | PII 복원이 응답 JSON을 깨뜨린다. 전화번호 패턴 구분자 `\s`가 줄바꿈·탭을 허용하는데, `on_response`가 원본을 JSON 텍스트에 날것으로 끼웠다. 메타는 `restored=1, residual_tokens=0`이라 정상처럼 보였다 | user `"010\n2345\n6789"` → 복원 후 `json.loads` JSONDecodeError (단위·스텁 종단 모두) | `TokenVault.restore(escape=None)` 선택 인자. `PIIDetector.on_response`는 응답 본문이 JSON으로 파싱될 때만 JSON 문자열 이스케이프를 넘긴다(JSON이면 토큰은 문자열 리터럴 안에만 있을 수 있다). 평문 응답은 예전처럼 원본 그대로 |
+| 2 | `role`이 배열·객체면 `in frozenset`이 TypeError → 400 대신 500 | `role=[]`·`{}` → TypeError, 게이트웨이 HTTP 500 | `parse_chat_request`가 타입(str)을 먼저 본다. 같은 식이 `/v1` 밖 경로에서도 도는 `chat_texts`(인젝션 텍스트 추출)에도 있어 같은 가드를 넣었다 |
+| 3 | `fpr_report.load_audit`이 같은 request_id를 dict 키로 덮고, request_id 없는 줄은 버렸다 → 창 하나에 감사 줄이 둘이어도 `link_by_time`의 "정확히 하나" 검사가 놓쳤다 | 같은 줄 2회·같은 ID 다른 줄·ID 없는 줄을 넣은 합성 자료가 FPR을 냈다 | 중복 ID·ID 누락 줄을 `InvalidInput`(F4 무효)으로 낸다 |
+
+- #3은 **새 평가 기준이 아니라** 기존 검증 의도(D-081 P3 "창 안 감사 줄은 정확히 하나", F4)의 구현 누락을 메운 것이다.
+- 보존한 것: canary 관측 순서(`run_response` 역순 순회 그대로), `response_detectors` 기록 형식, 정상 PII 탐지 범위,
+  `stream:true` 거부, assistant `content:null` 허용, header 연결 기본값.
+
+### 2. 기존 평가에 대한 영향 (읽기 전용 확인)
+
+- `results/` 감사 파일 22개 전수: request_id 누락 0, 중복 0. 새 `load_audit`으로 FPR 감사 14개 모두 100줄 그대로 로드.
+- 새 집계기로 다시 읽은 관문(파일 쓰기 없음): `oa_pi_20260928_01` 무효(D-083 창 겹침, HEAD 집계기와 같은 사유) /
+  `_g2` 1.5% / `oa_dan_20260930_01` 1.5% / `oa_enc_20261001_01` 1.0% — 기존 기록과 같다.
+- 결함 #1이 ON 팔 응답에서 실제로 일어났는지는 판단하지 않았다(요청 본문은 기록되지 않는다; 감사 `restored` 건수와
+  응답 오류의 대조는 하지 않았다). #2는 garak·FPR 요청이 문자열 role만 보내므로 해당 없음으로 본다.
+  어느 쪽도 등록된 무효 조건이 아니므로 기존 결과를 무효로 선언하지 않는다.
+
+### 3. 외부 공급자 URL 계약 — 정리만, 코드 변경 없음
+
+- 현재 계약: `TARGET_URL`은 **origin(+선택 경로 접두)** 이고, 게이트웨이는 받은 경로(`/v1/chat/completions`)를 그 뒤에 붙인다.
+  SDK의 `base_url`(API base)과 다르다. 로컬 확인(`httpx.build_request`, 네트워크 없음):
+  `https://h` → `/v1/chat/completions`, `https://h/v1/` → `/v1/v1/chat/completions`,
+  `https://h/v1beta/openai/` → `/v1beta/openai/v1/chat/completions`. 이것은 현 로컬 Ollama 연결의 실패가 아니다.
+- 공식 문서 기준 (2026-10-01 조회, API 호출 없음):
+
+| 공급자 | SDK base_url | 최종 HTTP endpoint | 인증 | 현 계약으로 |
+|---|---|---|---|---|
+| OpenAI | `https://api.openai.com/v1` | `POST https://api.openai.com/v1/chat/completions` | `Authorization: Bearer` | `TARGET_URL=https://api.openai.com` 이면 맞음 (공식 레퍼런스 페이지는 403으로 직접 조회 실패, 2차 자료로 확인) |
+| Gemini (OpenAI 호환) | `https://generativelanguage.googleapis.com/v1beta/openai/` | `.../v1beta/openai/chat/completions` | `Authorization: Bearer $GEMINI_API_KEY` | **맞출 수 없음** — 경로에 `/v1/`이 없다 |
+| Claude (OpenAI SDK 호환) | `https://api.anthropic.com/v1/` | `.../v1/chat/completions` | `authorization` 지원, 다중 워크스페이스 키는 `anthropic-workspace-id` | `TARGET_URL=https://api.anthropic.com` 이면 맞음. 문서상 "테스트·비교용, 대부분 용도에 production-ready 아님". system/developer 메시지를 앞으로 모아 이어 붙인다 |
+
+- 인증 키는 클라이언트의 `Authorization` 헤더가 그대로 상류로 간다(게이트웨이는 키를 보관하지 않음). 감사 로그는 헤더를 남기지 않는다.
+- 최소 경로 매핑안(미구현, 사용자 결정 필요): 환경변수 하나(예: `GATEWAY_CHAT_UPSTREAM_PATH`, 기본값 `/v1/chat/completions`)가
+  **chat completions 경로만** 상류 경로로 바꾼다. Gemini는 `/v1beta/openai/chat/completions`. 그 밖의 경로·현 로컬 구성은 불변.
+  `/v1` 문자열 치환이나 공급자별 클래스는 쓰지 않는다.
+
+### 4. 외부 기능 검증 계획 (B3, 다음 단계 — 이번에 실행하지 않음)
+
+스텁 먼저(네트워크 없음), 그 뒤 공급자 1개씩:
+1. 정상 비스트리밍 대화 200, 응답 스키마 그대로.
+2. 합성 PII(줄바꿈 구분 포함) 마스킹·복원, 응답 JSON 유효.
+3. **상류가 받은 요청에 원문 PII가 없음**을 스텁이 받은 본문으로 확인. 실제 공급자에서는 복원 성공만으로 "원문 미전송"을 증명하지 못한다.
+4. 응답 계약: 401·429는 상류 상태·본문·`retry-after`를 그대로 중계(코드 읽기 기준, 스텁 미검증).
+   **연결 오류·타임아웃은 현재 `500 text/plain "Internal Server Error"`** 이고 OpenAI 형식이 아니다(2026-10-01 로컬 확인,
+   감사 줄 `status=500, error=ConnectError`). 502/504 OpenAI 형식 오류로 바꿀지는 정책 결정으로 남긴다.
+5. 요청·세션 간 복원값 혼입: sessionId 없으면 요청 단위 격리, 있으면 세션 단위(신원 아님).
+6. 로그에 키·원문 PII 없음: 감사 로그 전 줄에서 합성 키·합성 PII 문자열 grep 0건.
+
+### 5. 아직 검증하지 않은 것
+
+- 실제 공급자 연결(GPT·Gemini·Claude) 전부. 스트리밍. 이전 assistant 답변에 복원된 PII가 다음 요청으로 재전송되는 경로(user-only 정책 한계).
+- 테스트: 2026-10-01 맥북 `pytest -q` 580 passed (기존 561 + 신규 19). garak·GPU·외부 API는 실행하지 않았다.

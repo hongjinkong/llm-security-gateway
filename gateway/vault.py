@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 # 대괄호는 '있으면 먹고 없어도 되는' 선택 요소다.
@@ -76,8 +77,12 @@ class TokenVault:
             entry.by_token[token] = value
         return entry.by_value[key]
 
-    def restore(self, session: str, text: str) -> tuple[str, int]:
+    def restore(self, session: str, text: str,
+                escape: Callable[[str], str] | None = None) -> tuple[str, int]:
         """텍스트 안의 토큰을 원본으로 되돌린다. (복원된 텍스트, 복원 건수)
+
+        `escape`는 끼워 넣기 직전 원본에 적용한다. 기본은 그대로(평문). JSON 본문이면
+        호출자가 JSON 문자열 이스케이프를 넘긴다 — 볼트는 본문 형식을 모른다.
 
         ★ 만료 검사를 **먼저** 한다. 2026-09-22 이전에는 `_sessions.get()`으로 바로 꺼낸 뒤
         `touched`부터 갱신했다 — TTL 10초로 저장하고 11초 뒤에 복원하면 **원문이 그대로
@@ -102,7 +107,7 @@ class TokenVault:
             if original is None:
                 return m.group(0)      # 모르는 토큰은 손대지 않는다
             count += 1
-            return original
+            return escape(original) if escape else original
 
         return TOKEN_RE.sub(sub, text), count
 

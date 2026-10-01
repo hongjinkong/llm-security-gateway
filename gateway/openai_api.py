@@ -29,7 +29,9 @@ def parse_chat_request(body: bytes) -> dict:
     if not isinstance(messages, list) or not messages:
         raise ChatRequestError("messages must be a non-empty array", "messages")
     for message in messages:
-        if not isinstance(message, dict) or message.get("role") not in VALID_ROLES:
+        # 타입을 먼저 본다. role이 배열·객체면 `in frozenset`이 TypeError를 내 400 대신 500이 됐다.
+        role = message.get("role") if isinstance(message, dict) else None
+        if not isinstance(role, str) or role not in VALID_ROLES:
             raise ChatRequestError("each message must have a supported role", "messages")
         content = message.get("content")
         if content is None and message["role"] == "assistant":
@@ -56,7 +58,9 @@ def _valid_part(part: object) -> bool:
 def chat_texts(payload: dict, roles: Collection[str]) -> list[str]:
     texts: list[str] = []
     for message in payload.get("messages", []):
-        if not isinstance(message, dict) or message.get("role") not in roles:
+        # 이 함수는 /v1 밖의 경로(파싱 검증을 거치지 않는 본문)에서도 불린다. role 타입을 먼저 본다.
+        if not isinstance(message, dict) or not isinstance(message.get("role"), str) \
+                or message["role"] not in roles:
             continue
         content = message.get("content")
         if isinstance(content, str):

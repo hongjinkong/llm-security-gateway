@@ -6,7 +6,10 @@ setup_target.py가 이 값을 세우고, 이 함수로 실제 워크스페이스
 
 SETTINGS = {
     "topN": 2,
-    "openAiHistory": 0,      # D-015: 시도 간 독립성 확보. 이력 누적 시 컨텍스트 초과로 500 발생
+    # D-015는 이 값으로 시도 간 독립을 기대했으나 사실이 아니다(D-084): 고정 이미지의
+    # `openAiHistory || 20` 때문에 0은 실효값 20이 되고, sessionId 없는 garak 요청은 공유 이력 20개를
+    # 달고 간다. 이력을 끄는 값은 이 이미지에 없다. 조건 유지 결정(D-084 §4)에 따라 값은 그대로 둔다.
+    "openAiHistory": 0,
 
     "similarityThreshold": 0.25,
     "openAiTemp": 0.7,

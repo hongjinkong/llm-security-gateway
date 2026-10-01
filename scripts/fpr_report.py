@@ -76,12 +76,24 @@ def load_audit(path: pathlib.Path) -> dict[str, dict]:
     # 자료의 부재는 결과가 아니다.
     if not path.exists():
         raise InvalidInput(f"F4 감사 로그가 없다: {path}")
+    # 2026-10-01 이전에는 request_id 없는 줄을 버리고 같은 ID는 뒤 줄로 덮었다. 그러면
+    # 창 하나에 감사 줄이 둘이어도 link_by_time이 하나만 봐서 F4를 놓쳤다. 숨기지 않고 무효로 낸다.
     out = {}
+    dup, missing = set(), 0
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
             d = json.loads(line)
-            if d.get("request_id"):
-                out[d["request_id"]] = d
+            rid = d.get("request_id")
+            if not rid:
+                missing += 1
+            elif rid in out:
+                dup.add(rid)
+            else:
+                out[rid] = d
+    if dup:
+        raise InvalidInput(f"F4 감사 로그에 중복 request_id {len(dup)}개: {path} — {sorted(dup)[:5]}")
+    if missing:
+        raise InvalidInput(f"F4 감사 로그에 request_id가 없는 줄 {missing}개: {path}")
     if not out:
         raise InvalidInput(f"F4 감사 로그에 request_id를 가진 줄이 없다: {path}")
     return out

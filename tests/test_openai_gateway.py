@@ -9,6 +9,7 @@ import pytest
 from gateway.detectors.base import Action, Inspection
 from gateway.detectors.injection import user_text
 from gateway.detectors.pii import PIIDetector
+from gateway.openai_api import ChatRequestError, parse_chat_request
 
 PATH = "/v1/chat/completions"
 HEADERS = {"Authorization": "Bearer test-key", "Content-Type": "application/json"}
@@ -133,3 +134,93 @@ def test_user_pii_is_masked_upstream_and_restored_in_completion(secured_stack):
     assert seen["tool_raw_seen"] is True
     assert phone in payload["choices"][0]["message"]["content"]
     assert "[PII:" not in r.text
+
+
+# ---- 2026-10-01 리뷰 결함: 복원이 응답 JSON을 깨뜨린다 / role 타입 검증 --------------------
+# 전화번호 패턴은 구분자로 \s(줄바꿈·탭 포함)를 허용한다. 원본을 JSON 문자열 안에 날것으로
+# 끼우면 "Invalid control character"로 응답이 깨졌는데, 메타는 restored=1·residual=0이었다.
+
+def _completion(content: str) -> str:
+    return json.dumps({"choices": [{"index": 0, "message": {
+        "role": "assistant", "content": content}}]}, ensure_ascii=False)
+
+
+async def _mask_then_restore(value: str, wrap) -> tuple[str, dict | None]:
+    det = PIIDetector("mask")
+    body = json.dumps(chat([{"role": "user", "content": f"번호 {value} 확인"}]),
+                      ensure_ascii=False).encode()
+    v = await det.inspect(Inspection(request_id="r1", method="POST", path=PATH,
+                                     headers={}, body=body, session="s1"))
+    assert v.action is Action.TRANSFORM, "정상 PII를 탐지하지 못하게 바꿔 숨기면 안 된다"
+    masked = json.loads(v.body)["messages"][0]["content"]
+    assert value not in masked
+    out = await det.on_response("s1", wrap(f"응답: {masked}"))
+    assert out is not None
+    return out
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("value", ["010\n2345\n6789", "010\t2345\t6789", "010-2345-6789"])
+async def test_restore_keeps_openai_response_json_valid(value):
+    restored, meta = await _mask_then_restore(value, _completion)
+    content = json.loads(restored)["choices"][0]["message"]["content"]
+    assert content == f"응답: 번호 {value} 확인"
+    assert meta == {"restored": 1, "residual_tokens": 0}
+
+
+@pytest.mark.anyio
+async def test_restore_keeps_plain_text_raw():
+    """평문(비 JSON) 응답은 예전처럼 원본 그대로 끼운다 — JSON 이스케이프를 섞지 않는다."""
+    restored, _ = await _mask_then_restore("010\n2345\n6789", lambda s: s)
+    assert restored == "응답: 번호 010\n2345\n6789 확인"
+
+
+@pytest.mark.anyio
+async def test_response_without_tokens_is_untouched():
+    assert await PIIDetector("mask").on_response("s1", _completion("토큰 없음")) is None
+
+
+def test_newline_phone_round_trips_as_valid_json(secured_stack):
+    phone = "010\n2345\n6789"
+    r = httpx.post(f"{secured_stack.gateway}{PATH}", headers=HEADERS,
+                   json=chat([{"role": "user", "content": f"제 번호는 {phone}입니다"}]))
+    assert r.status_code == 200
+    payload = r.json()                         # 결함 상태에서는 여기서 JSONDecodeError
+    assert payload["gateway_test"]["user_masked_seen"] is True
+    assert phone in payload["choices"][0]["message"]["content"]
+    assert "[PII:" not in payload["choices"][0]["message"]["content"]
+
+
+@pytest.mark.parametrize("role", [[], {}, ["user"], {"user": 1}, 1, None])
+def test_non_string_role_is_a_400_not_a_crash(role):
+    with pytest.raises(ChatRequestError) as e:
+        parse_chat_request(json.dumps(chat([{"role": role, "content": "hi"}])).encode())
+    assert e.value.param == "messages"
+
+
+@pytest.mark.parametrize("role", [[], {}])
+def test_non_string_role_is_rejected_before_upstream(secured_stack, role):
+    r = httpx.post(f"{secured_stack.gateway}{PATH}", headers=HEADERS,
+                   json=chat([{"role": role, "content": "hi"}]))
+    assert r.status_code == 400
+    error = r.json()["error"]
+    assert error["type"] == "invalid_request_error" and error["param"] == "messages"
+    line = next(x for x in secured_stack.log_lines()
+                if x["request_id"] == r.headers["X-Gateway-Request-Id"])
+    assert line["upstream_ms"] is None, "잘못된 role이 상류로 전달됐다"
+
+
+def test_valid_roles_and_null_assistant_content_still_parse():
+    payload = parse_chat_request(json.dumps(chat([
+        {"role": "system", "content": "s"}, {"role": "developer", "content": "d"},
+        {"role": "user", "content": "u"}, {"role": "assistant", "content": None},
+        {"role": "tool", "content": [{"type": "text", "text": "t"}]},
+    ])).encode())
+    assert len(payload["messages"]) == 5
+
+
+def test_injection_text_extraction_skips_non_string_role():
+    """/v1 밖 경로는 parse_chat_request를 거치지 않는다. 같은 TypeError가 거기서 500을 냈다."""
+    body = json.dumps({"messages": [{"role": [], "content": ATTACK},
+                                    {"role": "user", "content": "정상"}]}).encode()
+    assert user_text(body) == "정상"

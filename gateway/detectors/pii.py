@@ -185,6 +185,22 @@ def session_of(body: bytes, fallback: str) -> str:
     return fallback
 
 
+def _is_json(text: str) -> bool:
+    """응답 본문이 JSON인가. JSON이면 토큰은 문자열 리터럴 안에만 있을 수 있다
+    (`PII:kind:n`은 문자열 밖에서 JSON 문법이 아니다)."""
+    try:
+        json.loads(text)
+    except ValueError:
+        return False
+    return True
+
+
+def _json_escape(value: str) -> str:
+    r"""JSON 문자열 리터럴 안에 넣을 형태. 원본에 줄바꿈·탭이 있으면(전화번호 구분자 \s)
+    날것으로 끼울 때 응답 JSON이 깨졌다 — 2026-10-01 리뷰 결함."""
+    return json.dumps(value, ensure_ascii=False)[1:-1]
+
+
 ALL_KINDS = ("rrn", "card", "phone", "email")
 
 
@@ -263,7 +279,7 @@ class PIIDetector(Detector):
         """
         if self.mode != "mask":
             return None
-        restored, n = self.vault.restore(session, text)
+        restored, n = self.vault.restore(session, text, _json_escape if _is_json(text) else None)
         residual = self.vault.residual_tokens(restored)
         if n == 0 and residual == 0:
             return None

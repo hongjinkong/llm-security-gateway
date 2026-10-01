@@ -171,3 +171,36 @@ def test_fpr_run은_감사_로그와_같은_형식으로_창을_남긴다(monkey
     assert start.tzinfo is not None and start <= end
     # 감사 로그 utcnow()와 같은 모양이어야 한다 (ms 단위, UTC 오프셋)
     assert len(r["t_start"]) == len(iso(0))
+
+
+# ------------------------------- 2026-10-01 리뷰: load_audit이 줄을 조용히 버렸다
+# request_id를 dict 키로 써서 같은 ID의 두 번째 줄이 첫 줄을 덮었다. 창 하나에 감사 줄이
+# 둘이어도 link_by_time에는 하나만 보여 T2("정확히 하나")가 놓쳤다. request_id 없는 줄도
+# 조용히 빠져 같은 구멍이었다. 새 기준이 아니라 기존 검증 의도의 구현 누락을 메운다.
+
+def test_T7_같은_줄이_두_번_있다(tmp_path, monkeypatch, capsys):
+    d = as_new_path(dataset(tmp_path))
+    aud = rows(d["an"])
+    write(d["an"], aud + [aud[3]])
+    assert call(monkeypatch, d, "--link", "time") == 2
+    out = capsys.readouterr().out
+    assert "FPR =" not in out and "중복 request_id" in out
+
+
+def test_T8_같은_ID의_서로_다른_줄(tmp_path, monkeypatch, capsys):
+    d = as_new_path(dataset(tmp_path))
+    aud = rows(d["an"])
+    write(d["an"], aud + [{**aud[3], "ts": iso(10 * 3 + 4), "status": 500}])
+    for link in ("time", "header"):
+        assert call(monkeypatch, d, "--link", link) == 2
+        out = capsys.readouterr().out
+        assert "FPR =" not in out and "중복 request_id" in out
+
+
+def test_T9_request_id가_없는_감사_줄(tmp_path, monkeypatch, capsys):
+    d = as_new_path(dataset(tmp_path))
+    aud = rows(d["ao"])
+    write(d["ao"], aud + [{**aud[0], "request_id": None, "ts": iso(4)}])
+    assert call(monkeypatch, d, "--link", "time") == 2
+    out = capsys.readouterr().out
+    assert "FPR =" not in out and "request_id가 없는 줄" in out

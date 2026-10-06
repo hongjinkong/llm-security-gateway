@@ -1,0 +1,36 @@
+{
+  "id": "chatcmpl-EVntXdT38xsYdoTZ54yLBvY3MhAVt",
+  "object": "chat.completion",
+  "created": 1791248671,
+  "model": "gpt-4o-mini-2024-07-18",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "010-2345-6789  \n010\n3456\n7890  \nkim.synthetic@example.com  \n900101-1234563  \n4111-1111-1111-1111  ",
+        "refusal": null,
+        "annotations": []
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 77,
+    "completion_tokens": 46,
+    "total_tokens": 123,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "service_tier": "default",
+  "system_fingerprint": "fp_8b33991d55"
+}

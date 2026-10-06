@@ -7957,3 +7957,38 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 
 - `results/b3_openai_20261006_{c1,c2,c3}.json`(응답 본문), `results/audit_b3_openai_20261006.jsonl`(감사 사본, C4 통과 시에만),
   결과는 이 절 아래 `### 7. 결과`에 번호 없이 적는다. 사용량·누적 비용 표를 함께 싣는다.
+
+### 7. 결과 (2026-10-06, 집 맥북)
+
+- 등록 커밋 `01c2cc6` 뒤 실행. 판정 기준(§3·§5)은 결과를 본 뒤 바꾸지 않았다. 재시도 없음.
+
+#### 착수 전 (§4-1)
+
+- HEAD `01c2cc6b258115e7e80994be53ea6b1a74903ab6` = origin/main, `git status --short gateway/` 비어 있음, 감사 파일 없음(새 파일로 시작).
+- health: `target=https://api.openai.com`, `detectors=["injection_rule","pii_mask"]`, `chat_upstream_path=/v1/chat/completions`, `code=64548febcc03`.
+- 키: 셸 `read -s`로 환경변수에만 넣었다(길이만 확인). 종료 후 `unset`.
+
+#### 무효 조건 (§5)
+
+| 검사 | 결과 |
+|---|---|
+| V1 코드 | 통과. HEAD = 등록 커밋, `gateway/` 미변경 |
+| V2 설정 | 통과. health 세 값 일치 |
+| V3 감사 대응 | 통과. `/v1` 요청 3회 = 감사 3줄. 사본 `results/audit_b3_openai_20261006.jsonl` = `logs/b3_openai_20261006.jsonl`(`cmp` 일치) |
+| V4 상한 | 통과. OpenAI 호출 3/10회, 누적 추정 $0.000064 / $0.50 |
+
+- **판정: B3 OpenAI 유효.**
+
+#### 항목 (§3)
+
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| C1 정상 대화 | **합격**. 200, `object=chat.completion`, `model=gpt-4o-mini-2024-07-18`, content 문자열, `usage` 23/36 토큰. 감사 `status=200`·`blocked=false`·`transformed=false`, 두 검사기 allow. `upstream_ms` 4,971 · `gateway_ms` 8.14 | `results/b3_openai_20261006_c1.json`, 감사 1행 |
+| C2 PII 마스킹·복원 | **합격**. 200, 응답 `json.loads` 성공. 감사 `transformed=true`, `pii_mask` 마스킹 5(phone 2·email 1·rrn 1·card 1), 응답 `restored=5`·`residual_tokens=0`. content에 `[PII:` 0건, 합성 원본 5종(줄바꿈 전화 `010\n3456\n7890` 포함) 모두 그대로. `usage` 77/46 | `..._c2.json`, 감사 2행 |
+| C3 잘못된 키 | **합격**. 401, 본문 JSON `error`{`type=invalid_request_error`, `code=invalid_api_key`, message, param} 중계. 감사 `status=401`, `upstream_ms` 597 | `..._c3.json`, 감사 3행 |
+| C4 로그 위생 | **합격**. 감사 파일에서 `grep -cF` 실제 키 0(사용자 셸에서 실행, 응답 파일 3개도 0) · `Bearer` 0 · `Authorization` 0 · `sk-` 0 · `sk-invalid-b3` 0 · 합성 PII 원문 5종 0 | 감사 사본 |
+
+- C3 응답 message에는 OpenAI가 가린 **가짜 키**(`sk-inval**********1006`)가 들어 있다. 일부러 보낸 무효 키라 비밀값이 아니며 그대로 커밋한다.
+- C2는 D-085 결함 #1(줄바꿈 PII 복원 시 응답 JSON 손상)의 수정이 실제 상류 응답에서도 성립함을 보인다.
+  "원문 PII가 상류로 가지 않았다"는 이 결과로 증명되지 않으며 D-086 §2 스텁 결과(같은 코드)와 합친 데까지만 말한다(§3).
+- 범위: OpenAI 1개, `gpt-4o-mini`, 비스트리밍, 단일 워커, 1회씩. Gemini·Claude, 429·502·504 실제 발생, 스트리밍, 지연·비용 특성은 확인하지 않았다.

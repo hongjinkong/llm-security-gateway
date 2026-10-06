@@ -8044,3 +8044,27 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
   `max_tokens`를 보내지 않으므로 잘림 위험은 없다. `"low"`가 OpenAI 호환 `reasoning_effort` 값으로 받아들여지는지는 C1에서 드러난다.
 - **바꾸지 않는 것**: 항목 C1~C4와 합격 조건, 무효 조건, 게이트웨이 구성(health 동일), 감사 파일, 상한 10회(실행 #1 포함 — 남은 9회).
   V3의 감사 줄 수는 실행 #1을 포함해 센다. 재시도 C1의 응답은 `results/b3_gemini_20261006_c1.json`.
+
+### 4. 결과 (2026-10-06, 집 맥북) — 사용자 결정으로 C2에서 중단
+
+- 등록 `e897ed3`, 개정 D-088-1 `97b0a68` 뒤 실행. 판정 기준은 결과를 본 뒤 바꾸지 않았다(개정은 모델 구성값만).
+- 착수 전: HEAD = 등록 커밋, `gateway/` 미변경, health `target=https://generativelanguage.googleapis.com`·`chat_upstream_path=/v1beta/openai/chat/completions`·
+  `detectors=["injection_rule","pii_mask"]`·`code=64548febcc03`(D-087과 같다). 키는 `read -s`, 종료 후 `unset`(길이 0 확인). 게이트웨이 종료 확인.
+
+| 순서 | 항목 | 게이트웨이 응답 | 판정 | 산출물 |
+|---|---|---|---|---|
+| 1 | C1 (`gemini-2.5-flash`) | 404 — 신규 사용자에게 막힌 모델 | 불합격(등록 모델 사용 불가) → 개정 D-088-1 | `results/b3_gemini_20261006_c1_run1_404.json` |
+| 2 | C1 (`gemini-3.8-flash`, low) | 200 | **합격**. `object=chat.completion`, content 문자열, `usage` 17/49. 감사 `blocked=false`·`transformed=false`, `upstream_ms` 3,418 · `gateway_ms` 4.6 | `..._c1.json` |
+| 3 | C2 | 503 — "This model is currently experiencing high demand … Please try again later." (`UNAVAILABLE`) | 미완료. 요청 쪽은 마스킹 5건(phone 2·email 1·rrn 1·card 1, `transformed=true`) 정상, 상류 503을 그대로 중계(`error=None`), 응답에 토큰이 없어 복원 없음 | `..._c2_run1_503.json` |
+| — | C3 | — | **미실시** | — |
+| — | C4 | — | 부분 확인(아래) | `results/audit_b3_gemini_20261006.jsonl` |
+
+- **중단 사유**: 사용자 결정(2026-10-06, C2 503 뒤). 등록 규칙상 C2는 재시도할 수 있었으나(같은 항목 최대 2회 — 503은 이름으로 열거되지 않았지만
+  502·429와 같은 상류 일시 장애로 본다) 재시도하지 않았다. 503이 무료 등급 때문인지는 확인하지 않았다 — 메시지는 모델 수요 급증만 말한다.
+- **C4 부분 확인**: 감사 3줄에서 `grep -cF` — `Bearer` 0 · `Authorization` 0 · Google 키 접두 `AIza` 0 · `b3-invalid-gemini` 0 · 합성 PII 원문 5종 0.
+  응답 파일 3개의 `AIza`도 0. **실제 키 값 grep은 결과를 받지 못했고** 키를 `unset`한 뒤라 다시 할 수 없다 — 등록 조건 기준으로는 미확인이다.
+- 무효 조건: V1·V2 통과. V3 게이트웨이 요청 3회 = 감사 3줄(사본 `cmp` 일치). V4 Gemini 호출 3/10회, 무료 등급.
+- **말할 수 있는 것**: `GATEWAY_CHAT_UPSTREAM_PATH`로 바꾼 상류 경로가 실제 Gemini OpenAI 호환 엔드포인트에서 동작했다(C1 200).
+  상류 4xx·5xx 본문은 Google 형식(배열 `[{"error":…}]`) 그대로 중계됐다 — OpenAI 형식으로 바꾸지 않는다(D-086은 연결 실패·타임아웃만 502/504로 만든다).
+- **말할 수 없는 것**: Gemini 상류에서의 PII 복원·응답 JSON 유효(C2), 무효 키 중계(C3). 이 둘은 OpenAI(D-087 §7)와 스텁(D-086 §2)에서만 확인됐다.
+- B3 정리: OpenAI 기능 검증 합격(D-087 §7), Gemini는 경로 매핑·정상 대화까지, Claude는 API 키가 없어 범위 밖.

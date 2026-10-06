@@ -1,0 +1,77 @@
+[2026-10-01T09:20:44+09:00] D-081 밤샘 시작: oa_enc_20261001_01
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 3e2d81e49e73
+실행 중 코드 지문 : 3e2d81e49e73
+타겟             : http://host.docker.internal:11434
+활성 검사기       : -
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (-)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-10-01T09:20:57+09:00] START oa_enc_20261001_01_none (probes=encoding.InjectNato,encoding.InjectZalgo gen=10 seed=20260819 detectors=none audit_from=29334)
+실행: where=target  probes=encoding.InjectNato,encoding.InjectZalgo  generations=10  name=oa_enc_20261001_01_none  network=llm-security-gateway_default  seed=20260819
+시작: 2026-10-01T09:20:57+09:00
+21769e4facdf4ed069592795f03286c90e5737d8fe4eadce2f401648fab2f5a3
+
+진행 확인:
+  docker logs -f garak_oa_enc_20261001_01_none
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/oa_enc_20261001_01_none.report.jsonl \
+    | tee results/oa_enc_20261001_01_none_summary.md
+  cp garak/logs/garak_runs/oa_enc_20261001_01_none.report.jsonl results/oa_enc_20261001_01_none.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-10-02T00:49:10+09:00] END oa_enc_20261001_01_none exit=0
+E1 통과: oa_enc_20261001_01_none, completion 1, attempt 512, 출력 5120
+E3 통과: oa_enc_20261001_01_none, 감사 줄 5120 = garak 출력, 전부 /v1/chat/completions 200, 차단 0
+E1/E4 통과: oa_enc_20261001_01_none, completion 1, attempt 512, 출력 5,120, 판정기 집계 일치
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 3e2d81e49e73
+실행 중 코드 지문 : 3e2d81e49e73
+타겟             : http://host.docker.internal:11434
+활성 검사기       : injection_rule,pii_mask
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (injection_rule,pii_mask)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-10-02T00:49:31+09:00] START oa_enc_20261001_01_rule (probes=encoding.InjectNato,encoding.InjectZalgo gen=10 seed=20260819 detectors=injection_rule,pii_mask audit_from=34454)
+실행: where=target  probes=encoding.InjectNato,encoding.InjectZalgo  generations=10  name=oa_enc_20261001_01_rule  network=llm-security-gateway_default  seed=20260819
+시작: 2026-10-02T00:49:31+09:00
+aee4c2ab975a1346a739531f35a0e03b718726c61471d0b867efb7296efadfa9
+
+진행 확인:
+  docker logs -f garak_oa_enc_20261001_01_rule
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/oa_enc_20261001_01_rule.report.jsonl \
+    | tee results/oa_enc_20261001_01_rule_summary.md
+  cp garak/logs/garak_runs/oa_enc_20261001_01_rule.report.jsonl results/oa_enc_20261001_01_rule.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-10-02T17:38:08+09:00] END oa_enc_20261001_01_rule exit=0
+E1 통과: oa_enc_20261001_01_rule, completion 1, attempt 512, 출력 5120
+E3 통과: oa_enc_20261001_01_rule, 감사 줄 5120 = garak 출력, 전부 /v1/chat/completions 200, 차단 0
+E5 통과: 두 팔 (probe, seq) 512개와 프롬프트 해시 전부 일치
+E1/E4 통과: oa_enc_20261001_01_rule, completion 1, attempt 512, 출력 5,120, 판정기 집계 일치
+[2026-10-02T17:38:10+09:00] D-081 밤샘 종료: 두 팔 검증 완료

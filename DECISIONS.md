@@ -7992,3 +7992,41 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 - C2는 D-085 결함 #1(줄바꿈 PII 복원 시 응답 JSON 손상)의 수정이 실제 상류 응답에서도 성립함을 보인다.
   "원문 PII가 상류로 가지 않았다"는 이 결과로 증명되지 않으며 D-086 §2 스텁 결과(같은 코드)와 합친 데까지만 말한다(§3).
 - 범위: OpenAI 1개, `gpt-4o-mini`, 비스트리밍, 단일 워커, 1회씩. Gemini·Claude, 429·502·504 실제 발생, 스트리밍, 지연·비용 특성은 확인하지 않았다.
+
+## D-088. B3 Gemini 기능 검증 — 경로 매핑 실제 확인 포함, 사전 등록 (측정 없음)
+
+- 날짜: 2026-10-06, 집 맥북. 이 절의 커밋 **뒤에** 실행한다. 이 커밋 전에는 Gemini API 호출을 하지 않았다.
+- 결정(사용자, 2026-10-06): Claude는 API 키가 없어 B3 범위 밖으로 둔다. Gemini는 무료 등급 키로 검증한다.
+- 왜 Gemini인가: OpenAI·Claude와 달리 Gemini의 OpenAI 호환 경로는 `/v1beta/openai/chat/completions`라
+  `GATEWAY_CHAT_UPSTREAM_PATH`(D-086 §1)가 있어야만 맞는다. 이 매핑은 지금 스텁으로만 확인됐다(D-086 §2).
+- 성격·지위: D-087과 같다 — 기능 검증, ASR·FPR 없음, 결과를 본 뒤 기준을 바꾸지 않는다. 항목·판정은 D-087 §3을 따르고 아래 차이만 둔다.
+
+### 1. 고정 구성 (D-087 §1과 다른 것만)
+
+- `TARGET_URL=https://generativelanguage.googleapis.com`, `GATEWAY_CHAT_UPSTREAM_PATH=/v1beta/openai/chat/completions`,
+  `GATEWAY_LOG_PATH=logs/b3_gemini_20261006.jsonl`(새 파일). 검사기 `injection_rule,pii_mask` 그대로.
+- 요청: `model=gemini-2.5-flash`, `reasoning_effort="none"`, `max_tokens`는 **보내지 않는다**.
+  근거(공식 문서 ai.google.dev/gemini-api/docs/openai, 2026-10-06 조회): 인증 `Authorization: Bearer $GEMINI_API_KEY`,
+  2.5 모델은 `reasoning_effort`를 `"none"`으로 끌 수 있다(2.5 Pro·3 계열은 불가). `max_tokens` 지원 여부는 문서에 없어 쓰지 않는다.
+- 키: 셸 환경변수 `GEMINI_API_KEY`(`read -s`), 끝나면 `unset`. **결제를 연결하지 않은 무료 등급 키**만 쓴다(사용자가 AI Studio에서 확인).
+- 데이터: 가격표(ai.google.dev/gemini-api/docs/pricing, 2026-10-06 조회)는 무료 등급 내용이 "Content used to improve our products: Yes"라고 적는다.
+  보내는 것은 일상 질문과 합성 PII(D-087 §1과 같은 5종)뿐이다.
+
+### 2. 항목과 합격 조건 (D-087 §3과 다른 것만)
+
+- C1·C2·C4: D-087 §3과 같다. C1의 `object`·content·`usage` 조건, C2의 마스킹 5·`restored ≥ 1`·`residual 0`·`[PII:` 0, C4의 grep 0건 그대로.
+  C1 200은 경로 매핑이 실제 상류에서 동작했다는 근거로 쓴다(매핑 없는 기본 경로 `/v1/chat/completions`는 D-085 §3 계약상 맞을 수 없다 —
+  매핑 없이 보내 실패를 직접 보이지는 않는다).
+- C3 잘못된 키: 무효 키 `b3-invalid-gemini-20261006`로 C1과 같은 요청을 **게이트웨이 경유**와 **Gemini 직접**(같은 URL·헤더·본문) 1회씩 보낸다.
+  합격 = 두 상태 코드가 같고 4xx이며, 게이트웨이 응답 본문이 JSON이다. 본문의 동일 여부는 관측으로만 적는다.
+  (Gemini가 무효 키에 401이 아니라 400 등을 줄 수 있어, 특정 코드를 미리 정하지 않고 직접 응답과 대조한다.)
+- C4의 grep 대상에 `b3-invalid-gemini`를 더한다. Google 키는 `sk-` 접두가 아니므로 `sk-` 검사는 참고로만 둔다.
+
+### 3. 상한·무효 조건
+
+- 상한: Gemini 호출 **재시도 포함 10회**(C3 직접 호출 포함). 무료 등급이라 비용 상한 대신 `usage`만 기록한다.
+  429(무료 등급 속도 제한)는 상한에 세고 같은 항목 재시도는 최대 2회.
+- 무효 조건은 D-087 §5 V1~V4와 같다. V2는 `target=https://generativelanguage.googleapis.com`·`chat_upstream_path=/v1beta/openai/chat/completions`로 대조한다.
+  V3는 게이트웨이 경유 요청 수(C3 직접 호출 제외) = 감사 줄 수.
+- 산출물: `results/b3_gemini_20261006_{c1,c2,c3,c3_direct}.json`, `results/audit_b3_gemini_20261006.jsonl`(C4 통과 시). 결과는 이 절 아래 `### 4. 결과`에 번호 없이 적는다.
+  실행 날짜가 10-06이 아니면 파일 이름의 날짜를 실행일로 바꾸고 결과 절에 적는다.

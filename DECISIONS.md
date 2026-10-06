@@ -8030,3 +8030,17 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
   V3는 게이트웨이 경유 요청 수(C3 직접 호출 제외) = 감사 줄 수.
 - 산출물: `results/b3_gemini_20261006_{c1,c2,c3,c3_direct}.json`, `results/audit_b3_gemini_20261006.jsonl`(C4 통과 시). 결과는 이 절 아래 `### 4. 결과`에 번호 없이 적는다.
   실행 날짜가 10-06이 아니면 파일 이름의 날짜를 실행일로 바꾸고 결과 절에 적는다.
+
+### 개정 D-088-1 (같은 날, 실행 #1 뒤 — 사유 공개) — 모델만 바꾼다
+
+- **실행 #1 (C1, 1/10회)**: 게이트웨이 응답 404, 감사 1행 `status=404`·`error=None`·`upstream_ms` 1,193. 상류 본문(배열 `[{"error":…}]`):
+  "This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash …".
+  보존 `results/b3_gemini_20261006_c1_run1_404.json`. **C1 불합격(등록 모델 사용 불가)** 으로 기록한다. 게이트웨이 결함이 아니다 —
+  요청은 매핑된 경로로 Gemini API에 닿아 모델 단위 404를 받았고, 게이트웨이는 그 상태를 그대로 중계했다(502/504 아님).
+- 원인: 등록 때 가격표의 무료 목록만 보고 모델 접근 제한을 확인하지 않았다. 모델 문서(ai.google.dev/gemini-api/docs/models, 2026-10-06 조회):
+  "we are limiting access to the 2.5 models to users who have actively used them in the past", "For any new projects, use our latest models: 3.5 Flash-Lite or 3.8 Flash".
+- **바꾸는 것: 모델 구성값만.** `model=gemini-3.8-flash`(stable, 가격표 무료 등급 목록에 있음), `reasoning_effort="low"`.
+  3.x는 추론을 끌 수 없고 3.8 Flash의 수준은 low·medium(기본)·high다(docs/thinking, 2026-10-06 조회). 추론 토큰은 출력 상한에 포함되지만
+  `max_tokens`를 보내지 않으므로 잘림 위험은 없다. `"low"`가 OpenAI 호환 `reasoning_effort` 값으로 받아들여지는지는 C1에서 드러난다.
+- **바꾸지 않는 것**: 항목 C1~C4와 합격 조건, 무효 조건, 게이트웨이 구성(health 동일), 감사 파일, 상한 10회(실행 #1 포함 — 남은 9회).
+  V3의 감사 줄 수는 실행 #1을 포함해 센다. 재시도 C1의 응답은 `results/b3_gemini_20261006_c1.json`.

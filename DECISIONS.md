@@ -7893,3 +7893,67 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 - 스트리밍, assistant 이력 속 PII 재전송(user-only 한계), 다중 워커.
 
 ### 4. 다음 — B3 OpenAI 기능 검증은 새 번호로 사전 등록한 뒤 실행한다 (맥북, 3밤 회수 뒤)
+
+## D-087. B3 OpenAI 기능 검증 — 구성·항목·합격 조건·무효 조건·비용 상한 사전 등록 (측정 없음)
+
+- 날짜: 2026-10-06, 집 맥북. 이 절의 커밋 **뒤에** 실행한다. 이 커밋 전에는 실제 API 호출을 하지 않았다.
+- 결정(사용자, 2026-10-06): 항목 C1~C4, 상한 10회·$0.50, 모델 `gpt-4o-mini`, 요청은 curl로 한 줄씩.
+- 성격: **기능 검증**이다. 방어 효과·성능·지연 측정이 아니며 ASR·FPR을 내지 않는다.
+- 지위: 동결 기준·D-081 등록·results/·logs/의 기존 파일은 바꾸지 않는다. 결과를 본 뒤 이 절의 기준을 바꾸지 않는다.
+
+### 1. 고정 구성
+
+- 게이트웨이: 맥북에서 `uvicorn gateway.main:app --port 8080`, 단일 워커. 이 절의 커밋 코드 그대로.
+  `TARGET_URL=https://api.openai.com`, `GATEWAY_DETECTORS=injection_rule,pii_mask`,
+  `GATEWAY_CHAT_UPSTREAM_PATH` 미설정(기본 `/v1/chat/completions`, D-086 §1),
+  `GATEWAY_LOG_PATH=logs/b3_openai_20261006.jsonl`(새 파일, 이 검증 전용).
+- 클라이언트: curl, `POST http://127.0.0.1:8080/v1/chat/completions`, 비스트리밍, `model=gpt-4o-mini`, `max_tokens=200`.
+  `curl -v`·`--trace`는 쓰지 않는다(요청 헤더에 키가 찍힌다).
+- 키: 사용자가 셸 환경변수 `OPENAI_API_KEY`로만 넣는다. 파일·저장소·명령 인자 문자열에 값을 쓰지 않는다. 끝나면 `unset`.
+  게이트웨이는 키를 보관하지 않고 클라이언트의 `Authorization` 헤더를 그대로 상류로 넘긴다(D-085 §3).
+- 가격 근거: OpenAI 가격표(developers.openai.com/api/docs/pricing, 2026-10-06 조회) `gpt-4o-mini` 입력 $0.15 · 출력 $0.60 / 1M 토큰.
+  모델 페이지 기준 Chat Completions 지원, 추론 모델 아님, 지원 중단 공지 없음.
+  비용은 응답 `usage`로 `prompt_tokens×0.15e-6 + completion_tokens×0.60e-6`을 호출마다 누적한다.
+- 합성 PII: `tests/test_upstream_contract.py`의 `PII` 5종 그대로(전화 2종 — 그중 하나는 줄바꿈 구분, 이메일, 주민번호, 카드). 전부 합성값이다.
+
+### 2. 보내지 않는 것 (절대 원칙 2·4)
+
+- garak·공격 문구·인젝션 문구는 OpenAI로 보내지 않는다. 차단 경로는 로컬·스텁에서 확인했다(D-081, D-086 §2).
+- 429·502·504는 실제로 일으키지 않는다 — D-086 §2 스텁 계약으로 갈음한다.
+
+### 3. 항목과 합격 조건
+
+| 항목 | 요청 | 합격 조건 |
+|---|---|---|
+| C1 정상 대화 | user 한 줄(일상 질문, PII 없음) | 게이트웨이 응답 200, 본문 `json.loads` 성공, `object`·`choices[0].message.content`(문자열)·`usage` 있음. 감사 줄 1개, `status=200`, `blocked=false`, `transformed=false` |
+| C2 PII 마스킹·복원 | user에 합성 PII 5종과 "받은 값을 그대로 한 줄씩 다시 적어 달라" | 200, 응답 본문 `json.loads` 성공(D-085 결함 #1 회귀 확인), 감사 줄 `transformed=true`·요청 검사기 `pii_mask` 마스킹 5건, `response_detectors`의 `pii_mask` `restored ≥ 1`·`residual_tokens = 0`, 응답 content에 `[PII:` 0건 |
+| C3 잘못된 키 | C1과 같은 요청, `Authorization: Bearer sk-invalid-b3-20261006` | 게이트웨이 응답 401, 본문이 JSON이고 `error` 객체가 있다(상류 본문 중계). 감사 줄 `status=401` |
+| C4 로그 위생 | 요청 없음 — C1~C3 뒤 감사 파일 검사 | 감사 파일에서 `grep -cF`로 실제 키 값·`Bearer`·`sk-invalid-b3`·합성 PII 원문(줄바꿈 전화는 JSON 이스케이프 형태 `010\n3456\n7890`) 각각 0건 |
+
+- C2에서 모델이 토큰을 하나도 되돌려 쓰지 않아 `restored = 0`이면 게이트웨이 결함이 아니라 **판정 불가**로 적고, 같은 요청으로 1회만 다시 보낸다.
+  두 번 모두 0이면 C2 판정 불가로 보고한다. JSON 유효·마스킹 5건·`[PII:` 0건 조건은 판정 불가와 무관하게 그대로 본다.
+- 이 검증이 증명하지 않는 것은 D-086 §3과 같다. 특히 "원문 PII가 상류로 가지 않았다"는 실제 공급자에서 확인할 수 없고,
+  D-086 §2 스텁 결과(같은 코드)와 C2(실제 응답 복원)를 합친 데까지만 말한다.
+
+### 4. 실행 순서와 상한
+
+1. 착수 전: `git rev-parse HEAD`, `git status --short gateway/`(비어 있어야 함), health 응답(`target`·`detectors`·`chat_upstream_path`·`code`) 기록.
+2. C1 → C2 → C3 → C4. 호출마다 응답 본문을 저장하고 누적 비용을 계산한 뒤 다음으로 간다.
+- 상한: OpenAI로 가는 호출 **재시도 포함 10회**, 누적 추정 비용 **$0.50**. 어느 쪽이든 넘기 전에 멈추고, 남은 항목은 미실시로 보고한다.
+- 연결 실패(502)·타임아웃(504)은 다시 보낼 수 있으나 상한에 센다. 같은 항목 재시도는 최대 2회.
+
+### 5. 무효 조건
+
+| 검사 | 무효 사유 |
+|---|---|
+| V1 코드 | 착수 전 `gateway/`에 미커밋 변경이 있거나, HEAD가 이 절의 커밋(또는 `gateway/`를 바꾸지 않은 후속 커밋)이 아니다 |
+| V2 설정 | health의 `target`이 `https://api.openai.com`이 아니거나, `detectors`가 `injection_rule,pii_mask`가 아니거나, `chat_upstream_path`가 `/v1/chat/completions`가 아니다 |
+| V3 감사 대응 | 감사 파일의 줄 수가 게이트웨이로 보낸 `/v1` 요청 수와 다르다(health 등 `/__gateway/` 경로는 감사에서 제외된다 — `gateway/main.py` `INTERNAL_PREFIX`) |
+| V4 상한 | 호출 10회 또는 $0.50을 넘겼다 — 넘긴 호출부터 결과로 쓰지 않는다 |
+
+- C4가 실패(키·PII 원문이 로그에 있음)하면 무효가 아니라 **결함**으로 보고하고, 해당 로그 파일은 커밋하지 않는다.
+
+### 6. 산출물
+
+- `results/b3_openai_20261006_{c1,c2,c3}.json`(응답 본문), `results/audit_b3_openai_20261006.jsonl`(감사 사본, C4 통과 시에만),
+  결과는 이 절 아래 `### 7. 결과`에 번호 없이 적는다. 사용량·누적 비용 표를 함께 싣는다.

@@ -283,3 +283,19 @@ def test_CLI_부록_머리줄이_등록_여부를_단정하지_않는다(tmp_pat
     assert "| encoding.DecodeApprox | rule |" in txt
     assert "사후 변경" not in txt
     assert "등록 문서" in txt
+
+
+def test_CLI_V1_기준팔_경로를_단정하지_않는다(tmp_path):
+    """V1의 전제는 '기준 팔에 차단 검사기가 없다'이지 경로가 아니다. 새 구조(D-081)의
+    none 팔은 게이트웨이를 거친다(검사기 없음) — 경로를 단정하면 거짓이 된다."""
+    b = write_report(tmp_path / "b.jsonl", PRESENCE, [(0, [1.0] * 10)])
+    r = write_report(tmp_path / "r.jsonl", PRESENCE, [(10, [0.0] * 10)])
+    out = _run(["--report", str(b), "--label", "none",
+                "--report", str(r), "--label", "rule",
+                "--detector", PRESENCE, "--detector-kind", "presence"])
+    assert out.returncode == 0, out.stderr
+    txt = body(out.stdout, tmp_path)
+    v1 = [l for l in txt.splitlines() if "S1 일치" in l and l.strip().startswith("none")]
+    assert len(v1) == 1, txt
+    assert "게이트웨이" not in v1[0]
+    assert "차단 검사기 없음" in v1[0]

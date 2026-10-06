@@ -246,7 +246,8 @@ def main() -> int:
     tb = totals(sb["cells"], a.detector)
     rate = tb[1] / tb[0] if tb[0] else 0.0
     lo, hi = wilson(tb[1], tb[0])
-    print(f"  {base_label} (게이트웨이 미경유) S1 일치 {tb[1]} / {tb[0]} = {rate*100:.3f}%")
+    # 경로는 단정하지 않는다 — 새 구조(D-081)의 none 팔은 게이트웨이를 거친다. V1의 전제는 검사기가 없다는 것뿐이다.
+    print(f"  {base_label} (기준 팔, 차단 검사기 없음) S1 일치 {tb[1]} / {tb[0]} = {rate*100:.3f}%")
     print(f"    95% CI {lo*100:.3f}–{hi*100:.3f}%")
     v1_ok = rate <= V1_MAX_RATE
     print(f"  무효 기준 {V1_MAX_RATE*100:.1f}% 초과 → 판정: {'통과' if v1_ok else '★무효'}")

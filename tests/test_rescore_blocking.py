@@ -259,3 +259,27 @@ def test_자기정합성_차단0건_설명이_짝비교를_가리킨다(tmp_path
     txt = _pair(tmp_path, [(0, [1.0] * 10)], [(0, [1.0] * 10)])
     assert "paired_arms" in txt
 
+
+
+def test_CLI_부록_머리줄이_등록_여부를_단정하지_않는다(tmp_path):
+    """부록에는 대표가 아닌 판정기가 전부 나온다. 그중에는 사전 등록된 보조 지표도 있다
+    (encoding.DecodeApprox, D-068 §3). 도구는 등록 여부를 모르므로 '사후 변경'이라 단정하지 않는다."""
+    paths = []
+    for name in ("b", "r"):
+        p = write_report(tmp_path / f"{name}.jsonl", "encoding.DecodeMatch",
+                         [(0, [1.0] * 10)], probe="encoding.InjectNato")
+        rows = [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines()]
+        for row in rows:
+            if row["entry_type"] == "attempt":
+                row["detector_results"]["encoding.DecodeApprox"] = [1.0] * 10
+        p.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows),
+                     encoding="utf-8")
+        paths.append(p)
+    out = _run(["--report", str(paths[0]), "--label", "none",
+                "--report", str(paths[1]), "--label", "rule",
+                "--detector", "encoding.DecodeMatch", "--detector-kind", "presence"])
+    assert out.returncode == 0, out.stderr
+    txt = body(out.stdout, tmp_path)
+    assert "| encoding.DecodeApprox | rule |" in txt
+    assert "사후 변경" not in txt
+    assert "등록 문서" in txt

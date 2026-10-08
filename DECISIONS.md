@@ -8319,3 +8319,115 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 - **출력 10개 비독립**, **1회 측정**(§4).
 - **수동 복사**: 감사 사본과 rule 리포트 사본은 런처가 아니라 회수 때(rule 끝 약 27시간 뒤) 만들었다. 줄 수·수정 시각·`cmp`로 그 사이 쓰기가
   없었음을 확인했다.
+
+## D-090. D-089 E5 실패 원인 확인 — backoff 난수 소비 가설, 오프라인 재현 사전 등록 (공격 없음)
+
+- 날짜: 2026-10-08, 학원 PC에서 등록. 실행은 이 절의 커밋 **뒤에** 한다.
+- 요청(사용자, 2026-10-08): `oa_dan_*_02` 재측정을 정하기 전에 D-089 §6의 E5 실패 원인을 먼저 확인한다.
+- 지위: D-081·D-089(§1~§6)의 기록과 판정은 바꾸지 않는다. **D-089는 이 절의 결과와 상관없이 무효로 남는다.**
+  이 절은 원인 확인만 한다. 재측정, 런처·검증 도구 수정, 표집 방식 변경은 범위 밖이다(§6).
+- 공격 없음: 타겟·gateway·Ollama에 요청을 보내지 않는다. garak 이미지 안에서 `--network none`으로 프로브를 **적재만** 한다(generator 호출 없음).
+
+### 1. 등록 전에 확인한 사실 (기존 기록 읽기만, 2026-10-08)
+
+- 근거 파일: garak 공유 로그 `garak/logs/garak.log`(컨테이너 `/root/.local/share/garak/garak.log`, 모든 실행이 덧붙인다, 커밋 대상 아님).
+  시각은 UTC. 아래 행 번호는 2026-10-08 시점 파일 기준이며 §3 S0에서 사본을 보존한다.
+- **D-089 none 팔에만 `DanInTheWild` 표집 전 재요청이 있었다.** 네 실행에서 `DanInTheWild`의 `probe init` 전까지 target POST 수:
+  2밤 none 1,360, 2밤 rule 1,360, **D-089 none 1,361**, D-089 rule 1,360. 기대값은 앞 8개 프로브 attempt 136 × gen 10 = 1,360이다
+  (Ablation_Dan_11_0 127, AutoDANCached 3, 나머지 6종 각 1).
+  - 추가 1건: `ChatGPT_Developer_Mode_RANTI` 실행 중 10-06 07:28:32 UTC(16:28:32 KST) target 응답 `500 134` →
+    `INFO Backing off _call_model(...) for 0.5s (garak.exception.GeneratorBackoffTrigger: REST URI server error: 500 ...)`(216608행) →
+    07:28:33 재요청 200. RANTI POST는 이 팔만 11개, 나머지 세 실행은 10개.
+  - 같은 none 팔의 두 번째 backoff(11:32:28 UTC, `for 0.1s`, 219147행)는 `DanInTheWild` init(216742행) **뒤**, 즉 표집 뒤다.
+  - 2밤 두 팔과 D-089 rule 팔에는 backoff 줄이 없다.
+- 이 500 2건에 해당하는 감사 줄은 없다(D-089 none 창 4,000줄 전부 200, §6). target 보존 로그에 `[backend] error: Connection error.`
+  (`genericOpenAi/index.js:237`) 5건이 있으나 시각이 없어 이 2건과의 대응은 확인하지 않았다.
+- 앞선 D-081 밤의 backoff (E5는 모두 통과):
+  - 1밤 none: 09-28 14:00:16·14:35:56 UTC, `HijackKillHumans` 실행 중 — 마지막 프로브 `HijackLongPrompt` init(20:46:06) **전**이다.
+  - 3밤 none: 10-01 12:46:24 UTC, 마지막 프로브 `InjectZalgo` init(09:05:10) **뒤**다.
+- garak 0.15.1 소스 (GitHub `v0.15.1` 태그를 읽은 것이다. 이미지 안의 소스로 S1에서 다시 확인한다):
+  - `cli.py`: 시작 때 `random.seed(_config.run.seed)`를 **한 번** 호출한다.
+  - `probes/dan.py` `DanInTheWild.__init__` → `self._prune_data(self.soft_probe_prompt_cap)`.
+    `probes/base.py` `_prune_data`는 `random.sample(range(len(self.prompts)), len − cap)`으로 지울 위치를 뽑는다(전역 `random`, 다시 seed하지 않음).
+  - `probes/promptinject.py`: 자르기 직전에 `random.seed(self.seed)` → `random.shuffle` → 뒤에서 cap개 — **표집 전에 다시 seed한다.**
+  - `generators/rest.py` `_call_model`: `@backoff.on_exception(backoff.fibo, (RateLimitHit, GeneratorBackoffTrigger), max_value=70)`, jitter 인자 없음.
+    `backoff` 라이브러리의 기본 jitter `full_jitter`는 `random.uniform(0, value)`(전역 `random`)이다(GitHub `litl/backoff` 기준, 설치 버전은 S1에서 확인).
+  - garak.log의 `probe init`은 프로브마다 직전 프로브 실행이 끝난 뒤에 찍힌다(probewise 하네스). `DanInTheWild` 표집은 앞 8개 프로브 실행 뒤에 일어난다.
+  - `command.py` `hint()`는 안내를 화면에 띄울지 정하려고 `random.random()`을 한 번 쓴다. `cli.py` 688행이 seed 뒤·프로브 적재 전에
+    "This run can be sped up" 안내로 이것을 부른다. 네 실행의 garak.log 모두 이 안내가 1회씩 있다(같은 소비).
+  - 패키지 전체(GitHub `v0.15.1` 압축본)에서 `random.`을 쓰는 모듈 중 이 실행 경로(cli → rest generator → probewise → dan 프로브·dan/mitigation
+    판정기)에 있는 것은 `cli.py`(seed), `command.py`(hint), `probes/base.py`(`_prune_data`), `generators/base.py`(`random.Random()` —
+    전역과 상태를 나누지 않는 별도 인스턴스)뿐이다. 외부 라이브러리는 `backoff` jitter만 확인했다.
+- 이 사실들은 가설을 세우는 데만 쓴다. 원인을 확정하지 않는다.
+
+### 2. 가설
+
+- **H1**: D-089 none 팔에서 RANTI 실행 중 HTTP 500 → garak의 backoff jitter가 전역 `random`을 한 번 더 썼다 →
+  `DanInTheWild._prune_data`의 `random.sample` 시작 상태가 다른 세 실행과 달라졌다 → `DanInTheWild` 8개 위치의 프롬프트가 달라졌다.
+- H1은 §1의 앞선 밤과도 맞는다: 1밤은 표집 전 backoff가 있었지만 promptinject가 다시 seed하므로 영향이 없고, 3밤은 backoff가 표집 뒤다.
+  이 정합은 H1의 근거가 아니라 반례가 아니라는 뜻이다.
+- 대안 가설(데이터 경로, 다른 난수 소비 등)은 이 절에서 시험하지 않는다. H1이 확인되지 않으면 원인은 미확인으로 남긴다.
+
+### 3. 방법 (각 단계 한 번, 결과를 보고 방법을 바꾸지 않는다)
+
+- **S0 보존**: 실행 전에 `garak/logs/garak.log`를 `results/d090_garak_log_20261008.log.gz`(`gzip -9`)로 보존하고 원본 sha256을 기록한다.
+- **S1 이미지 소스 확인** (D-079·D-084 방법, `--network none`, 서버 기동 없음): `garak-runner` 이미지
+  (`sha256:8790050f…`, D-089 manifest와 같은지 먼저 대조)에서 다음을 읽어 행 번호와 함께 적는다.
+  1. `cli.py`의 seed 호출과 688행 `command.hint` 호출(조건 포함), `command.py` `hint`, `probes/base.py` `_prune_data`,
+     `probes/dan.py` `DanInTheWild`·`DANProbeMeta`(데이터 파일 경로), `generators/rest.py` backoff 데코레이터, probewise 하네스의 프로브 적재 순서.
+  2. 설치된 `backoff` 버전, `on_exception`의 기본 jitter, `full_jitter` 구현, `fibo`의 첫 대기값.
+  3. `inthewild_jailbreak_llms.json`의 항목 수와 sha256. 실제 실행은 데이터 경로에서 `/root/.local/share/garak/data`(호스트
+     `garak/logs/data`)를 패키지보다 먼저 찾으므로, 호스트에 `garak/logs/data`가 없음을 확인한다.
+  4. `DanInTheWild` 프롬프트가 적재 뒤 리포트에 쓰이기 전에 바뀌는 경로. GitHub 소스에서는 `DANProbeMeta.probe`의
+     `{generator.name}` 치환뿐이며 재현 스크립트가 같은 규칙을 적용한다. 이미지에서 다른 경로가 있으면 비교 방법을 이 절에 덧붙여
+     **커밋한 뒤에** S2를 한다.
+  - S1 판정: 1·2가 §1과 다르면(예: jitter가 전역 `random`을 쓰지 않음) **H1 기각**으로 적고 S2를 하지 않는다.
+- **S2 오프라인 재현** — 도구는 이 절과 **같은 커밋**으로 추가한다: `scripts/d090_replay_dan_sampling.py`(재현), `scripts/d090_compare.py`(대조·S2 판정),
+  `tests/test_d090.py`(20개 — 재현 순서·변형 B 위치·`{generator.name}` 치환, 대조의 정상·B 불일치·A 불일치·길이 다름·반복 불일치·
+  jitter 보조값, 입력 오류: seq 중복·빠짐, 변형 표시, 반복 수, 프롬프트 수). 테스트는 garak·실제 리포트를 쓰지 않는다.
+  - 실행: `docker run --rm --network none --entrypoint python -v "$PWD/scripts:/scripts:ro" -v "$PWD/garak:/work:ro" garak-runner
+    /scripts/d090_replay_dan_sampling.py --variant <A|B> > results/d090_replay_<A|B>_<1|2>.json`. `garak/logs`는 마운트하지 않는다
+    (공유 garak.log에 쓰지 않는다). generator·detector를 만들지 않고 어떤 요청도 보내지 않는다.
+  - 재현 순서(실제 실행에서 전역 `random`을 쓰는 지점, §1): garak 기본 설정 적재(`seed`=20260819, `generations`=10) →
+    `random.seed(20260819)` → `command.hint` 한 번 → 앞 8개 프로브를 `_plugins.load_plugin`으로 적재(Ablation_Dan_11_0, AntiDAN,
+    AutoDANCached, ChatGPT_Developer_Mode_RANTI, ChatGPT_Developer_Mode_v2, ChatGPT_Image_Markdown, DAN_Jailbreak, DUDE) →
+    `DanInTheWild` 적재(`_prune_data`) → `prompts`에 `{generator.name}` 치환(`garak/anythingllm_rest.json`의 이름) → 텍스트 sha256을 순서대로 저장.
+  - **변형 A**: 위 그대로. **변형 B**: RANTI 적재 직후, rest.py와 같은 `@backoff.on_exception(backoff.fibo, …, max_value=70)`
+    (jitter 미지정 = 설치된 기본값)으로 꾸민 함수가 한 번 실패한 뒤 성공하게 해 재시도를 정확히 한 번 일으키고 그 대기값을 기록한다.
+  - 각 변형을 **새 컨테이너에서 2회**씩 돌린다(같은 변형의 두 회는 같아야 한다).
+  - 대조: `d090_compare.py`가 리포트의 `dan.DanInTheWild` status=2 attempt를 seq 순서로 읽어 user turn 텍스트를 같은 해시 함수로 해시하고
+    재현 결과와 위치별로 비교한다.
+    - **M**: 2밤 none = 2밤 rule = D-089 rule(D-089 §6에서 400/400 일치 확인). 대표로 `results/oa_dan_20260930_01_none.report.jsonl`.
+    - **N**: `results/oa_dan_20261006_01_none.report.jsonl`.
+  - 산출물: `results/d090_replay_{A,B}_{1,2}.json`(256개 해시, 호출 순서, 변형 B의 jitter 값, garak·backoff·Python 버전, cap,
+    데이터 파일 sha256·항목 수, 치환 수), 비교 결과 `results/d090_compare.md`.
+  - 재현 스크립트가 해시를 내기 **전에** 오류로 멈추면(import 실패 등) 오류 출력을 보존하고, 고친 내용을 이 절에 덧붙여 커밋한 뒤 다시 돌린다.
+    해시가 하나라도 나온 뒤에는 고치지 않는다.
+
+### 4. 판정 (결과 전에 고정)
+
+| 판정 | 조건 |
+|---|---|
+| **H1 확인** | S1이 §1과 일치 **그리고** A 두 회 모두 M과 256/256 일치 **그리고** B 두 회 모두 N과 256/256 일치 |
+| **H1 기각** | S1이 §1과 다름, **또는** A가 M과 일치하는데 B가 N과 256/256 일치하지 않음 |
+| **판단 불가** | A가 M과 일치하지 않음(재현이 실제 실행의 난수 소비를 다 담지 못함), **또는** 같은 변형의 두 회가 다름 |
+
+- 판단 불가이면 스크립트를 고쳐 다시 맞추지 않는다. 고친 재현은 새 번호로 등록한다.
+- 보조 관찰(판정에 쓰지 않음): 변형 B의 jitter 값이 0.45 이상 0.55 미만인지(garak.log `for 0.5s`, `%.1f` 표기).
+
+### 5. 결과 뒤 (이 절에서 정하지 않음)
+
+- H1이 확인되어도 D-089는 무효로 남고, D-089 §6의 숫자는 기준값이 되지 않는다.
+- 재측정(`_02`)과 그 설계(예: 표집 전 재요청이 생기면 E5 위험을 어떻게 다룰지)는 이 결과와 별개로 새 번호로 사전 등록한다.
+
+### 6. 범위 밖
+
+- 타겟·gateway·Ollama 호출, garak 실제 실행(로컬 테스트 generator 포함), HTTP 500의 원인(AnythingLLM `Connection error`) 추적,
+  `night_run_oa.sh`·`validate_oa_arm.py`·garak 설정 수정, D-089 재측정.
+
+### 7. 한계
+
+- S2는 garak 내부 적재 함수로 실제 실행의 표집 지점을 흉내 낸 것이다. 실제 실행 경로를 다시 돈 것이 아니다.
+  generator·판정기를 만들지 않고 앞 프로브를 실행하지 않는다 — 이들이 전역 `random`을 쓰지 않는다는 것은 §1의 소스 검색에 기댄다.
+  H1 확인은 "이 난수 소비 하나로 두 결과가 모두 재현된다"는 뜻이며, 다른 경로가 전혀 없음을 증명하지 않는다.
+- §1의 garak·backoff 소스는 GitHub 태그·저장소 기준이다. 이미지 안의 소스와 같은지는 S1이 확인한다.

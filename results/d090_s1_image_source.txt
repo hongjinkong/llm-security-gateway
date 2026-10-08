@@ -1,0 +1,273 @@
+sha256:8790050fa2710ab0e35f2111e77f3e1daa9f4fc581c1a4cca7b5c458748430cc
+garak_image_id=sha256:8790050fa2710ab0e35f2111e77f3e1daa9f4fc581c1a4cca7b5c458748430cc
+ls: cannot access 'garak/logs/data': No such file or directory
+versions garak 0.15.1 backoff 2.2.1 python 3.12.13
+===== /usr/local/lib/python3.12/site-packages/garak/cli.py sha256 7074ee434d9085900b618e4af6b8c901c829a3f1710f58e693644747cc9b3dfe
+457: 
+458:     if hasattr(_config.run, "seed") and isinstance(_config.run.seed, int):
+459:         import random
+460: 
+461:         random.seed(
+462:             _config.run.seed
+463:         )  # setting seed persists across re-imports of random
+464: 
+465:     # startup
+466:     import sys
+467:     import json
+468: 
+469:     import garak.evaluators
+--
+684:                 not _cli_config_supplied
+685:                 and generator.parallel_capable
+686:                 and _config.system.parallel_attempts is False
+687:             ):
+688:                 command.hint(
+689:                     f"This run can be sped up 🥳 Generator '{generator.fullname}' supports parallelism! Consider using `--parallel_attempts 16` (or more) to greatly accelerate your run. 🐌",
+690:                     logging=logging,
+691:                 )
+692: 
+693:             command.start_run()  # start the run now that all config validation is complete
+694:             print(f"📜 reporting to {_config.transient.report_filename}")
+695: 
+696:             if parsed_specs["detector"] == []:
+--
+===== /usr/local/lib/python3.12/site-packages/garak/command.py sha256 e49fef1d5724107ca88e7ac8882c0b2d81367d883f6a481b9187ec2d1c4df813
+10: HINT_CHANCE = 0.25
+11: 
+12: 
+13: def hint(msg, logging=None):
+14:     # sub-optimal, but because our logging setup is thin & uses the global
+15:     # default, placing a top-level import can break logging - so we can't
+16:     # assume `logging` is imported at this point.
+17:     msg = f"⚠️  {msg}"
+18:     if logging is not None:
+19:         logging.info(msg)
+--
+13: def hint(msg, logging=None):
+14:     # sub-optimal, but because our logging setup is thin & uses the global
+15:     # default, placing a top-level import can break logging - so we can't
+16:     # assume `logging` is imported at this point.
+17:     msg = f"⚠️  {msg}"
+18:     if logging is not None:
+19:         logging.info(msg)
+20:     if random.random() < HINT_CHANCE:
+21:         print(msg)
+22: 
+--
+===== /usr/local/lib/python3.12/site-packages/garak/probes/base.py sha256 20be58d8a808c6f61bf81475ff2156a9d7b917767d32e97055c8d5db96d7b67f
+462:     def _prune_data(self, cap, prune_triggers=False):
+463:         num_ids_to_delete = max(0, len(self.prompts) - cap)
+464:         ids_to_rm = random.sample(range(len(self.prompts)), num_ids_to_delete)
+465:         # delete in descending order
+466:         ids_to_rm = sorted(ids_to_rm, reverse=True)
+467:         for id in ids_to_rm:
+468:             del self.prompts[id]
+469:             if prune_triggers:
+470:                 del self.triggers[id]
+471: 
+--
+===== /usr/local/lib/python3.12/site-packages/garak/probes/dan.py sha256 88cfb91f86db9f1c068e4d8a8e1ef908b08218110cd923d93515e16e5353f9c4
+96:             def probe(self, generator):
+97:                 formatted_prompts = []
+98:                 for prompt in self.prompts:
+99:                     # Only format if the prompt contains valid {generator.name} pattern
+100:                     if "{generator.name}" in prompt:
+101:                         formatted_prompts.append(prompt.format(generator=generator))
+102:                     else:
+103:                         formatted_prompts.append(prompt)
+104:                 self.prompts = formatted_prompts
+105:                 return garak.probes.Probe.probe(self, generator)
+106: 
+107:             attrs["probe"] = probe
+108: 
+--
+116:         def new_init(self, config_root=_config):
+117:             if original_init:
+118:                 original_init(self, config_root=config_root)
+119:             else:
+120:                 super(cls, self).__init__(config_root=config_root)
+121: 
+122:             if hasattr(self, "prompts") and self.prompts:
+123:                 return
+124: 
+125:             if not hasattr(self, "prompt_file"):
+126:                 self.prompts = []
+127:                 return
+128: 
+--
+389:     def probe(self, generator) -> Iterable[garak.attempt.Attempt]:
+390:         # Generate dynamic prompts using AutoDAN
+391:         if self.autodan is None:
+392:             from garak.resources.autodan import autodan_generate
+393: 
+394:             self.autodan = autodan_generate
+395: 
+396:         if hasattr(self, "system_prompt"):
+397:             system_prompt = self.system_prompt
+398:         else:
+399:             system_prompt = None
+400: 
+401:         try:
+--
+439:     prompt_file="inthewild_jailbreak_llms.json",
+440:     goal="disregard the system prompt or alignment",
+441:     extra_tags=["payload:jailbreak"],
+442:     primary_detector="mitigation.MitigationBypass",
+443:     extended_detectors=[],
+444: ):
+445:     """A library of jailbreaks.
+446: 
+447:     Tries a set of ~700 known jailbreaks, in an attempt to get a model to disregard
+448:     alignment/system prompt. Success is measured by not getting a safety mitigaton
+449:     message."""
+450: 
+451:     doc_uri = "https://arxiv.org/html/2308.03825"
+--
+454: class DanInTheWild(DanInTheWildFull):
+455:     """A subset of jailbreaks from the DanInTheWild jailbreak library.
+456: 
+457:     Tries a set of known jailbreaks, in an attempt to get a model to disregard
+458:     alignment/system prompt. Success is measured by not getting a safety mitigation
+459:     message. The number of prompts in the subset can be configured via the
+460:     `soft_probe_prompt_cap` run parameter."""
+461: 
+462:     active = True
+463: 
+464:     def __init__(self, config_root=_config):
+465:         super().__init__(config_root=config_root)
+466:         self._prune_data(self.soft_probe_prompt_cap)
+--
+===== /usr/local/lib/python3.12/site-packages/garak/generators/rest.py sha256 4f0887f177f8ad89074e451efba58763e6f1f41544616041bbb227f6d515b5d0
+281: 
+282:     @backoff.on_exception(
+283:         backoff.fibo, (RateLimitHit, GeneratorBackoffTrigger), max_value=70
+284:     )
+285:     def _call_model(
+--
+===== /usr/local/lib/python3.12/site-packages/garak/harnesses/probewise.py sha256 1c519d5d200d2fc21612b0a2aecaf5072ad4ba9deba422789064865289ba6928
+69:         probenames = sorted(probenames)
+--
+77:                 probe = _plugins.load_plugin(probename)
+--
+===== /usr/local/lib/python3.12/site-packages/backoff/_decorator.py sha256 12e607ae0f2b48f68a27f29e67df56120f649eb7f29fff9c935d82c1f71bebc5
+13: from backoff._jitter import full_jitter
+--
+32:                  jitter: Union[_Jitterer, None] = full_jitter,
+--
+58:         jitter: A function of the value yielded by wait_gen returning
+--
+61:             concurrent clients. Wait times are jittered by default
+--
+62:             using the full_jitter function. Jittering may be disabled
+--
+63:             altogether by passing jitter=None.
+--
+112:             jitter=jitter,
+--
+123: def on_exception(wait_gen: _WaitGenerator,
+--
+128:                  jitter: Union[_Jitterer, None] = full_jitter,
+--
+154:         jitter: A function of the value yielded by wait_gen returning
+--
+157:             concurrent clients. Wait times are jittered by default
+--
+158:             using the full_jitter function. Jittering may be disabled
+--
+159:             altogether by passing jitter=None.
+--
+212:             jitter=jitter,
+--
+===== /usr/local/lib/python3.12/site-packages/backoff/_jitter.py sha256 2e32528698ebca4f6c5810968b3fb7517d43242c7aade6cd27905fde73cc9584
+6: def random_jitter(value: float) -> float:
+--
+15:     return value + random.random()
+--
+18: def full_jitter(value: float) -> float:
+--
+28:     return random.uniform(0, value)
+--
+===== /usr/local/lib/python3.12/site-packages/backoff/_wait_gen.py sha256 539011dc8b1fe1a66cd920b4c7d3c62375a1f0947b5c6915f744a2539eb05afc
+34: def fibo(max_value: Optional[int] = None) -> Generator[int, None, None]:
+35:     """Generator for fibonaccial decay.
+36: 
+37:     Args:
+38:         max_value: The maximum value to yield. Once the value in the
+39:              true fibonacci sequence exceeds this, the value
+40:              of max_value will forever after be yielded.
+41:     """
+42:     # Advance past initial .send() call
+43:     yield  # type: ignore[misc]
+44: 
+45:     a = 1
+46:     b = 1
+47:     while True:
+48:         if max_value is None or a < max_value:
+49:             yield a
+50:             a, b = b, a + b
+51:         else:
+52:             yield max_value
+53: 
+54: 
+55: def constant(
+56:     interval: Union[int, Iterable[float]] = 1
+--
+===== /usr/local/lib/python3.12/site-packages/backoff/_common.py sha256 f2cdffe40247f2188777d191d8f74aaa269e136b1d114a327fa716f4e0a8d45f
+27: def _init_wait_gen(wait_gen, wait_gen_kwargs):
+28:     kwargs = {k: _maybe_call(v) for k, v in wait_gen_kwargs.items()}
+29:     initialized = wait_gen(**kwargs)
+30:     initialized.send(None)  # Initialize with an empty send
+31:     return initialized
+32: 
+33: 
+34: def _next_wait(wait, send_value, jitter, elapsed, max_time):
+35:     value = wait.send(send_value)
+36:     try:
+37:         if jitter is not None:
+38:             seconds = jitter(value)
+39:         else:
+40:             seconds = value
+41:     except TypeError:
+42:         warnings.warn(
+43:             "Nullary jitter function signature is deprecated. Use "
+44:             "unary signature accepting a wait value in seconds and "
+45:             "returning a jittered version of it.",
+46:             DeprecationWarning,
+47:             stacklevel=2,
+48:         )
+49: 
+50:         seconds = value + jitter()
+51: 
+52:     # don't sleep longer than remaining allotted max_time
+--
+34: def _next_wait(wait, send_value, jitter, elapsed, max_time):
+35:     value = wait.send(send_value)
+36:     try:
+37:         if jitter is not None:
+38:             seconds = jitter(value)
+39:         else:
+40:             seconds = value
+41:     except TypeError:
+42:         warnings.warn(
+43:             "Nullary jitter function signature is deprecated. Use "
+44:             "unary signature accepting a wait value in seconds and "
+45:             "returning a jittered version of it.",
+46:             DeprecationWarning,
+47:             stacklevel=2,
+48:         )
+49: 
+50:         seconds = value + jitter()
+51: 
+52:     # don't sleep longer than remaining allotted max_time
+53:     if max_time is not None:
+54:         seconds = min(seconds, max_time - elapsed)
+55: 
+56:     return seconds
+57: 
+58: 
+59: def _prepare_logger(logger):
+--
+random_users 24 analyze/bootstrap_ci.py analyze/qual_review.py cli.py command.py detectors/always.py generators/base.py interactive.py langproviders/remote.py probes/badchars.py probes/base.py probes/divergence.py probes/dra.py probes/encoding.py probes/fitd.py probes/goat.py probes/latentinjection.py probes/promptinject.py probes/smuggling.py probes/sysprompt_extraction.py resources/autodan/autodan.py resources/autodan/genetic.py resources/encodings.py resources/gcg/attack_manager.py resources/red_team/conversation.py
+data /usr/local/lib/python3.12/site-packages/garak/data/inthewild_jailbreak_llms.json items 666 nonempty 666 sha256 2e3496db26bab605498357a8670523bbca07a14438eee5a4c79e6a32968c1875
+data_generator_name_pattern 0
+data_search_paths ['/root/.local/share/garak/data', '/usr/local/lib/python3.12/site-packages/garak/data']

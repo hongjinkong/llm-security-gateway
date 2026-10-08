@@ -8267,6 +8267,8 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
   두 garak 컨테이너 로그의 머리 8줄(프로브 대기열 포함)은 이름을 빼면 첫 줄의 시작 시각만 다르다.
 - 원인은 확인하지 않았다 — 회수 중 실험을 하지 않는다. 확인하려면 D-090으로 먼저 등록한다.
   D-068 §6 "seed 고정만으로 일치를 주장하지 않는다"가 잡은 경우다.
+  - (2026-10-08 추가) 원인 확인 → **D-090 §8: H1 확인.** none 팔의 `ChatGPT_Developer_Mode_RANTI` 실행 중 HTTP 500 1건에 garak이
+    재시도하면서 backoff jitter가 전역 `random`을 한 번 더 썼고, 그래서 `DanInTheWild` 표집이 달라졌다. 이 밤의 무효 판정은 그대로다.
 
 #### 도구 출력 — 무효 밤 (D-089 기준값으로 쓰지 않고 README로 옮기지 않는다)
 
@@ -8431,3 +8433,63 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
   generator·판정기를 만들지 않고 앞 프로브를 실행하지 않는다 — 이들이 전역 `random`을 쓰지 않는다는 것은 §1의 소스 검색에 기댄다.
   H1 확인은 "이 난수 소비 하나로 두 결과가 모두 재현된다"는 뜻이며, 다른 경로가 전혀 없음을 증명하지 않는다.
 - §1의 garak·backoff 소스는 GitHub 태그·저장소 기준이다. 이미지 안의 소스와 같은지는 S1이 확인한다.
+
+### 8. 결과 (2026-10-08, 학원 PC WSL — 공격 없음)
+
+- 순서: 등록 커밋 `abe7ed1`(push, `.venv/bin/pytest -q` **614 passed**) 뒤 S0 → S1 → S2. §3·§4와 두 스크립트는 실행 뒤 고치지 않았다.
+- 공개: 등록 전에는 재현 계산을 하지 않았다. 등록 전 확인은 기존 로그·소스 읽기와 합성 자료 단위 테스트뿐이다.
+  S1의 GitHub 대조에 쓴 `v0.15.1` 압축본은 회수 PC의 임시 폴더에 받았고 저장소에 넣지 않았다(아래 sha256으로 대조).
+
+#### S0 보존
+
+- `garak/logs/garak.log` 230,238행, sha256 `f1033d89289983116d56dd9c882a0fc6b4708f50fbca4f6977caeb56bd99cf97`
+  → `results/d090_garak_log_20261008.log.gz`(1,388,580바이트). 풀어서 원본과 `cmp` 일치. §1의 행 번호는 이 사본 기준이다.
+
+#### S1 이미지 소스 (`results/d090_s1_image_source.txt`, `--network none`)
+
+| 항목 | 이미지 안 | §1과 |
+|---|---|---|
+| 이미지 | `sha256:8790050f…` = D-089 manifest `garak_image_id` | 같음 |
+| 1. garak | garak 0.15.1, Python 3.12.13. `cli.py` 461 `random.seed(_config.run.seed)`, 684~691 `command.hint`(조건: `-G` 외 `--config` 없음·generator 병렬 가능·`parallel_attempts` 꺼짐), `command.py` 20 `random.random() < HINT_CHANCE`, `probes/base.py` 464 `random.sample`, `probes/dan.py` 464~466 `DanInTheWild.__init__` → `_prune_data`, `generators/rest.py` 282~284 `@backoff.on_exception(backoff.fibo, (RateLimitHit, GeneratorBackoffTrigger), max_value=70)`, `harnesses/probewise.py` 69 정렬·77 `load_plugin(probename)`. 이 6개 파일의 sha256이 GitHub `v0.15.1` 압축본과 모두 같다 | 같음 |
+| 2. backoff | 2.2.1. `on_exception` 기본 `jitter=full_jitter`(`_decorator.py` 128), `full_jitter` = `random.uniform(0, value)`(`_jitter.py` 28), `_next_wait`가 `jitter(value)` 적용(`_common.py` 34~38), `fibo` 첫 대기값 1(`_wait_gen.py` 43~49) | 같음 |
+| 3. 데이터 | `inthewild_jailbreak_llms.json` 666개(빈 항목 0), sha256 `2e3496db26bab605498357a8670523bbca07a14438eee5a4c79e6a32968c1875`(GitHub과 같다). 찾는 순서 `/root/.local/share/garak/data` → 패키지. 호스트 `garak/logs/data` 없음 → 실제 실행도 패키지 파일 | 확인 |
+| 4. 바뀌는 경로 | `DANProbeMeta.probe`의 `{generator.name}` 치환뿐(dan.py 96~105). 이 데이터의 치환 대상 **0개** | 비교 방법 보완 불필요 |
+
+- 전역 `random`을 쓰는 garak 모듈 24개 목록도 GitHub 압축본 검색과 같다.
+- **S1 판정: §1과 일치** → S2 진행.
+
+#### S2 오프라인 재현 (`results/d090_replay_{A,B}_{1,2}.json`, 비교 `results/d090_compare.md`)
+
+- 네 실행 모두 종료 0, stderr 0바이트(`..._stderr.txt` 보존). 같은 변형의 두 결과 파일은 **바이트까지 같다**(A1=A2, B1=B2).
+- 네 결과 공통: garak 0.15.1, backoff 2.2.1, Python 3.12.13, cap 256, 데이터 sha256·666개 위와 같음, generator 이름 `target-anythingllm`, 치환 0.
+  호출 순서 A: seed → hint → 앞 8개 → DanInTheWild. B: RANTI 바로 뒤에 backoff 한 번.
+- `d090_compare.py` 종료 0. M과 N이 다른 seq는 8개 `[241, 242, 246, 247, 250, 253, 254, 255]`(D-089 §6과 같다).
+
+  | 재현 | 프롬프트 수 | M(2밤 none = 2밤 rule = D-089 rule)과 일치 | N(D-089 none)과 일치 | jitter 대기값 |
+  |---|---|---|---|---|
+  | A1 | 256 | **256/256** | 248/256 | — |
+  | A2 | 256 | **256/256** | 248/256 | — |
+  | B1 | 256 | 248/256 | **256/256** | 0.5359501982792404 |
+  | B2 | 256 | 248/256 | **256/256** | 0.5359501982792404 |
+
+- 보조 관찰(판정에 쓰지 않음): B의 jitter 0.536은 0.45 이상 0.55 미만 — garak.log 216608행 `Backing off _call_model(...) for 0.5s`와 맞는다.
+
+#### 판정 (§4)
+
+- S1 §1과 일치 **그리고** A 두 회 모두 M과 256/256 **그리고** B 두 회 모두 N과 256/256 → **H1 확인.**
+
+#### 무엇을 뜻하나 (해석은 여기까지)
+
+- D-089 none 팔의 E5 불일치 8개는 "RANTI 실행 중 HTTP 500 1건 → garak backoff jitter가 전역 `random`을 한 번 더 씀"으로 모두 재현된다.
+  그 소비가 없으면 2밤 두 팔·D-089 rule과 같은 256개가 나온다. 이 재현은 §7 한계 안에서의 확인이다.
+- 따라서 이 E5 실패는 타겟·gateway·모델 응답의 내용 차이가 아니다. garak의 `DanInTheWild` 표집이 그 앞 재시도 여부에 따라 바뀌는 성질에서 왔다.
+  E5는 등록대로 이 차이를 잡았고, 비교 무효(D-089 §6)는 그대로 맞다.
+- 같은 구성으로 다시 재면, `DanInTheWild` 표집 전(앞 8개 프로브, 팔당 약 1,360 요청) 재시도가 한쪽 팔에만 생길 때 같은 종류의 E5 실패가
+  다시 날 수 있다. 표집 뒤의 재시도(D-089 none의 두 번째 backoff)는 표집에 영향이 없다. 1밤 promptinject는 표집 직전에 다시 seed하므로
+  이 경로에 영향을 받지 않는다(§1). encoding 프로브의 표집 방식은 이 절에서 확인하지 않았다.
+- HTTP 500 자체의 원인(AnythingLLM `Connection error`, 감사 줄 없음)은 범위 밖이며 미확인이다.
+
+#### 지위와 다음
+
+- D-089는 무효로 남고 D-089 §6의 숫자는 기준값이 되지 않는다(§5).
+- 재측정(`_02`)을 할지, 할 때 위 E5 위험을 어떻게 다룰지는 정하지 않았다. 정하면 새 번호로 사전 등록하고 결과 전에 커밋한다.

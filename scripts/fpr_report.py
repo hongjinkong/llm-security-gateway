@@ -59,7 +59,7 @@ from datetime import datetime
 
 def load_runs(path: pathlib.Path) -> dict[str, list[dict]]:
     by_id: dict[str, list[dict]] = collections.defaultdict(list)
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").split("\n"):
         if line.strip():
             r = json.loads(line)
             by_id[r["id"]].append(r)
@@ -80,7 +80,7 @@ def load_audit(path: pathlib.Path) -> dict[str, dict]:
     # 창 하나에 감사 줄이 둘이어도 link_by_time이 하나만 봐서 F4를 놓쳤다. 숨기지 않고 무효로 낸다.
     out = {}
     dup, missing = set(), 0
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in path.read_text(encoding="utf-8").split("\n"):
         if line.strip():
             d = json.loads(line)
             rid = d.get("request_id")

@@ -76,6 +76,13 @@ def test_rule_팔은_차단_수를_보고한다(tmp_path, capsys):
     assert "차단 7" in capsys.readouterr().out
 
 
+def test_출력_안의_U2028은_줄_경계가_아니다(tmp_path, capsys):
+    """D-097: splitlines()는 U+2028에서 줄을 잘라 정상 팔을 'JSON 파손'으로 무효로 만들었다."""
+    rep = report_rows("oa_pi_x_none")
+    rep[2]["outputs"][0]["text"] = "out next"
+    assert v.main(make(tmp_path, rep=rep)) == 0
+
+
 def test_앞에_쌓인_감사_줄은_세지_않는다(tmp_path, capsys):
     """FPR·점검 요청 12줄이 앞에 있다. 이걸 세면 개수가 안 맞아 정상 팔이 무효가 된다."""
     assert v.main(make(tmp_path, prefix=12)) == 0

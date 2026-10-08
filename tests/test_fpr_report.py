@@ -99,6 +99,16 @@ def test_정상_입력은_집계한다(tmp_path, monkeypatch, capsys):
     assert "injection_rule/R1  2건" in out
 
 
+def test_응답_안의_U2028은_줄_경계가_아니다(tmp_path, monkeypatch, capsys):
+    """D-097: splitlines()는 U+2028에서 줄을 잘라 JSON 파손을 냈다."""
+    d = dataset(tmp_path)
+    on = [json.loads(x) for x in d["on"].read_text(encoding="utf-8").split("\n") if x.strip()]
+    on[0]["text"] = "on next"
+    write(d["on"], on)
+    assert call(monkeypatch, d) == 1        # 정상 입력과 같은 결과(15% > 5%)
+    assert GOLDEN in capsys.readouterr().out
+
+
 def test_목표_이하면_종료코드_0(tmp_path, monkeypatch, capsys):
     d = dataset(tmp_path, transformed=(), degraded=(), blocked=())
     assert call(monkeypatch, d) == 0

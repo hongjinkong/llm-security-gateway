@@ -35,7 +35,7 @@ def require(ok: bool, message: str) -> None:
 def _rows(path: Path, what: str) -> list[dict]:
     require(path.is_file(), f"{what} 없음: {path}")
     rows = []
-    for no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for no, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
         if line.strip():
             try:
                 rows.append(json.loads(line))

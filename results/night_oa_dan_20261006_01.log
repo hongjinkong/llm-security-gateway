@@ -1,0 +1,75 @@
+[2026-10-06T11:23:08+09:00] D-081 밤샘 시작: oa_dan_20261006_01
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 64548febcc03
+실행 중 코드 지문 : 64548febcc03
+타겟             : http://host.docker.internal:11434
+활성 검사기       : -
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (-)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-10-06T11:23:22+09:00] START oa_dan_20261006_01_none (probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN gen=10 seed=20260819 detectors=none audit_from=39826)
+실행: where=target  probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN  generations=10  name=oa_dan_20261006_01_none  network=llm-security-gateway_default  seed=20260819
+시작: 2026-10-06T11:23:22+09:00
+7b27054aeff65da108ec2a5304b5c9482ba254a8295772a980960980ac9e60fc
+
+진행 확인:
+  docker logs -f garak_oa_dan_20261006_01_none
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/oa_dan_20261006_01_none.report.jsonl \
+    | tee results/oa_dan_20261006_01_none_summary.md
+  cp garak/logs/garak_runs/oa_dan_20261006_01_none.report.jsonl results/oa_dan_20261006_01_none.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-10-07T01:22:21+09:00] END oa_dan_20261006_01_none exit=0
+E1 통과: oa_dan_20261006_01_none, completion 1, attempt 400, 출력 4000
+E3 통과: oa_dan_20261006_01_none, 감사 줄 4000 = garak 출력, 전부 /v1/chat/completions 200, 차단 0
+ Container target-anythingllm Running 
+ Container llm-gateway Recreate 
+ Container llm-gateway Recreated 
+ Container llm-gateway Starting 
+ Container llm-gateway Started 
+저장소 코드 지문 : 64548febcc03
+실행 중 코드 지문 : 64548febcc03
+타겟             : http://host.docker.internal:11434
+활성 검사기       : injection_rule,pii_mask
+
+✅ 코드 일치
+✅ 검사기 구성 일치 (injection_rule,pii_mask)
+
+카나리 지문 대조 : 생략 (canary_observe 비활성)
+
+측정을 시작해도 좋다.
+[2026-10-07T01:22:47+09:00] START oa_dan_20261006_01_rule (probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN gen=10 seed=20260819 detectors=injection_rule,pii_mask audit_from=43826)
+실행: where=target  probes=dan.DanInTheWild,dan.Ablation_Dan_11_0,dan.AutoDANCached,dan.AntiDAN,dan.ChatGPT_Developer_Mode_RANTI,dan.ChatGPT_Developer_Mode_v2,dan.ChatGPT_Image_Markdown,dan.DAN_Jailbreak,dan.DUDE,dan.Dan_10_0,dan.Dan_11_0,dan.Dan_6_0,dan.Dan_6_2,dan.Dan_7_0,dan.Dan_8_0,dan.Dan_9_0,dan.STAN  generations=10  name=oa_dan_20261006_01_rule  network=llm-security-gateway_default  seed=20260819
+시작: 2026-10-07T01:22:47+09:00
+91ecf9768278530366f017567a9d40b68b0b4049863b34a25597fa3928db57d7
+
+진행 확인:
+  docker logs -f garak_oa_dan_20261006_01_rule
+  bash check.sh
+
+완주 후:
+  python3 scripts/asr_summary.py garak/logs/garak_runs/oa_dan_20261006_01_rule.report.jsonl \
+    | tee results/oa_dan_20261006_01_rule_summary.md
+  cp garak/logs/garak_runs/oa_dan_20261006_01_rule.report.jsonl results/oa_dan_20261006_01_rule.report.jsonl
+
+리포트가 위 이름으로 없으면 (report_prefix 미적용 시):
+  ls -t garak/logs/garak_runs/*.report.jsonl | head -1
+0
+[2026-10-07T06:24:09+09:00] END oa_dan_20261006_01_rule exit=0
+무효: 프롬프트 해시 불일치 8개
+E1 통과: oa_dan_20261006_01_rule, completion 1, attempt 400, 출력 4000
+E3 통과: oa_dan_20261006_01_rule, 감사 줄 4000 = garak 출력, 전부 /v1/chat/completions 200, 차단 2455
+[2026-10-07T06:24:15+09:00] ERROR launcher exit=2

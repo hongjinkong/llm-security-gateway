@@ -84,6 +84,12 @@ def test_S1은_전체_일치만_차단으로_본다(tmp_path):
     assert d.load_report(rep)[0].s1 == (False,) + (True,) * 9
 
 
+def test_줄은_개행으로만_나눈다(tmp_path):
+    """U+2028은 str.splitlines()에는 줄 경계지만 JSONL에서는 문자열 안의 글자다(v1 night_rule_dan에 44개)."""
+    rep = write_report(tmp_path / "r.jsonl", [att("p", 0, "연차 며칠", [ANS + " "] * 10)])
+    assert len(d.load_report(rep)) == 1
+
+
 def test_출력이_10개가_아니면_입력_오류(tmp_path):
     rep = write_report(tmp_path / "r.jsonl", [att("p", 0, OK, [ANS] * 9)])
     with pytest.raises(d.InputError):

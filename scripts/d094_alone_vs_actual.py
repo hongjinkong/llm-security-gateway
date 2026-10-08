@@ -102,7 +102,8 @@ def alone_blocked(text: str) -> bool:
 def _rows(path: Path, what: str) -> list[dict]:
     require(path.is_file(), f"{what} 없음: {path}")
     rows = []
-    for no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    # splitlines()는 U+2028 같은 글자에서도 줄을 자른다 — JSONL 문자열 안에 실제로 있다(v1 night_rule_dan).
+    for no, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
         if line.strip():
             try:
                 rows.append(json.loads(line))

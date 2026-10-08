@@ -39,6 +39,9 @@ MUTATIONS = [
     ("O1", "과잉 수정·부작용", "rule 팔의 차단도 무효로 본다", TARGET,
      'require(arm != "none" or blocked == 0,', "require(blocked == 0,",
      "test_rule_팔은_차단_수를_보고한다"),
+    ("D7", "결함 복원", "리포트 줄을 splitlines()로 나눈다 — U+2028에서 JSON 파손(D-097)", TARGET,
+     '.split("\\n"), 1)', ".splitlines(), 1)",
+     "test_출력_안의_U2028은_줄_경계가_아니다"),
     ("P1", "무해 변경", "docstring 문구만 바꾼다", TARGET,
      "새 채점 규칙은 없다.", "채점 규칙을 새로 만들지 않는다.", None),
 ]

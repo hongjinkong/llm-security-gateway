@@ -40,6 +40,10 @@ MUTATIONS = [
     ("O2", "과잉 수정·부작용", "기본 연결을 time으로 바꿔 옛 경로를 깬다", REPORT,
      'default="header"', 'default="time"',
      "test_기본값은_여전히_헤더_연결이다"),
+    ("D6", "결함 복원", "실행 기록을 splitlines()로 나눈다 — U+2028에서 JSON 파손(D-097)", REPORT,
+     'split("\\n"):\n        if line.strip():\n            r = json.loads(line)',
+     'splitlines():\n        if line.strip():\n            r = json.loads(line)',
+     "test_응답_안의_U2028은_줄_경계가_아니다"),
     ("P1", "무해 변경", "주석 문구만 바꾼다", REPORT,
      "# ponytail: O(실행 x 감사 줄) 스캔.", "# ponytail: 실행 x 감사 줄 전수 스캔.", None),
 ]

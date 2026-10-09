@@ -1,5 +1,7 @@
 # RUNBOOK_GPU.md — 2026-09-23 encoding 무인 런
 
+> 현재 착수 절차는 `docs/next_D100_launch.md`. 이 문서는 v1 기록(D-068 `encoding` 무인 런)이다.
+
 기준: DECISIONS.md D-068 (사전 등록 커밋 28de106). 이 문서는 실행 절차다. 수치·무효 조건·17:30 중단 기준은 D-068을 따른다. 명령 블록에는 붙여넣기용 `#` 주석을 넣지 않는다.
 
 - 작업 위치: 학원 PC WSL `/home/smhrd/project/llm-security-gateway`

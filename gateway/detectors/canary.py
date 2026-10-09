@@ -76,8 +76,8 @@ def validate_canary_position(names: Sequence[str]) -> None:
     """`canary_observe`가 있으면 **목록 맨 뒤**여야 한다 (설계 4-1).
 
     `build_chain()`이 부르고, 그것이 `lifespan`에서 불리므로 **게이트웨이가
-    기동하지 못한다.** `injection_similarity`가 T 없이, `injection_judge`가
-    앞의 `observe` 없이 못 뜨는 것과 같은 장치다(D-048 / D-054).
+    기동하지 못한다.** 예전 2차 유사도가 T 없이, 3차 Judge가 게이팅 출처 없이
+    못 뜨던 것과 같은 장치다(D-048 / D-054, 그 코드는 `v1` 태그에만 있다 — D-099).
 
     `DetectorChain.run_response()`는 검사기를 역순으로 지난다. 목록 맨 뒤에
     있어야 응답 경로에서 맨 앞이 되고, **타겟이 낸 원본을 아무도 손대기 전에

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""D-081 새 구조 한 팔의 무효 검사 E1·E3·E5. 새 채점 규칙은 없다.
+"""D-081 새 구조 한 팔(D-100부터는 팔의 한 조각)의 무효 검사 E1·E3·E5. 새 채점 규칙은 없다.
+
+팔은 none / rule / turn(D-100). dan은 팔마다 garak을 세 조각으로 나눠 돌리므로 런처가 조각마다
+이 검사를 부르고, --peer는 none 팔의 같은 조각이다. 조각을 이은 팔 리포트에는 쓰지 않는다
+(setup·completion이 조각 수만큼 있다).
 
 E1 완주: setup 1개(이름·gen·seed 일치), completion 1개, status=2 attempt마다 비어 있지 않은 출력 10개,
          (probe, seq) 중복 없음. 프로브 목록·attempt 수는 프로브마다 달라 여기서 고정하지 않는다.
@@ -94,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--report", type=Path, required=True)
     ap.add_argument("--name", required=True)
-    ap.add_argument("--arm", choices=("none", "rule"), required=True)
+    ap.add_argument("--arm", choices=("none", "rule", "turn"), required=True)
     ap.add_argument("--audit", type=Path, required=True)
     ap.add_argument("--audit-from", type=int, required=True, help="START 직전 감사 로그 줄 수")
     ap.add_argument("--peer", type=Path)

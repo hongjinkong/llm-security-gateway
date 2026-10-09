@@ -269,3 +269,52 @@ async def test_response_hook_reports_residual(masker):
     assert out is not None
     _, meta = out
     assert meta["restored"] == 0 and meta["residual_tokens"] == 1
+
+
+# ---------- D-099: 다시 쓰이지 않는 세션은 응답 뒤 바로 버린다 ----------
+# sessionId 없는 요청(OpenAI 형식 입구는 늘 그렇다)은 세션이 곧 그 요청이다. 예전에는 아무도
+# drop()을 부르지 않아 원문이 TTL(30분)까지 메모리에 남았다 — "잠깐만 보관"(머리말)과 어긋났다.
+
+@pytest.mark.anyio
+async def test_chain_release_drops_the_session():
+    from gateway.chain import DetectorChain
+
+    det = PIIDetector("mask")
+    await det.inspect(Inspection(request_id="r1", method="POST", path="/chat", headers={},
+                                 body=body(f"번호 {PHONE}", session=None), session="r1"))
+    assert det.vault.session_count == 1
+    await DetectorChain([det]).release("r1")
+    assert det.vault.session_count == 0
+
+
+@pytest.mark.anyio
+async def test_gateway_releases_request_scoped_session_but_keeps_client_session(tmp_path):
+    """게이트웨이 배선까지 본다. 같은 프로세스에서 스텁 상류를 붙여 볼트를 직접 들여다본다."""
+    import httpx
+
+    from gateway import main
+    from gateway.audit import AuditLog
+    from tests import stub_target
+
+    chain = main.build_chain(["pii_mask"])
+    vault = chain.detectors[0].vault
+    main.app.state.chain = chain
+    main.app.state.audit = AuditLog(tmp_path / "gateway.jsonl")
+    main.app.state.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=stub_target.app),
+                                              base_url="http://stub")
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app),
+                                     base_url="http://gw") as gw:
+            r = await gw.post("/v1/chat/completions", json={"model": "m", "messages": [
+                {"role": "user", "content": f"제 번호는 {PHONE}입니다"}]})
+            assert r.status_code == 200
+            assert PHONE in r.json()["choices"][0]["message"]["content"], "복원이 먼저 끝나야 한다"
+            assert vault.session_count == 0, "sessionId 없는 요청의 원문이 볼트에 남았다"
+
+            r = await gw.post("/api/v1/workspace/demo/chat",
+                              json={"message": f"제 번호는 {PHONE}입니다", "sessionId": "keep-me"})
+            assert r.status_code == 200
+            assert vault.session_count == 1, "클라이언트 세션은 다음 턴 복원에 필요하다 — 버리면 안 된다"
+    finally:
+        await main.app.state.client.aclose()
+        main.app.state.audit.close()

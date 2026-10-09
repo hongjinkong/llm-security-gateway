@@ -128,3 +128,8 @@ class DetectorChain:
             steps.append(Step(det.name, "restore",
                               round((time.perf_counter() - t0) * 1000, 3), "", meta))
         return text, steps
+
+    async def release(self, session: str) -> None:
+        """세션이 끝났다. 검사기마다 그 세션 몫을 버리게 한다."""
+        for det in self.detectors:
+            await det.release(session)

@@ -18,6 +18,9 @@
 
 앞 밤이 유효든 무효든(C1 멈춤 포함) 다음 밤은 착수한다 — 두 밤은 독립이다. 재시도는 하지 않는다.
 
+D-100: 팔이 셋(none·rule·turn)이고, dan은 팔마다 조각 컨테이너·리포트(`<팔>_p1`~`_p3`)가 생긴다.
+보존은 있는 것만 한다 — 조각이 없는 밤(pi·enc)과 두 팔짜리 옛 밤도 그대로 다룬다.
+
 종료 코드: 0 다음 밤 런처 종료 0 / 1 다음 밤 런처 종료≠0 / 2 시작 검사 실패 / 3 대기 시간 초과
 """
 from __future__ import annotations
@@ -39,7 +42,8 @@ LAUNCHER_PATTERN = "scripts/night_run_oa.sh"
 RUN_ID = re.compile(r"^oa_(pi|dan|enc)_\d{8}_01$")
 INSPECT_FORMAT = ("{{.Name}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} status={{.State.Status}} "
                   "start={{.State.StartedAt}} end={{.State.FinishedAt}}")
-ARMS = ("none", "rule")
+ARMS = ("none", "rule", "turn")
+PART_SUFFIXES = ("_p1", "_p2", "_p3")   # D-100: dan은 팔마다 garak을 세 조각으로 나눠 돌린다
 
 
 class System:
@@ -109,7 +113,8 @@ def copy_new(src: Path, dst: Path, what: str, log: Callable[[str], None]) -> Non
 def preserve(sysm: System, root: Path, after: str, log: Callable[[str], None]) -> None:
     out = root / "results" / "containerlogs" / after
     out.mkdir(parents=True, exist_ok=True)
-    arms = [f"garak_{after}_{arm}" for arm in ARMS if sysm.container_exists(f"garak_{after}_{arm}")]
+    arms = [f"garak_{after}_{arm}{suf}" for arm in ARMS for suf in ("",) + PART_SUFFIXES
+            if sysm.container_exists(f"garak_{after}_{arm}{suf}")]
     names = arms + ["llm-gateway", "target-anythingllm"]
     text = "\n".join(sysm.inspect_line(n) for n in names)
     text += f"\nhost_boot={sysm.host_boot()}\nsaved_at={sysm.now().isoformat(timespec='seconds')} (night_chain_oa.py)\n"
@@ -124,10 +129,14 @@ def preserve(sysm: System, root: Path, after: str, log: Callable[[str], None]) -
     if audit.exists():
         with open(audit, "rb") as f:
             log(f"감사 로그 줄 수(보존 시점): {sum(1 for _ in f)}")
+    runs = root / "garak" / "logs" / "garak_runs"
     for arm in ARMS:
         name = f"{after}_{arm}"
-        copy_new(root / "garak" / "logs" / "garak_runs" / f"{name}.report.jsonl",
-                 root / "results" / f"{name}.report.jsonl", f"{arm} 리포트", log)
+        copy_new(runs / f"{name}.report.jsonl", root / "results" / f"{name}.report.jsonl", f"{arm} 리포트", log)
+        for suf in PART_SUFFIXES:            # 런처가 중간에 멈췄으면 이은 팔 리포트가 없다 — 조각이라도 남긴다
+            if (runs / f"{name}{suf}.report.jsonl").exists():
+                copy_new(runs / f"{name}{suf}.report.jsonl", root / "results" / f"{name}{suf}.report.jsonl",
+                         f"{arm}{suf} 리포트", log)
 
 
 def chain(sysm: System, root: Path, after: str, nxt: str, poll: float, max_wait_hours: float,

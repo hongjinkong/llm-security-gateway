@@ -118,6 +118,7 @@ GATEWAY_DETECTORS=injection_rule,pii_mask docker compose up -d gateway
 bash scripts/run_garak.sh gateway <프로브> <횟수> gw_rule_<프로브>
 
 # (e) 2차 유사도 — 관측 전용으로 동행. 차단이 0이므로 ASR·FPR 기여도 0이다.
+#     v1 기록. 이 검사기는 D-099로 v1 태그로 내렸고, 지금 코드에서는 이 구성으로 기동하지 않는다.
 #     본표에 새 행을 만들지 않는다. 점수 분포만 부록으로 싣는다(D-052/D-053).
 GATEWAY_DETECTORS=injection_rule,injection_similarity_observe,pii_mask docker compose up -d gateway
 bash scripts/run_garak.sh gateway <프로브> <횟수> gw_ruleobs_<프로브>
@@ -130,10 +131,13 @@ bash scripts/verify_gateway.sh injection_rule,pii_mask
 ```
 
 ```bash
+# v1 기록 — (e) 구성. 지금 코드에서는 기동하지 않는다(D-099).
 bash scripts/verify_gateway.sh injection_rule,injection_similarity_observe,pii_mask
 ```
 
 ### (e)에 관하여 — `injection_similarity`는 쓰지 않는다
+
+> v1 기록. 이 검사기는 D-099로 v1 태그로 내렸고, 지금 코드에서는 이 구성으로 기동하지 않는다.
 
 차단형 `injection_similarity`는 `GATEWAY_SIMILARITY_T`가 없으면 **기동 실패**한다(D-048).
 T는 캘리브레이션 2회로도 갭이 열리지 않아 동결되지 못했다(D-052). 그래서 배선에 올라가는

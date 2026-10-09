@@ -128,3 +128,8 @@ class Detector(ABC):
         들어올 때 마스킹한 검사기가 나갈 때 복원하는 짝이 맞아야 하기 때문이다.
         """
         return None
+
+    async def release(self, session: str) -> None:
+        """이 세션이 다시 쓰이지 않을 때 불린다(요청 단위 세션의 응답 뒤, D-099).
+        세션별로 쥐고 있던 것을 버린다. 기본은 아무것도 하지 않는다."""
+        return None

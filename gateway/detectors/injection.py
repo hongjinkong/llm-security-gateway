@@ -2,10 +2,10 @@
 
 클럽 입구의 블랙리스트 명단을 든 문지기다. 명단에 있는 얼굴은 막고, 없으면 통과다.
 빠르고(정규식) 왜 막았는지 설명할 수 있지만, 명단에 없는 표현은 그대로 지나간다.
-그래서 5단계는 3단이다 — 룰(1차)이 뻔한 것을 싸게 걸러내고, 유사도(2차)가 변형을,
-LLM Judge(3차)가 애매한 것만 비싸게 판단한다. **룰 혼자 다 막을 필요가 없다.**
-이 전제가 룰을 얼마나 공격적으로 만들지를 정한다: 놓치는 쪽이 잘못 막는 쪽보다 낫다.
-놓친 것은 2차·3차가 받지만, 잘못 막은 요청은 아무도 되돌려주지 않는다.
+설계 당시 5단계는 3단이었다 — 룰(1차)이 뻔한 것을 싸게 걸러내고, 유사도(2차)가 변형을,
+LLM Judge(3차)가 애매한 것만 비싸게 판단한다. 2·3차는 사전 기준으로 기각됐다(D-052·D-054,
+코드는 `v1` 태그에만 있다, D-099). 그래도 원칙은 그대로다: 놓치는 쪽이 잘못 막는 쪽보다 낫다.
+잘못 막은 요청은 아무도 되돌려주지 않는다.
 
 핵심 원칙 — **동사가 아니라 목적어를 본다.**
   정상 질문 4개(B-101·B-106·B-109·B-114)가 전부 "무시/잊고"를 포함한다.
@@ -25,8 +25,9 @@ LLM Judge(3차)가 애매한 것만 비싸게 판단한다. **룰 혼자 다 막
 범위 (D-038 정정본):
   R1 지시 무효화 / R2 역할 전환·제약 해제 두 갈래만 만든다.
   '시스템 프롬프트 요구'(B-111·B-115)는 입력 단에서 막지 않는다. 묻는 것과
-  새어나가는 것은 다른 사건이며, 유출은 6단계 카나리가 확정 판정한다.
-  R3(역할 헤더 위조 `System:`)은 B-114가 같은 형태라 1차에서 보류하고 2차로 넘긴다.
+  새어나가는 것은 다른 사건이다(6단계 카나리는 관측형으로 종결 — D-059, 이 방향은 비어 있다).
+  R3(역할 헤더 위조 `System:`)은 B-114가 같은 형태라 1차에서 보류하고 2차로 넘겼는데,
+  2차가 기각돼 지금은 어떤 층도 잡지 않는다(README 한계).
 
 어휘 출처 (D-039):
   공개된 공격 기법 범주와 일반 지식만 사용했다.
@@ -38,8 +39,9 @@ import json
 import re
 from dataclasses import dataclass
 
-from gateway.detectors.base import Detector, Inspection, Verdict
-from gateway.openai_api import INJECTION_ROLES, chat_texts
+from gateway.detectors.base import Action, Detector, Inspection, Verdict
+from gateway.openai_api import (CHAT_COMPLETIONS_PATH, INJECTION_ROLES, chat_texts,
+                                message_texts, parse_chat_request)
 
 # --- 룰이 볼 텍스트 -----------------------------------------------------------
 # 사용자 입력이 들어 있는 필드. 타겟을 바꿔도 여기만 고치면 된다(SCOPE 7절 이식성).
@@ -162,6 +164,11 @@ def match_rules(text: str) -> list[RuleHit]:
     return hits
 
 
+# D-095 (C): 이력에서 룰에 걸린 메시지를 이 문구로 바꿔 상류에 보낸다.
+REDACTED_TURN = "[보안 정책에 의해 가려진 이전 메시지]"
+SCOPES = ("all", "turn")
+
+
 class InjectionRuleDetector(Detector):
     """5단계 1차 방어. **이 프로젝트에서 BLOCK을 처음 쓰는 검사기다.**
 
@@ -174,12 +181,28 @@ class InjectionRuleDetector(Detector):
     403을 쓰면 garak이 오류로 처리해 total_evaluated가 줄고 EVAL 5.2 비교가 무효가 된다.
     차단 사유는 응답에 넣지 않는다 — 룰을 역산당한다. 사유는 감사 로그에만 남기고
     X-Gateway-Request-Id로 대조한다(D-030, D-040).
+
+    검사 범위는 둘이다(D-095 → D-099). 룰 어휘는 같고 무엇을 보느냐만 다르다.
+      scope="all"   `injection_rule`. user·tool 메시지를 이력까지 전부 이어 본다. 걸리면 요청 전체를
+                    막는다. 이력에 남은 차단된 질문 하나가 같은 대화의 다음 요청을 계속 막는다(세션 오염).
+      scope="turn"  `injection_rule_turn`. 막을지는 이번 턴 — 마지막 user 메시지와 그 뒤 tool 메시지 —
+                    만 보고 정한다. 이력의 user·tool 메시지는 메시지마다 판정해, 걸린 메시지만
+                    REDACTED_TURN으로 바꿔 보낸다(TRANSFORM). 막힌 질문이 다음 턴 이력으로 모델에
+                    그대로 가는 것도 이것으로 막는다. OpenAI 형식 입구에만 해당하고 옛 경로는 둘이 같다.
     """
 
-    name = "injection_rule"
+    def __init__(self, scope: str = "all") -> None:
+        if scope not in SCOPES:
+            raise ValueError(f"scope는 {SCOPES} 중 하나여야 한다: {scope!r}")
+        self.scope = scope
+        self.name = "injection_rule" if scope == "all" else "injection_rule_turn"
 
     async def inspect(self, insp: Inspection) -> Verdict:
-        hits = _dedupe(match_rules(user_text(insp.body)))
+        if self.scope == "turn" and insp.path == CHAT_COMPLETIONS_PATH:
+            return self._inspect_turn(insp)
+        return self._verdict(_dedupe(match_rules(user_text(insp.body))))
+
+    def _verdict(self, hits: list[RuleHit]) -> Verdict:
         if not hits:
             return Verdict.allow(self.name)
         rules = sorted({h.rule for h in hits})
@@ -188,6 +211,43 @@ class InjectionRuleDetector(Detector):
             reason=f"인젝션 룰 발동: {','.join(rules)}",
             rules=[h.as_dict() for h in hits],
         )
+
+    def _inspect_turn(self, insp: Inspection) -> Verdict:
+        payload = parse_chat_request(insp.body)   # main.py가 이미 검증한 본문이다
+        messages = payload["messages"]
+        users = [i for i, m in enumerate(messages) if m["role"] == "user"]
+        start = users[-1] if users else 0          # user가 없으면 전부 이번 턴이다
+        # 이번 턴은 scope="all"과 같은 방식(이어 붙여 한 번)으로 본다 — 두 범위의 차이를 이력 처리 하나로 좁힌다.
+        current = [t for m in messages[start:] if m["role"] in INJECTION_ROLES for t in message_texts(m)]
+        verdict = self._verdict(_dedupe(match_rules("\n".join(current))))
+        if verdict.action is Action.BLOCK:
+            return verdict
+
+        masked, hits = 0, []
+        for m in messages[:start]:
+            if m["role"] not in INJECTION_ROLES:
+                continue
+            found = match_rules("\n".join(message_texts(m)))
+            if found:
+                _redact(m)
+                masked += 1
+                hits.extend(found)
+        if not masked:
+            return verdict
+        return Verdict.transform(
+            self.name, json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            f"이력 {masked}턴 가림", masked_turns=masked, rules=[h.as_dict() for h in _dedupe(hits)])
+
+
+def _redact(message: dict) -> None:
+    """메시지의 텍스트만 자리표시로 바꾼다. 이미지 같은 다른 파트는 그대로 둔다."""
+    content = message.get("content")
+    if isinstance(content, str):
+        message["content"] = REDACTED_TURN
+    elif isinstance(content, list):
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                part["text"] = REDACTED_TURN
 
 
 def _dedupe(hits: list[RuleHit]) -> list[RuleHit]:

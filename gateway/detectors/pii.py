@@ -3,6 +3,10 @@
   mode="detect"  탐지만 한다. 판정은 항상 ALLOW. (검사기 이름 `pii`)
   mode="mask"    찾은 값을 토큰으로 치환한다. 판정은 TRANSFORM. (검사기 이름 `pii_mask`)
 
+탐지 대상은 정형 식별자 4종(주민번호·카드·전화·이메일)과 형식이 확실한 자격 증명(`secret`,
+D-099)이다. 자격 증명도 같은 볼트·같은 토큰 형식으로 가리고 응답에서 되돌린다 — 사용자가
+붙여 넣은 키는 외부 AI로 나가지 않고, 사용자 자신에게는 그대로 돌아온다.
+
 차단(BLOCK)은 쓰지 않는다. SCOPE 2절의 위협은 "외부 API 로그에 민감정보 잔존"이고
 마스킹으로 이미 해소된다. 또 FPR 5% 예산은 5단계 인젝션 탐지기와 나눠 써야 한다.
 정상 질문셋 13문항이 PII를 담고 있어, 차단을 택하면 그것만으로 FPR 13%가 된다.
@@ -50,10 +54,32 @@ CARD_RE = re.compile(_NOT_ADJACENT + r"\d(?:[ -]?\d){12,18}" + _NOT_TRAILING)
 PHONE_RE = re.compile(
     _NOT_ADJACENT + r"(?:01[016789]|02|0[3-6][1-5])[-.\s]?\d{3,4}[-.\s]?\d{4}" + _NOT_TRAILING)
 
-EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+# 로컬 파트는 64자까지(RFC 5321 상한). 2026-10-08 이전에는 `+`였는데, `@` 없는 긴 영숫자 줄에서
+# 시작 위치마다 끝까지 다시 훑어 입력 길이의 제곱으로 느려졌다 — 40KB 한 줄에 1.9초, 워커 1개라
+# 그동안 게이트웨이 전체가 멈춘다(D-099). 64자 안의 주소는 예전과 같은 구간이 잡힌다.
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+
+# 기밀정보(자격 증명) — 형식이 확실한 것만 잡는다(D-099). 접두사가 고정된 키와 개인 키 블록이다.
+# 엔트로피로 "비밀 같은 문자열"을 추측하지 않는다: base64·hex 공격 문자열을 비밀로 오인해 가리면
+# 공격 프롬프트가 훼손되어 ASR이 가짜로 떨어진다(위 카드번호 오탐과 같은 함정).
+# 개인 키 본문은 `-----END`·큰따옴표를 만나거나 8,192자에서 멈춘다. END가 없어도 실패하지 않으므로
+# 되짚기가 없다. 암호화 PEM의 `Proc-Type:` 머리줄도 본문으로 함께 가린다. 큰따옴표에서 멈추는 이유:
+# 옛 경로는 JSON 본문 전체를 훑으므로, 잘린 키 뒤에서 문자열 밖(JSON 구조)까지 먹으면 본문이 깨진다.
+SECRET_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])(?:"
+    r"sk-[A-Za-z0-9_-]{20,}"                                     # OpenAI·Anthropic API 키
+    r"|(?:AKIA|ASIA)[0-9A-Z]{16}"                                # AWS 액세스 키 ID
+    r"|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}"  # GitHub 토큰
+    r"|AIza[0-9A-Za-z_-]{35}"                                    # Google API 키
+    r"|xox[abprs]-[A-Za-z0-9-]{10,}"                             # Slack 토큰
+    r"|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"   # JWT
+    r")(?![A-Za-z0-9_-])"
+    r'|-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[^-"]|-(?!----END)){0,8192}'
+    r"(?:-----END [A-Z ]{0,40}PRIVATE KEY-----)?")
 
 # 겹치는 후보가 생겼을 때의 우선순위(작을수록 우선). 주민번호 13자리는 카드 패턴에도 걸린다.
-PRIORITY = {"rrn": 0, "card": 1, "phone": 2, "email": 3}
+# 자격 증명이 맨 앞이다 — 키 안의 숫자 덩어리가 따로 잡혀 키가 조각으로 남으면 안 된다.
+PRIORITY = {"secret": 0, "rrn": 1, "card": 2, "phone": 3, "email": 4}
 
 _RRN_WEIGHTS = (2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5)
 _CENTURY = {"1": 1900, "2": 1900, "3": 2000, "4": 2000,
@@ -112,6 +138,9 @@ def luhn_ok(d: str) -> bool:
 def find_all(text: str) -> list[Finding]:
     """겹치지 않는 탐지 결과를 위치 순으로 돌려준다."""
     cands: list[Finding] = []
+
+    for m in SECRET_RE.finditer(text):
+        cands.append(Finding("secret", m.start(), m.end(), "strong"))
 
     for m in RRN_RE.finditer(text):
         yy, mm, dd, gender, tail = m.groups()
@@ -201,7 +230,7 @@ def _json_escape(value: str) -> str:
     return json.dumps(value, ensure_ascii=False)[1:-1]
 
 
-ALL_KINDS = ("rrn", "card", "phone", "email")
+ALL_KINDS = ("rrn", "card", "phone", "email", "secret")
 
 
 class PIIDetector(Detector):
@@ -286,3 +315,7 @@ class PIIDetector(Detector):
         # residual > 0 이면 복원에 실패한 토큰이 사용자에게 나간다는 뜻이다.
         # 조용히 넘기지 않고 로그에 남겨 측정 때 잡히게 한다.
         return restored, {"restored": n, "residual_tokens": residual}
+
+    async def release(self, session: str) -> None:
+        """다시 쓰일 일이 없는 세션의 원문을 지운다(D-099). TTL까지 기다리지 않는다."""
+        self.vault.drop(session)

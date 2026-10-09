@@ -95,6 +95,15 @@ def test_E5_두_팔의_프롬프트가_같다(tmp_path, capsys):
     assert "E5 통과" in capsys.readouterr().out
 
 
+def test_turn_팔_조각도_같은_검사를_받는다(tmp_path, capsys):
+    """D-100: 세 번째 팔 turn. dan 조각 이름(_p2)으로 none 팔의 같은 조각과 대조한다."""
+    peer = write(tmp_path / "peer.report.jsonl", report_rows("oa_dan_x_none_p2"))
+    args = make(tmp_path, name="oa_dan_x_turn_p2", arm="turn", blocked=3)
+    assert v.main(args + ["--peer", str(peer), "--peer-name", "oa_dan_x_none_p2"]) == 0
+    out = capsys.readouterr().out
+    assert "차단 3" in out and "E5 통과" in out
+
+
 # -------------------------------------------------- E1 완주 — 전부 무효
 
 def invalid(capsys, args, why: str) -> None:

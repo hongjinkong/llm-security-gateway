@@ -218,3 +218,89 @@ async def test_masking_works_on_escaped_json_end_to_end():
     assert "900101-1234563" not in out and "[PII:rrn:" in out
     restored = await det.on_response("s1", out)
     assert restored is not None and "900101-1234563" in restored[0]
+
+
+# ---------- D-099: 긴 입력에서의 처리 시간 ----------
+# 이메일 로컬 파트가 `+`였을 때는 `@` 없는 긴 영숫자 줄을 시작 위치마다 끝까지 다시 훑었다.
+# 40KB에 1.9초, 100KB면 약 12초 — 워커 1개라 그동안 게이트웨이 전체가 멈춘다.
+# 선형이면 아래 입력이 각각 수 ms다. 2초 한도는 CI 편차를 넉넉히 덮고 제곱 동작은 확실히 잡는다.
+
+@pytest.mark.parametrize("text", [
+    "a" * 100_000,                                         # @ 없는 영숫자 줄 (원래 결함)
+    "a" * 50_000 + "@" + "b" * 50_000,                     # @ 뒤로 긴 도메인 후보
+    ("-----BEGIN RSA PRIV" + "ATE KEY-----") * 5_000,      # 끝 표시 없는 개인 키 머리줄 반복
+    "sk-" + "x" * 200_000,                                 # 접두사 뒤 긴 키 후보
+], ids=["alnum", "at-sign", "pem-headers", "sk-run"])
+def test_scan_time_is_linear_on_long_inputs(text):
+    import time
+    t0 = time.perf_counter()
+    find_all(text)
+    assert time.perf_counter() - t0 < 2.0
+
+
+def test_email_local_part_over_64_is_cut_not_missed():
+    """RFC 5321 상한 64자. 그보다 긴 로컬 파트는 앞부분이 남고 뒤 64자 + 도메인이 잡힌다(알려진 한계)."""
+    text = "연락처 " + "a" * 70 + "@example.com 입니다"
+    assert spans(text) == ["a" * 64 + "@example.com"]
+
+
+# ---------- D-099: 기밀정보(자격 증명) ----------
+# 가짜 값을 **실행 중에 이어 붙여** 만든다. 소스에 키 모양 문자열이 통째로 있으면
+# 저장소 비밀 검사(push protection)가 진짜 키로 오인해 푸시를 막을 수 있다.
+
+FAKE_SECRETS = {
+    "openai": "sk-" + "proj-" + "A1b2C3d4" * 6,
+    "anthropic": "sk-" + "ant-api03-" + "Zy9X" * 10,
+    "aws": "AK" + "IA" + "ABCDEFGHIJ234567",
+    "github": "gh" + "p_" + "a1B2" * 9,
+    "github_pat": "github" + "_pat_" + "11ABCDEFG" * 3,
+    "google": "AI" + "za" + "Sy" + "b" * 33,
+    "slack": "xo" + "xb-" + "123456789012-abcdefghij",
+    "jwt": "ey" + "JhbGciOiJIUzI1NiJ9" + ".ey" + "JzdWIiOiIxMjM0In0" + ".abcdefghijkLMNOP",
+    "pem": ("-----BEGIN RSA PRIV" + "ATE KEY-----\nMIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnz\n"
+            "j4p4WGeKLs1Pt8QuKUpRKfFLfRYC9AIKjbJTWit+CqvjWYzvQwECAwEAAQ==\n"
+            "-----END RSA PRIV" + "ATE KEY-----"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(FAKE_SECRETS))
+def test_detects_credentials_whole(name):
+    secret = FAKE_SECRETS[name]
+    text = f"이 키로 호출하면 오류가 나요:\n{secret}\n원인이 뭘까요?"
+    assert spans(text) == [secret]
+    assert kinds(text) == ["secret"]
+
+
+@pytest.mark.parametrize("text", [
+    "task-management-system-overview-document 정리해줘",   # 단어 안의 'sk-' (앞이 영문)
+    "sk-learn 설치 방법을 알려주세요",                         # 접두사 뒤가 짧다
+    "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo" * 20 + "==",        # base64 덩어리 (인코딩 공격 문자열 모양)
+    "deadbeef" * 40,                                           # hex 덩어리
+    "ey" + "JhbGciOiJIUzI1NiJ9 한 조각만 있는 토큰",           # JWT 세 조각이 아니다
+    "MAKIAGE 화장품 매장 위치",                                # 'AKIA'가 단어 안에 있다
+])
+def test_credential_patterns_do_not_fire_on_lookalikes(text):
+    assert "secret" not in kinds(text)
+
+
+def test_pem_without_end_marker_stops_at_quote():
+    """옛 경로는 JSON 본문 전체를 훑는다. 잘린 키 뒤에서 큰따옴표 밖까지 먹으면 본문이 깨진다."""
+    text = '{"message": "-----BEGIN RSA PRIV' + 'ATE KEY-----\\nMIIBOgIB", "mode": "query"}'
+    (f,) = find_all(text)
+    assert f.kind == "secret"
+    assert text[f.end] == '"', "키 본문이 문자열 밖(JSON 구조)까지 먹었다"
+
+
+@pytest.mark.anyio
+async def test_credential_is_masked_and_restored_in_openai_path():
+    secret = FAKE_SECRETS["openai"]
+    det = PIIDetector("mask")
+    body = _json.dumps({"model": "m", "messages": [
+        {"role": "user", "content": f"이 키 {secret} 가 401을 내요"}]}, ensure_ascii=False).encode()
+    v = await det.inspect(Inspection(request_id="r1", method="POST", path="/v1/chat/completions",
+                                     headers={}, body=body, session="s1"))
+    assert v.action is Action.TRANSFORM
+    sent = _json.loads(v.body)["messages"][0]["content"]
+    assert secret not in sent and "[PII:secret:1]" in sent
+    restored, meta = await det.on_response("s1", f"키 [PII:secret:1]를 확인하세요")
+    assert secret in restored and meta == {"restored": 1, "residual_tokens": 0}

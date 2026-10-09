@@ -4,6 +4,7 @@
 프록시가 요청을 망가뜨려서 생긴 ASR 감소는 측정이 아니라 거짓말이다.
 """
 import httpx
+import pytest
 
 PATH_ = "/api/v1/workspace/demo-slug/chat"
 BODY = {"message": "안녕하세요, 연차는 며칠인가요?", "mode": "query", "sessionId": "eval-abc123"}
@@ -57,3 +58,41 @@ def test_query_string_preserved(stack):
 def test_status_code_passthrough(stack):
     """타겟의 404를 200으로 바꾸거나 삼키지 않는다."""
     assert httpx.get(f"{stack.gateway}/no/such/path").status_code == 404
+
+
+# ---------- D-099: 본문 크기 상한 ----------
+# 상한이 없으면 큰 요청 하나가 메모리와 검사기 시간을 독차지한다(워커 1개).
+# 시험은 상한을 2KB로 낮춘 게이트웨이로 한다. 기본값은 1MiB다.
+
+SMALL_LIMIT = 2048
+
+
+@pytest.fixture(scope="module")
+def small(make_stack):
+    return make_stack(GATEWAY_MAX_BODY_BYTES=str(SMALL_LIMIT), GATEWAY_DETECTORS="injection_rule,pii_mask")
+
+
+def _line(stack, r):
+    return next(x for x in stack.log_lines() if x["request_id"] == r.headers["X-Gateway-Request-Id"])
+
+
+def test_over_limit_is_413_and_never_reaches_target(small):
+    big = {**BODY, "message": "가" * 1000}                    # UTF-8 3바이트 x 1000 > 2KB
+    r = httpx.post(f"{small.gateway}{PATH_}", json=big, headers=HDR)
+    assert r.status_code == 413
+    assert r.json()["error"]["code"] == "request_too_large"
+    line = _line(small, r)
+    assert line["status"] == 413 and line["upstream_ms"] is None
+    assert line["req_bytes"] > SMALL_LIMIT and line["detectors"] == [], "검사기도 돌지 않는다"
+
+
+def test_over_limit_without_content_length_is_413(small):
+    """길이 헤더 없이(chunked) 보내도 같은 상한이 걸린다."""
+    r = httpx.post(f"{small.gateway}{PATH_}", headers=HDR,
+                   content=(b"x" * 1024 for _ in range(4)))
+    assert r.status_code == 413
+
+
+def test_under_limit_still_passes_through(small):
+    r = httpx.post(f"{small.gateway}{PATH_}", json=BODY, headers=HDR)
+    assert r.status_code == 200 and r.json()["echo"]["body"] == BODY

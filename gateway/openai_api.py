@@ -7,7 +7,10 @@ from collections.abc import Callable, Collection
 CHAT_COMPLETIONS_PATH = "/v1/chat/completions"
 VALID_ROLES = frozenset({"system", "developer", "user", "assistant", "tool"})
 INJECTION_ROLES = frozenset({"user", "tool"})
-PII_ROLES = frozenset({"user"})
+# assistant가 들어가는 이유(D-099): 게이트웨이가 응답에 복원해 준 값을 클라이언트가 저장했다가
+# 다음 요청의 이력(assistant)으로 다시 보낸다. user만 가리면 둘째 턴부터 원문이 상류로 간다.
+# system·developer(RAG 문서 포함)·tool은 가리지 않는다 — 답변에 필요한 값을 훼손할 수 있다(D-073).
+PII_ROLES = frozenset({"user", "assistant"})
 
 
 class ChatRequestError(ValueError):
@@ -62,15 +65,20 @@ def chat_texts(payload: dict, roles: Collection[str]) -> list[str]:
         if not isinstance(message, dict) or not isinstance(message.get("role"), str) \
                 or message["role"] not in roles:
             continue
-        content = message.get("content")
-        if isinstance(content, str):
-            if content:
-                texts.append(content)
-        elif isinstance(content, list):
-            texts.extend(part["text"] for part in content
-                         if isinstance(part, dict) and part.get("type") == "text"
-                         and isinstance(part.get("text"), str) and part["text"])
+        texts.extend(message_texts(message))
     return texts
+
+
+def message_texts(message: dict) -> list[str]:
+    """메시지 하나의 비어 있지 않은 텍스트. 문자열 content와 text 파트만 본다."""
+    content = message.get("content")
+    if isinstance(content, str):
+        return [content] if content else []
+    if isinstance(content, list):
+        return [part["text"] for part in content
+                if isinstance(part, dict) and part.get("type") == "text"
+                and isinstance(part.get("text"), str) and part["text"]]
+    return []
 
 
 def map_chat_texts(payload: dict, roles: Collection[str], transform: Callable[[str], str]) -> None:

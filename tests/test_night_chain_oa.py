@@ -152,6 +152,22 @@ def test_c1_stop_without_rule_container(tmp_path, capsys):
     assert len(fake.launched) == 1
 
 
+def test_three_arms_and_dan_parts_are_preserved(tmp_path, capsys):
+    """D-100: turn 팔과 dan 조각(_p1~_p3). 런처가 이은 팔 리포트 전에 멈춰도 조각은 남긴다."""
+    root = make_root(tmp_path)
+    runs = root / "garak" / "logs" / "garak_runs"
+    for k in (1, 2):
+        (runs / f"{AFTER}_turn_p{k}.report.jsonl").write_text(f"turn p{k}\n", encoding="utf-8")
+    fake = FakeSystem(root, arms=("none", "rule", "turn_p1", "turn_p2"))
+    assert run(root, fake) == 0
+    out = root / "results" / "containerlogs" / AFTER
+    assert (out / f"garak_{AFTER}_turn_p2.log").exists()
+    assert f"/garak_{AFTER}_turn_p1 exit=0" in (out / "exitcodes.txt").read_text(encoding="utf-8")
+    for k in (1, 2):
+        assert (root / "results" / f"{AFTER}_turn_p{k}.report.jsonl").read_text(encoding="utf-8") == f"turn p{k}\n"
+    assert not (root / "results" / f"{AFTER}_turn_p3.report.jsonl").exists()
+
+
 def test_refuses_without_start_line(tmp_path, capsys):
     root = make_root(tmp_path, started=False)
     fake = FakeSystem(root)

@@ -76,10 +76,13 @@ def test_injection_scope_is_user_and_tool_text_only():
 
 
 @pytest.mark.anyio
-async def test_pii_masking_changes_only_user_messages():
+async def test_pii_masking_changes_only_user_and_assistant_messages():
+    """D-099: assistant도 가린다 — 게이트웨이가 복원해 준 값이 다음 요청 이력으로 돌아온다.
+    같은 요청 안에서 같은 값은 같은 토큰이어야 모델이 같은 것으로 읽는다."""
     body = json.dumps(chat([
         {"role": "system", "content": "관리자 system@example.com"},
         {"role": "user", "content": "제 번호는 010-2345-6789입니다"},
+        {"role": "assistant", "content": "010-2345-6789로 연락드리겠습니다"},
         {"role": "tool", "content": "RAG 담당자 rag@example.com"},
     ]), ensure_ascii=False).encode()
     verdict = await PIIDetector("mask").inspect(Inspection(
@@ -87,10 +90,10 @@ async def test_pii_masking_changes_only_user_messages():
     assert verdict.action is Action.TRANSFORM
     out = json.loads(verdict.body)
     assert out["messages"][0]["content"] == "관리자 system@example.com"
-    assert "010-2345-6789" not in out["messages"][1]["content"]
-    assert "[PII:phone:" in out["messages"][1]["content"]
-    assert out["messages"][2]["content"] == "RAG 담당자 rag@example.com"
-    assert verdict.meta["pii"] == {"phone": 1}
+    assert out["messages"][1]["content"] == "제 번호는 [PII:phone:1]입니다"
+    assert out["messages"][2]["content"] == "[PII:phone:1]로 연락드리겠습니다"
+    assert out["messages"][3]["content"] == "RAG 담당자 rag@example.com"
+    assert verdict.meta["pii"] == {"phone": 2}
 
 
 def test_trusted_system_attack_does_not_block(secured_stack):
@@ -134,6 +137,34 @@ def test_user_pii_is_masked_upstream_and_restored_in_completion(secured_stack):
     assert seen["tool_raw_seen"] is True
     assert phone in payload["choices"][0]["message"]["content"]
     assert "[PII:" not in r.text
+
+
+def _last_upstream_body(stack) -> dict:
+    """스텁 상류가 **실제로 받은** 마지막 chat 본문(D-086). 응답은 복원되므로 증거가 못 된다."""
+    return json.loads(httpx.get(f"{stack.target}/__stub/received").json()["bodies"][-1])
+
+
+def test_assistant_history_pii_does_not_reach_upstream(secured_stack):
+    """D-099 결함 재현: 첫 턴에 복원해 준 번호가 둘째 턴의 assistant 이력으로 돌아온다."""
+    phone = "010-2345-6789"
+    r = httpx.post(f"{secured_stack.gateway}{PATH}", headers=HEADERS, json=chat([
+        {"role": "user", "content": f"제 번호는 {phone}입니다"},
+        {"role": "assistant", "content": f"{phone}로 연락드리겠습니다"},
+        {"role": "user", "content": "확인 부탁드려요"},
+    ]))
+    assert r.status_code == 200 and "gateway_blocked" not in r.json()
+    sent = _last_upstream_body(secured_stack)
+    assert phone not in json.dumps(sent, ensure_ascii=False), "원문이 상류로 갔다"
+    assert sent["messages"][1]["content"] == "[PII:phone:1]로 연락드리겠습니다"
+
+
+def test_credential_does_not_reach_upstream_and_returns_to_user(secured_stack):
+    key = "sk-" + "proj-" + "A1b2C3d4" * 6     # 가짜 값. 이어 붙여 만든다(test_pii.py 참고)
+    r = httpx.post(f"{secured_stack.gateway}{PATH}", headers=HEADERS,
+                   json=chat([{"role": "user", "content": f"이 키 {key} 가 401을 내요"}]))
+    assert r.status_code == 200
+    assert key not in json.dumps(_last_upstream_body(secured_stack))
+    assert key in r.json()["choices"][0]["message"]["content"]   # 스텁이 되돌린 토큰을 복원했다
 
 
 # ---- 2026-10-01 리뷰 결함: 복원이 응답 JSON을 깨뜨린다 / role 타입 검증 --------------------

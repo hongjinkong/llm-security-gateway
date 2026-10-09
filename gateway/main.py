@@ -7,19 +7,17 @@
 4-D: PII 탐지기(탐지만). GATEWAY_DETECTORS=pii
 4-E: PII 마스킹 + 토큰 볼트.   GATEWAY_DETECTORS=pii_mask
 5-A: 룰 기반 인젝션 탐지.     GATEWAY_DETECTORS=injection_rule,pii_mask (순서는 D-037)
-5-C: LLM Judge 인젝션 탐지. 2차 점수로 게이팅한다(G=min(LOO), D-053).
-     GATEWAY_DETECTORS=injection_rule,injection_similarity_observe,injection_judge,pii_mask
-     observe가 앞에 없으면 기동 실패한다 — 게이팅 점수의 출처이기 때문이다.
-5-B: 코퍼스 유사도 인젝션 탐지 — **관측 전용으로만 붙인다.**
-     GATEWAY_DETECTORS=injection_rule,injection_similarity_observe,pii_mask
-     차단형 injection_similarity는 캘리브레이션 2회로도 갭이 열리지 않아 T가 동결되지
-     못했다(D-052). T 없이는 기동 실패한다(D-048). 앞으로 배선은 observe 쪽이다.
+     이력은 가리고 이번 턴만으로 막는 판: GATEWAY_DETECTORS=injection_rule_turn,pii_mask (D-095·D-099)
+5-B·5-C: 2차 유사도·3차 LLM Judge는 사전 기준으로 기각됐다(D-052·D-054).
+     코드는 `v1` 태그에만 있다(D-099). 쓰지 않는 방어 코드를 배포물에 두지 않는다.
 4-F: 응답에 남은 마스킹 토큰을 원본으로 복원.
 6-A: 카나리 관측. **응답을 바꾸지 않는다**(D-058 / docs/CANARY_DESIGN.md).
      GATEWAY_DETECTORS=injection_rule,pii_mask,canary_observe
      목록 맨 뒤 = 응답 경로 맨 앞 = 타겟 원본을 본다. 맨 뒤가 아니면 기동 실패한다.
      값 3개(GATEWAY_CANARY_A/_B/_DOC)가 없어도 기동 실패한다 — 값 없이 관측하면
      검출률이 조용히 0이 되고 그 0이 D-059의 입력이 된다.
+D-099: 본문 크기 상한(GATEWAY_MAX_BODY_BYTES, 기본 1MiB)을 넘으면 413.
+     sessionId 없는 요청의 볼트 매핑은 응답 뒤 바로 버린다(TTL까지 원문을 들고 있지 않는다).
 """
 from __future__ import annotations
 
@@ -40,15 +38,8 @@ from gateway.chain import ChainResult, DetectorChain
 from gateway.detectors.base import Detector, Inspection
 from gateway.detectors.canary import CanaryObserveDetector, validate_canary_position
 from gateway.detectors.injection import InjectionRuleDetector
-from gateway.detectors.judge import (
-    InjectionJudgeDetector,
-    OllamaJudge,
-    validate_chain_order,
-)
 from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import PIIDetector, session_of
-from gateway.detectors.similarity import InjectionSimilarityDetector, threshold_from_env
-from gateway.embedding import OllamaEmbedder
 from gateway.openai_api import (CHAT_COMPLETIONS_PATH, ChatRequestError,
                                 parse_chat_request)
 from gateway.version import canary_fingerprint, code_fingerprint
@@ -76,20 +67,10 @@ INTERNAL_PREFIX = "/__gateway/"
 BLOCKED_MESSAGE = os.environ.get(
     "GATEWAY_BLOCKED_MESSAGE", "요청이 보안 정책에 의해 차단되었습니다.")
 
-# 5단계 2차 유사도(D-043). 임베딩은 Ollama HTTP + bge-m3를 재사용한다.
-# 타임아웃이 타겟(600s)과 다른 이유: 임베딩은 150ms짜리 작업이라 600초를 기다리면
-# Ollama가 죽었을 때 요청이 10분간 매달린다. 빨리 터뜨려 500을 내는 편이 낫다(D-030).
-OLLAMA_URL = os.environ.get("GATEWAY_OLLAMA_URL", "http://localhost:11434").rstrip("/")
-EMBED_MODEL = os.environ.get("GATEWAY_EMBED_MODEL", "bge-m3")
-EMBED_TIMEOUT = float(os.environ.get("GATEWAY_EMBED_TIMEOUT", "30"))
-
-# 5단계 3차 LLM Judge (D-053). 임베딩과 같은 Ollama를 쓰되 모델과 타임아웃이 다르다.
-# 8GB에 gemma3:4b + bge-m3가 이미 상주 중이라 세 번째 모델은 못 올린다 — 그래서
-# Judge도 타겟과 같은 gemma3:4b다. 상관된 실패 위험은 양성대조 B가 측정한다.
-JUDGE_MODEL = os.environ.get("GATEWAY_JUDGE_MODEL", "gemma3:4b")
-# 임베딩(30s)보다 길게 잡는다 — 생성은 임베딩보다 느리다. 그래도 타겟(600s)보다는
-# 훨씬 짧다. Judge가 매달리면 fail-closed로 차단되어 FPR에 잡히므로 빨리 끊는 편이 낫다.
-JUDGE_TIMEOUT = float(os.environ.get("GATEWAY_JUDGE_TIMEOUT", "60"))
+# D-099: 본문 크기 상한. 상한이 없으면 큰 요청 하나가 메모리와 검사기 시간을 독차지하고,
+# 워커가 1개라 그동안 다른 요청이 전부 멈춘다. 이미지 첨부처럼 큰 요청을 받으려면 값을 올린다
+# (OpenAI 경로의 검사기는 text 파트만 보므로 이미지 크기는 검사 시간에 들어가지 않는다).
+MAX_BODY_BYTES = int(os.environ.get("GATEWAY_MAX_BODY_BYTES", str(1024 * 1024)))
 
 # 6단계 카나리 관측(D-058 / CANARY_DESIGN 3-2). 값의 단일 출처는 .env이고 compose가
 # 세 줄로 넘긴다(R1). **값을 읽는 곳은 여기 하나뿐이고 검사기는 환경변수를 모른다** —
@@ -110,49 +91,9 @@ DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
     "pii": lambda: PIIDetector("detect"),
     "pii_mask": lambda: PIIDetector("mask"),
     "injection_rule": lambda: InjectionRuleDetector(),
-    "injection_similarity": lambda: _similarity(observe=False),
-    "injection_similarity_observe": lambda: _similarity(observe=True),
-    "injection_judge": lambda: _judge(),
+    "injection_rule_turn": lambda: InjectionRuleDetector(scope="turn"),
     "canary_observe": lambda: CanaryObserveDetector(CANARY_A, CANARY_B, CANARY_DOC),
 }
-
-
-# 3차 Judge는 **종결됐다**(D-054). 양성대조 B에서 판정이 조작됐고, 8GB 제약상 모델 교체
-# 카드가 없어 D-053 결정 (5)에 따라 "성립하지 않는다"로 닫았다.
-#
-# 코드는 남긴다(2차 유사도와 같다 — D-052). 다만 **아무도 실수로 배선하지 못하게** 막는다.
-# 이 값을 명시적으로 넣지 않으면 기동하지 않는다. `injection_similarity`가 T 없이
-# 기동을 실패시킨 것과 같은 장치다(D-048): 종결된 층이 조용히 EVAL 5.2에 들어가면
-# "방어가 3단이었다"는 거짓 기록이 남는다.
-JUDGE_ACK_ENV = "GATEWAY_JUDGE_ACK"
-JUDGE_ACK_VALUE = "D-054"
-
-
-def _judge() -> Detector:
-    """3차 Judge 1개. **종결된 검사기다** — 명시적 승인 없이는 기동하지 않는다."""
-    if (os.environ.get(JUDGE_ACK_ENV) or "").strip() != JUDGE_ACK_VALUE:
-        raise RuntimeError(
-            f"{JUDGE_ACK_ENV}={JUDGE_ACK_VALUE}가 없다. injection_judge는 D-054로 종결됐다 "
-            f"(양성대조 B에서 판정 조작 5건). 측정에 쓰지 않는다. 재현·연구 목적으로 "
-            f"돌리려면 이 값을 명시적으로 설정할 것 — 그 사실이 감사 로그와 "
-            f"scripts/verify_gateway.sh의 활성 검사기 줄에 함께 남는다")
-    model = OllamaJudge(
-        httpx.AsyncClient(timeout=JUDGE_TIMEOUT),
-        model=JUDGE_MODEL, endpoint=OLLAMA_URL, owns_client=True,
-    )
-    return InjectionJudgeDetector(model)
-
-
-def _similarity(*, observe: bool) -> Detector:
-    """유사도 검사기 1개. **Ollama용 클라이언트를 따로 만든다** —
-    app.state.client는 base_url이 타겟으로 묶여 있어 재사용할 수 없다.
-    만든 쪽이 닫는다: owns_client=True → 검사기 aclose()가 임베더를 통해 닫는다."""
-    embedder = OllamaEmbedder(
-        httpx.AsyncClient(timeout=EMBED_TIMEOUT),
-        model=EMBED_MODEL, endpoint=OLLAMA_URL, owns_client=True,
-    )
-    return InjectionSimilarityDetector(
-        embedder, threshold=threshold_from_env(), observe=observe)
 
 
 def build_chain(names: list[str] | None = None) -> DetectorChain:
@@ -160,11 +101,8 @@ def build_chain(names: list[str] | None = None) -> DetectorChain:
     unknown = [n for n in names if n not in DETECTOR_REGISTRY]
     if unknown:
         raise ValueError(f"알 수 없는 검사기: {unknown}. 등록된 것: {sorted(DETECTOR_REGISTRY)}")
-    # 3차 Judge는 앞 단계 유사도 점수로 게이팅한다. 순서가 틀리면 게이팅 정보가 비고,
-    # 조용히 전량 호출로 떨어지면 지연 예산이 터진 채로 측정이 돈다.
-    # lifespan에서 불리므로 여기서 던지면 **게이트웨이가 기동하지 못한다**(D-048 패턴).
-    validate_chain_order(names)
     # 카나리 관측은 목록 맨 뒤 = 응답 경로 맨 앞이어야 타겟 원본을 본다(D-058 / 설계 4-1).
+    # lifespan에서 불리므로 여기서 던지면 **게이트웨이가 기동하지 못한다**(D-048 패턴).
     validate_canary_position(names)
     return DetectorChain([DETECTOR_REGISTRY[n]() for n in names])
 
@@ -354,8 +292,16 @@ async def health(request: Request) -> dict:
 @app.api_route("/{full_path:path}",
                methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
 async def passthrough(request: Request, full_path: str) -> Response:
-    body = await request.body()
-    request.state.req_bytes = len(body)
+    body, size = await _read_body(request)
+    request.state.req_bytes = size
+    if body is None:
+        # 상류도 검사기도 부르지 않는다. 감사 줄은 미들웨어가 413으로 남긴다.
+        return JSONResponse(status_code=413, content={"error": {
+            "message": f"request body exceeds {MAX_BODY_BYTES} bytes",
+            "type": "invalid_request_error",
+            "param": None,
+            "code": "request_too_large",
+        }})
     request.state.req_digest = digest(body)
 
     chat_request = None
@@ -374,7 +320,33 @@ async def passthrough(request: Request, full_path: str) -> Response:
     # 세션 식별은 요청의 속성이지 검사기의 사정이 아니다. 여기서 한 번 정해 공유한다.
     session = session_of(body, request.state.request_id)
     request.state.session = session
+    try:
+        return await _relay(request, full_path, body, chat_request, chain, session)
+    finally:
+        # sessionId가 없으면 세션이 곧 이 요청이다(OpenAI 형식 입구는 늘 그렇다). 응답이 나가면
+        # 매핑을 다시 쓸 일이 없으므로 TTL(30분)까지 원문을 들고 있지 않는다(D-099).
+        # 차단·상류 오류·예외로 끝나도 같다.
+        if session == request.state.request_id:
+            await chain.release(session)
 
+
+async def _read_body(request: Request) -> tuple[bytes | None, int]:
+    """(본문, 바이트 수). 상한을 넘으면 본문 대신 None.
+
+    넘은 뒤에도 끝까지 읽어서 버린다 — 읽다 말고 응답하면 클라이언트가 413 대신 연결 오류를
+    받는다. 버리는 동안 쌓지 않으므로 메모리는 상한까지만 쓴다.
+    """
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size <= MAX_BODY_BYTES:
+            chunks.append(chunk)
+    return (b"".join(chunks) if size <= MAX_BODY_BYTES else None), size
+
+
+async def _relay(request: Request, full_path: str, body: bytes, chat_request: dict | None,
+                 chain: DetectorChain, session: str) -> Response:
+    """검사기 체인 → (차단 또는) 상류 호출 → 응답 후처리."""
     result = await chain.run(Inspection(
         request_id=request.state.request_id,
         method=request.method,

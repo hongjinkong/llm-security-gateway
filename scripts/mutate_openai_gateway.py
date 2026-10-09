@@ -24,10 +24,15 @@ MUTATIONS = [
     ("D2", "결함 복원", "stream=true를 상류로 통과시킨다", [
         ("    if stream:\n", "    if False:\n"),
     ], ["test_stream_true_is_rejected_with_openai_error"]),
+    ("D3", "결함 복원", "assistant 이력의 PII를 다시 가리지 않는다 (D-099)", [
+        ('PII_ROLES = frozenset({"user", "assistant"})',
+         'PII_ROLES = frozenset({"user"})'),
+    ], ["test_pii_masking_changes_only_user_and_assistant_messages",
+        "test_assistant_history_pii_does_not_reach_upstream"]),
     ("O1", "과잉 수정·부작용", "system·tool의 PII까지 마스킹한다", [
-        ('PII_ROLES = frozenset({"user"})',
-         'PII_ROLES = frozenset({"system", "user", "tool"})'),
-    ], ["test_pii_masking_changes_only_user_messages",
+        ('PII_ROLES = frozenset({"user", "assistant"})',
+         'PII_ROLES = frozenset({"system", "user", "assistant", "tool"})'),
+    ], ["test_pii_masking_changes_only_user_and_assistant_messages",
         "test_user_pii_is_masked_upstream_and_restored_in_completion"]),
     ("P1", "무해 변경", "검증 오류의 설명 문구만 바꾼다", [
         ('messages must be a non-empty array', 'messages must contain at least one item'),

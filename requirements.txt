@@ -4,6 +4,8 @@
 # 2026-09-22: numpy·scipy 두 줄이 빠져 있었다. 이 파일만 설치한 새 환경에서는
 #   tests/test_similarity.py · tests/test_calibration.py   -> numpy 없음으로 수집 실패
 #   scripts/paired_arms.py                                 -> import 단계에서 죽는다
+# (2026-10-08: 앞의 두 테스트는 2차 유사도 코드와 함께 v1 태그로 내렸다(D-099).
+#  numpy·scipy는 지금 scripts/paired_arms.py와 그 테스트가 쓴다.)
 # 현재 맥북에서 테스트가 전부 통과하는 것은 그 환경에 이미 깔려 있기 때문이고,
 # 문서대로 설치한 환경에서 같은 결과가 난다는 증거는 아니었다.
 # 버전은 맥북 .venv(Python 3.14.6)의 실측값이다.

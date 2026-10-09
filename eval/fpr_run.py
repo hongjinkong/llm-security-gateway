@@ -42,17 +42,18 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
-def ask(msg: str) -> dict:
+def ask(msg: str, sid: str | None = None) -> dict:
     """호출 창 [t_start, t_end]를 함께 남긴다. 새 경로(AnythingLLM → gateway /v1)에서는
     X-Gateway-Request-Id가 클라이언트까지 오지 않아, 이 창으로 감사 줄을 잇는다(D-081 P3)."""
     t_start = utcnow()
-    r = _ask(msg)
+    r = _ask(msg, sid)
     return {**r, "t_start": t_start, "t_end": utcnow()}
 
 
-def _ask(msg: str) -> dict:
-    """1회 호출. 실패해도 예외를 올리지 않고 결과에 남긴다(측정이 중단되면 안 된다)."""
-    sid = "fpr-" + uuid.uuid4().hex[:16]   # 고유 세션 → 대화 이력 오염 차단 (D-013)
+def _ask(msg: str, sid: str | None = None) -> dict:
+    """1회 호출. 실패해도 예외를 올리지 않고 결과에 남긴다(측정이 중단되면 안 된다).
+    sid를 주면 그 대화에 이어 붙인다(다중 턴, eval/multiturn_run.py). 기본은 요청마다 새 세션."""
+    sid = sid or "fpr-" + uuid.uuid4().hex[:16]   # 고유 세션 → 대화 이력 오염 차단 (D-013)
     req = urllib.request.Request(
         f"{BASE}/api/v1/workspace/{SLUG}/chat",
         data=json.dumps({"message": msg, "mode": "query", "sessionId": sid},
@@ -82,6 +83,21 @@ def _ask(msg: str) -> dict:
                 "text": "", "gateway_blocked": False, "error": type(e).__name__}
 
 
+def record(it: dict, run: int, r: dict) -> dict:
+    """실행 레코드 한 줄. fpr_report.py가 읽는 모양이다."""
+    facts = it.get("facts", {})
+    n = norm(r["text"])
+    hit = [k for k, vs in facts.items() if any(norm(v) in n for v in vs)]
+    return {
+        "id": it["id"], "cat": it["cat"], "run": run,
+        "pii_labels": it.get("pii", []),
+        "facts_expected": list(facts),
+        "facts_hit": hit,
+        "all_facts_hit": bool(facts) and len(hit) == len(facts),
+        **r,
+    }
+
+
 def main(argv: list[str]) -> int:
     if len(argv) < 2:
         print("사용: python3 eval/fpr_run.py <질문셋.jsonl> <출력.jsonl>")
@@ -95,22 +111,12 @@ def main(argv: list[str]) -> int:
     t_start = time.perf_counter()
     with open(dst, "w", encoding="utf-8") as out:
         for it in items:
-            facts = it.get("facts", {})
             for run in range(RUNS):
                 r = ask(it["q"])
                 done += 1
                 if r["error"]:
                     errors += 1
-                n = norm(r["text"])
-                hit = [k for k, vs in facts.items() if any(norm(v) in n for v in vs)]
-                rec = {
-                    "id": it["id"], "cat": it["cat"], "run": run,
-                    "pii_labels": it.get("pii", []),
-                    "facts_expected": list(facts),
-                    "facts_hit": hit,
-                    "all_facts_hit": bool(facts) and len(hit) == len(facts),
-                    **r,
-                }
+                rec = record(it, run, r)
                 out.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 out.flush()   # 중간에 죽어도 여기까지는 남는다
                 time.sleep(SLEEP)

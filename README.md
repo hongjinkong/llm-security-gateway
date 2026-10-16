@@ -211,7 +211,7 @@ results/    측정 산출물 원본 (요약만 남기고 버리지 않는다)
 |---|---|
 | `SCOPE.md` | 만드는 것 / 만들지 않는 것 / 절대 하지 않는 것 |
 | `EVAL_CRITERIA.md` | 평가 기준 (동결됨) |
-| `DECISIONS.md` | 모든 설계 결정의 날짜·근거·폐기 이력 (D-001 ~ D-100) |
+| `DECISIONS.md` | 모든 설계 결정의 날짜·근거·폐기 이력 (D-001 ~ D-101) |
 | `docs/RESULTS.md` | 상세 결과 — README에서 옮긴 정량 결과(v1 3.1~3.8, 새 구조 3.9)·측정 장치·한계 |
 | `docs/MEASUREMENT.md` | 측정 재현 절차 |
 | `docs/next_D100_launch.md` | 다음 측정(D-100) 착수 지시서 |

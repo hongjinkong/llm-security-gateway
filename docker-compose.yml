@@ -40,12 +40,14 @@ services:
       - TARGET_URL=${GATEWAY_TARGET_URL:-http://target-app:3001}
       # EVAL 5.2 증분 측정의 손잡이. 이 값만 바꿔가며 같은 측정을 반복한다.
       #   (빈 값) → 검사기 없음   pii → 탐지만   pii_mask → 마스킹+복원
-      #   injection_rule → 5단계 1차 룰(이력까지 전부 본다)
+      #   injection_rule → 5단계 1차 룰(이력까지 전부 본다). 측정 재현·비교용
       #   injection_rule_turn → 같은 룰, 막을지는 이번 턴만 보고 이력의 걸린 턴은 가린다(D-095·D-099)
+      #                         권장 구성: injection_rule_turn,pii_mask (D-101)
       #   canary_observe → 6단계 카나리 관측. 응답을 바꾸지 않는다(D-058)
       #                    **반드시 목록 맨 뒤**여야 한다(응답 경로 맨 앞 = 타겟 원본).
       #                    아니면 게이트웨이가 기동하지 않는다.
       # 2차 유사도·3차 Judge는 기각됐고 코드는 v1 태그에만 있다(D-052·D-054·D-099).
+      # 기본값(빈 값 = 검사기 없음)은 바꾸지 않는다 — 측정 절차의 OFF 팔이 빈 값으로 띄운다(D-101 §4).
       - GATEWAY_DETECTORS=${GATEWAY_DETECTORS:-}
       - GATEWAY_LOG_PATH=/logs/gateway.jsonl
       # 6단계 카나리 관측(D-058 / CANARY_DESIGN 3-2). 값의 단일 출처는 .env다 —

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# dan 베이스라인 상태 점검 (읽기 전용). 사용: bash check.sh
-cd "$(dirname "$0")"
+# dan 베이스라인 상태 점검 (읽기 전용, v1 구조). 사용: bash scripts/check_baseline_dan.sh  (D-105에서 루트에서 옮겼다)
+cd "$(dirname "$0")/.."
 C=baseline_dan
 
 echo "===== 1. 컨테이너 상태 ====="

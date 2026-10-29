@@ -42,7 +42,7 @@ MUTATIONS = [
      [f"{T_PII}::test_credential_is_masked_and_restored_in_openai_path",
       f"{T_OAI}::test_credential_does_not_reach_upstream_and_returns_to_user"]),
     ("O1", "과잉 수정·부작용", "개인 키 본문이 큰따옴표를 넘어 JSON 구조까지 먹는다", PII,
-     "(?:[^-\"]|-(?!----END))", "(?:[^-]|-(?!----END))",
+     "(?:[^-\"\\\\]|\\\\[\\s\\S]|-(?!----END))", "(?:[^-\\\\]|\\\\[\\s\\S]|-(?!----END))",
      [f"{T_PII}::test_pem_without_end_marker_stops_at_quote"]),
     ("D3", "결함 복원", "(C)가 이력까지 이번 턴으로 본다(세션 오염 되살림)", INJ,
      "for m in messages[start:] if m[\"role\"] in INJECTION_ROLES",

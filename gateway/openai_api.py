@@ -45,6 +45,8 @@ def parse_chat_request(body: bytes) -> dict:
             raise ChatRequestError("message content must be text or content parts", "messages")
 
     stream = payload.get("stream", False)
+    if stream is None:
+        stream = False   # OpenAI 스펙은 boolean | null — null은 "지정 안 함"이다(D-102)
     if not isinstance(stream, bool):
         raise ChatRequestError("stream must be a boolean", "stream", "invalid_stream")
     if stream:
@@ -82,7 +84,12 @@ def message_texts(message: dict) -> list[str]:
 
 
 def map_chat_texts(payload: dict, roles: Collection[str], transform: Callable[[str], str]) -> None:
-    """선택한 역할의 텍스트만 제자리에서 바꾼다. 파싱 직후 객체에만 사용한다."""
+    """선택한 역할의 텍스트만 제자리에서 바꾼다. 파싱 직후 객체에만 사용한다.
+
+    assistant의 `tool_calls[].function.arguments`도 바꾼다(D-102). 게이트웨이는 응답 JSON 전체를 복원하므로
+    도구 호출 인자에 들어간 값도 원문으로 돌아가고, 클라이언트는 그 메시지를 다음 턴 이력으로 그대로 보낸다.
+    content만 가리면 인자 속 원문이 둘째 턴부터 상류로 갔다.
+    """
     for message in payload["messages"]:
         if message["role"] not in roles:
             continue
@@ -93,3 +100,8 @@ def map_chat_texts(payload: dict, roles: Collection[str], transform: Callable[[s
             for part in content:
                 if part.get("type") == "text":
                     part["text"] = transform(part["text"])
+        calls = message.get("tool_calls")
+        for call in calls if isinstance(calls, list) else []:
+            fn = call.get("function") if isinstance(call, dict) else None
+            if isinstance(fn, dict) and isinstance(fn.get("arguments"), str):
+                fn["arguments"] = transform(fn["arguments"])

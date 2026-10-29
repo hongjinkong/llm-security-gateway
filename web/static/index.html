@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Security Gateway 데모</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --mute:#6b7280; --line:#e5e7eb; --off:#b45309; --on:#047857; --mark:#fde68a; --block:#fee2e2; --accent:#2563eb; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#0f1115; --card:#171a21; --ink:#e6e8ec; --mute:#9aa3b2; --line:#2a2f3a; --off:#f59e0b; --on:#34d399; --mark:#7c5e00; --block:#4c1d1d; --accent:#60a5fa; } }
+  * { box-sizing:border-box } body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif; }
+  header { padding:14px 16px; border-bottom:1px solid var(--line); background:var(--card); }
+  header h1 { margin:0; font-size:18px } header p { margin:4px 0 0; color:var(--mute); font-size:13px }
+  main { display:grid; grid-template-columns: 300px 1fr; gap:16px; padding:16px; max-width:1500px; margin:0 auto }
+  @media (max-width: 900px) { main { grid-template-columns:1fr } }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px }
+  .scenes button { display:block; width:100%; text-align:left; margin:6px 0; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--ink); cursor:pointer; font:inherit }
+  .scenes button:hover { border-color:var(--accent) } .scenes button:disabled { opacity:.45; cursor:not-allowed }
+  .scenes small { display:block; color:var(--mute) }
+  textarea { width:100%; min-height:84px; margin-top:10px; padding:8px; border:1px solid var(--line); border-radius:8px; background:transparent; color:var(--ink); font:inherit; resize:vertical }
+  .row { display:flex; gap:8px; margin-top:8px } .row button { flex:1; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--accent); color:#fff; font:inherit; cursor:pointer }
+  .row button.secondary { background:transparent; color:var(--ink) }
+  .arms { display:grid; grid-template-columns:1fr 1fr; gap:16px } @media (max-width: 1100px) { .arms { grid-template-columns:1fr } }
+  .arm h2 { margin:0 0 8px; font-size:16px } .arm.off h2 { color:var(--off) } .arm.on h2 { color:var(--on) }
+  .arm h3 { margin:12px 0 4px; font-size:13px; color:var(--mute); text-transform:none }
+  .msgs div { padding:6px 8px; border-radius:6px; background:var(--bg); margin:4px 0; white-space:pre-wrap; word-break:break-all }
+  .msgs b { color:var(--mute); font-weight:600; margin-right:6px }
+  mark { background:var(--mark); color:inherit; padding:0 2px; border-radius:3px }
+  .blocked { background:var(--block); padding:8px; border-radius:6px }
+  .audit { font:12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space:pre-wrap; word-break:break-all; color:var(--mute) }
+  .history { margin-top:10px; font-size:13px; color:var(--mute) } .history div { white-space:pre-wrap; word-break:break-all }
+  .sent { margin-bottom:12px } .notice { color:var(--off); font-size:13px }
+</style>
+</head>
+<body>
+<header>
+  <h1>LLM Security Gateway — 같은 요청, 게이트웨이 없음 vs 있음</h1>
+  <p id="info">연결 중…</p>
+</header>
+<main>
+  <section class="panel">
+    <div class="scenes" id="scenes"></div>
+    <textarea id="text" placeholder="직접 입력 — 합성 데이터만 쓰세요"></textarea>
+    <div class="row"><button id="send">보내기</button><button id="reset" class="secondary">새 대화</button></div>
+    <div class="history" id="history"></div>
+  </section>
+  <section>
+    <div class="panel sent" id="sent"><span class="notice">장면을 고르거나 문장을 보내세요.</span></div>
+    <div class="arms">
+      <div class="panel arm off"><h2>게이트웨이 없음</h2><div id="off"></div></div>
+      <div class="panel arm on"><h2>게이트웨이 있음 <small id="onDet"></small></h2><div id="on"></div></div>
+    </div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let history = [];          // 이어지는 대화. 보낼 때마다 user·assistant 턴이 쌓인다.
+const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const hi = s => esc(s).replace(/\[PII:[a-z]+:\d+\]/g, m => `<mark>${m}</mark>`).replace(/\[보안 정책에 의해 가려진 이전 메시지\]/g, m => `<mark>${m}</mark>`);
+const short = s => s.length > 400 ? s.slice(0, 400) + ` … (${s.length}자)` : s;
+
+async function load() {
+  const info = await (await fetch("/api/info")).json();
+  $("#info").textContent = `있음: ${info.on.detectors.join(",")} · 코드 지문 ${info.on.code} · 상류 ${info.on.upstream} (${info.model})` + (info.real ? " · 실제 공급자 모드: 정상 질문만 보냅니다" : "");
+  $("#onDet").textContent = info.on.detectors.join(",");
+  const scenes = await (await fetch("/api/scenes")).json();
+  $("#scenes").innerHTML = scenes.map(s => `<button data-id="${s.id}" ${s.disabled ? "disabled" : ""}>${s.id}. ${esc(s.title)}<small>${esc(s.note)}</small></button>`).join("");
+  $("#scenes").onclick = e => { const b = e.target.closest("button"); if (!b) return; const s = scenes.find(x => x.id == b.dataset.id); history = []; send(s.messages); };
+}
+function msgs(list) { return `<div class="msgs">${list.map(m => `<div><b>${esc(m.role)}</b>${hi(short(m.content || ""))}</div>`).join("")}</div>`; }
+function render(id, r) {
+  let html = "";
+  if (r.blocked) html += `<h3>사용자가 받은 답</h3><div class="blocked">차단 · finish_reason=content_filter · 상류 호출 없음<br>${esc(r.answer || "")}</div>`;
+  else if (r.error) html += `<h3>사용자가 받은 답</h3><div class="blocked">HTTP ${esc(r.error)} · 검사기·상류 호출 없음</div>`;
+  else html += `<h3>사용자가 받은 답</h3><div class="msgs"><div>${hi(short(r.answer || ""))}</div></div>`;
+  html += `<h3>상류(모델)가 실제로 받은 것</h3>` + (r.upstream ? msgs(r.upstream) : `<div class="audit">${r.blocked || r.error ? "아무것도 받지 않았다" : "실제 공급자는 받은 본문을 돌려주지 않는다 — 감사 기록으로 본다"}</div>`);
+  const a = r.audit;
+  if (a) {
+    const det = a.detectors.map(d => d.detector + ":" + d.action + (d.masked ? ` masked=${d.masked}` : "") + (d.masked_turns ? ` masked_turns=${d.masked_turns}` : "") + (d.rules ? ` rules=${d.rules.map(x => x.rule).join("/")}` : "")).join("  ");
+    const res = a.response_detectors.map(d => d.detector + ` restored=${d.restored} residual=${d.residual_tokens}`).join("  ");
+    html += `<h3>감사 로그 한 줄 (원문은 남지 않는다)</h3><div class="audit">status=${a.status} blocked=${a.blocked} transformed=${a.transformed} req_bytes=${a.req_bytes} gateway_ms=${a.gateway_ms} upstream_ms=${a.upstream_ms}\n요청 검사기: ${det || "-"}\n응답 검사기: ${res || "-"}</div>`;
+  }
+  $("#" + id).innerHTML = html;
+}
+async function send(messages) {
+  $("#sent").innerHTML = `<h3 style="margin:0 0 4px;font-size:13px;color:var(--mute)">보낸 요청</h3>` + msgs(messages);
+  $("#off").innerHTML = $("#on").innerHTML = "<div class='audit'>보내는 중…</div>";
+  const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages }) });
+  if (!r.ok) { $("#on").innerHTML = `<div class="blocked">${esc(await r.text())}</div>`; return; }
+  const out = await r.json();
+  render("off", out.off); render("on", out.on);
+  const last = messages[messages.length - 1];
+  if (last.role === "user" && out.on.status === 200) { history = [...messages, { role: "assistant", content: out.on.answer || "" }]; }
+  $("#history").innerHTML = history.length ? `<b>이어지는 대화 (${history.length}턴)</b>` + history.map(m => `<div>${esc(m.role)}: ${esc(short(m.content))}</div>`).join("") : "";
+}
+$("#send").onclick = () => { const t = $("#text").value.trim(); if (!t) return; send([...history, { role: "user", content: t }]); $("#text").value = ""; };
+$("#reset").onclick = () => { history = []; $("#history").innerHTML = ""; };
+$("#text").addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("#send").click(); });
+load();
+</script>
+</body>
+</html>

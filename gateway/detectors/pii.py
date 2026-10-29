@@ -62,7 +62,8 @@ EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]{1,64}@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
 # 기밀정보(자격 증명) — 형식이 확실한 것만 잡는다(D-099). 접두사가 고정된 키와 개인 키 블록이다.
 # 엔트로피로 "비밀 같은 문자열"을 추측하지 않는다: base64·hex 공격 문자열을 비밀로 오인해 가리면
 # 공격 프롬프트가 훼손되어 ASR이 가짜로 떨어진다(위 카드번호 오탐과 같은 함정).
-# 개인 키 본문은 `-----END`·큰따옴표를 만나거나 8,192자에서 멈춘다. END가 없어도 실패하지 않으므로
+# 개인 키 본문은 `-----END`·큰따옴표를 만나거나 8,192자에서 멈춘다. 역슬래시는 다음 글자와 짝으로 먹는다 —
+# 옛 경로의 재직렬화 텍스트에서 `\"`의 역슬래시만 먹고 멈추면 따옴표가 문자열 밖으로 새어 JSON이 깨졌다(D-102). END가 없어도 실패하지 않으므로
 # 되짚기가 없다. 암호화 PEM의 `Proc-Type:` 머리줄도 본문으로 함께 가린다. 큰따옴표에서 멈추는 이유:
 # 옛 경로는 JSON 본문 전체를 훑으므로, 잘린 키 뒤에서 문자열 밖(JSON 구조)까지 먹으면 본문이 깨진다.
 SECRET_RE = re.compile(
@@ -74,7 +75,7 @@ SECRET_RE = re.compile(
     r"|xox[abprs]-[A-Za-z0-9-]{10,}"                             # Slack 토큰
     r"|eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"   # JWT
     r")(?![A-Za-z0-9_-])"
-    r'|-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[^-"]|-(?!----END)){0,8192}'
+    r'|-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[^-"\\]|\\[\s\S]|-(?!----END)){0,8192}'
     r"(?:-----END [A-Z ]{0,40}PRIVATE KEY-----)?")
 
 # 겹치는 후보가 생겼을 때의 우선순위(작을수록 우선). 주민번호 13자리는 카드 패턴에도 걸린다.
@@ -90,7 +91,7 @@ _CENTURY = {"1": 1900, "2": 1900, "3": 2000, "4": 2000,
 class Finding:
     """탐지 결과. **원본 값을 담지 않는다**(D-029: 로그에 평문 금지)."""
 
-    kind: str          # rrn | card | phone | email
+    kind: str          # rrn | card | phone | email | secret
     start: int
     end: int
     confidence: str    # strong | weak
@@ -136,38 +137,112 @@ def luhn_ok(d: str) -> bool:
 
 
 def find_all(text: str) -> list[Finding]:
-    """겹치지 않는 탐지 결과를 위치 순으로 돌려준다."""
-    cands: list[Finding] = []
+    """겹치지 않는 탐지 결과를 위치 순으로 돌려준다.
+
+    종류마다 우선순위가 다르고(PRIORITY), 한 종류의 매치는 finditer가 왼쪽부터 겹치지 않게 내놓는다.
+    그래서 우선순위 순으로 종류를 돌며 이미 자리 잡은 구간(위치 순)과 두 포인터로 한 번만 비교한다 —
+    탐지 건수에 선형이다. 결과는 예전 방식(후보 전체를 우선순위·길이·위치로 정렬해 탐욕적으로 고르기)과 같다.
+    2026-10-29 이전에는 후보마다 자리 잡은 구간 전체를 훑어 건수의 제곱으로 느려졌다 — 전화번호 2만 개(273KB)에
+    4초, 1MiB에 60초. 워커 1개라 그동안 게이트웨이 전체가 멈춘다(D-102).
+    """
+    by_kind: dict[str, list[Finding]] = {k: [] for k in PRIORITY}
 
     for m in SECRET_RE.finditer(text):
-        cands.append(Finding("secret", m.start(), m.end(), "strong"))
+        by_kind["secret"].append(Finding("secret", m.start(), m.end(), "strong"))
 
     for m in RRN_RE.finditer(text):
         yy, mm, dd, gender, tail = m.groups()
         if not rrn_date_ok(yy, mm, dd, gender):
             continue
         conf = "strong" if rrn_checksum_ok(digits(m.group(0))) else "weak"
-        cands.append(Finding("rrn", m.start(), m.end(), conf))
+        by_kind["rrn"].append(Finding("rrn", m.start(), m.end(), conf))
 
     for m in CARD_RE.finditer(text):
         d = digits(m.group(0))
         if 13 <= len(d) <= 19 and luhn_ok(d):
-            cands.append(Finding("card", m.start(), m.end(), "strong"))
+            by_kind["card"].append(Finding("card", m.start(), m.end(), "strong"))
 
     for m in PHONE_RE.finditer(text):
-        cands.append(Finding("phone", m.start(), m.end(), "strong"))
+        by_kind["phone"].append(Finding("phone", m.start(), m.end(), "strong"))
 
     for m in EMAIL_RE.finditer(text):
-        cands.append(Finding("email", m.start(), m.end(), "strong"))
+        by_kind["email"].append(Finding("email", m.start(), m.end(), "strong"))
 
-    # 겹침 해소: 우선순위 → 긴 것 순으로 자리를 차지한다.
-    cands.sort(key=lambda f: (PRIORITY[f.kind], -(f.end - f.start), f.start))
     taken: list[Finding] = []
-    for f in cands:
-        if any(f.start < t.end and t.start < f.end for t in taken):
-            continue
-        taken.append(f)
-    return sorted(taken, key=lambda f: f.start)
+    for kind in sorted(PRIORITY, key=PRIORITY.__getitem__):
+        taken = _merge_free(taken, by_kind[kind])
+    return taken
+
+
+def _merge_free(taken: list[Finding], cands: list[Finding]) -> list[Finding]:
+    """taken(위치 순, 서로 겹치지 않음)에 cands(위치 순, 서로 겹치지 않음) 중 taken과 겹치지 않는 것만
+    더해 위치 순으로 돌려준다. 두 목록을 각각 한 번씩만 지난다."""
+    out: list[Finding] = []
+    i = 0
+    for c in cands:
+        while i < len(taken) and taken[i].end <= c.start:
+            out.append(taken[i])
+            i += 1
+        if i < len(taken) and taken[i].start < c.end:
+            continue          # 더 높은 우선순위가 이미 차지한 자리
+        out.append(c)
+    out.extend(taken[i:])
+    return out
+
+
+def _replace(text: str, found: list[Finding], tokens: list[str]) -> str:
+    """found(위치 순)의 구간을 tokens로 바꾼 텍스트. 조각을 모아 한 번에 잇는다 —
+    건마다 문자열 전체를 다시 복사하면 길이×건수로 느려진다(D-102)."""
+    out: list[str] = []
+    pos = 0
+    for f, token in zip(found, tokens):
+        out.append(text[pos:f.start])
+        out.append(token)
+        pos = f.end
+    out.append(text[pos:])
+    return "".join(out)
+
+
+# 감사 로그에 남기는 탐지 위치 목록의 상한. 건수는 `pii`에 종류별로 다 남고, 위치는 앞 100건만 남긴다 —
+# 전화번호 7만 개짜리 요청 하나가 감사 한 줄을 6MB로 만들었다(D-102).
+FINDINGS_LIMIT = 100
+
+
+def _meta(found: list[Finding]) -> dict:
+    counts: dict[str, int] = {}
+    for f in found:
+        counts[f.kind] = counts.get(f.kind, 0) + 1
+    meta = {"pii": counts, "findings": [f.as_dict() for f in found[:FINDINGS_LIMIT]]}
+    if len(found) > FINDINGS_LIMIT:
+        meta["findings_omitted"] = len(found) - FINDINGS_LIMIT
+    return meta
+
+
+def _session_spans(text: str, body: bytes) -> list[tuple[int, int]]:
+    """재직렬화한 옛 경로 본문에서 `sessionId` 값이 차지하는 구간들.
+
+    세션 키는 상류(AnythingLLM)가 대화를 나누는 열쇠다. 값이 개인정보 모양이라고 가리면 토큰 번호에 따라
+    키가 바뀌어 같은 대화가 갈라지고, 쿼리로 오는 조회(`?sessionId=`)와도 어긋난다(D-102).
+    그 값은 게이트웨이가 보호할 입력이 아니라 주소다 — 그대로 둔다.
+    """
+    try:
+        obj = json.loads(body)
+    except (ValueError, UnicodeDecodeError):
+        return []
+    sid = obj.get("sessionId") if isinstance(obj, dict) else None
+    if not isinstance(sid, str) or not sid:
+        return []
+    needle = json.dumps({"sessionId": sid}, ensure_ascii=False)[1:-1]   # "sessionId": "…"
+    head = len(json.dumps({"sessionId": ""}, ensure_ascii=False)[1:-2])  # 값 앞까지의 길이
+    spans, i = [], text.find(needle)
+    while i != -1:
+        spans.append((i + head, i + len(needle) - 1))
+        i = text.find(needle, i + 1)
+    return spans
+
+
+def _outside(found: list[Finding], spans: list[tuple[int, int]]) -> list[Finding]:
+    return [f for f in found if not any(f.start < e and s < f.end for s, e in spans)]
 
 
 def normalized_text(body: bytes) -> str:
@@ -249,23 +324,17 @@ class PIIDetector(Detector):
 
         text = normalized_text(insp.body)   # L-005: \uXXXX를 먼저 되돌린다
         found = [f for f in find_all(text) if f.kind in self.kinds]
+        found = _outside(found, _session_spans(text, insp.body))   # 세션 키는 가리지 않는다(D-102)
         if not found:
             return Verdict.allow(self.name)
-
-        counts: dict[str, int] = {}
-        for f in found:
-            counts[f.kind] = counts.get(f.kind, 0) + 1
-        meta = {"pii": counts, "findings": [f.as_dict() for f in found]}
+        meta = _meta(found)
 
         if self.mode == "detect":
             return Verdict.allow(self.name, **meta)
 
         session = insp.session or session_of(insp.body, insp.request_id)
-        # 번호는 앞에서부터 매기고(로그를 읽기 쉽게), 치환은 뒤에서부터 한다(위치값 보존).
         tokens = [self.vault.token_for(session, f.kind, text[f.start:f.end]) for f in found]
-        masked = text
-        for f, token in zip(reversed(found), reversed(tokens)):
-            masked = masked[:f.start] + token + masked[f.end:]
+        masked = _replace(text, found, tokens)
 
         return Verdict.transform(self.name, masked.encode("utf-8"),
                                  f"PII {len(found)}건 마스킹", masked=len(found), **meta)
@@ -281,18 +350,12 @@ class PIIDetector(Detector):
             if self.mode == "detect":
                 return text
             tokens = [self.vault.token_for(session, f.kind, text[f.start:f.end]) for f in local]
-            for f, token in zip(reversed(local), reversed(tokens)):
-                text = text[:f.start] + token + text[f.end:]
-            return text
+            return _replace(text, local, tokens)
 
         map_chat_texts(payload, PII_ROLES, inspect_text)
         if not found:
             return Verdict.allow(self.name)
-
-        counts: dict[str, int] = {}
-        for f in found:
-            counts[f.kind] = counts.get(f.kind, 0) + 1
-        meta = {"pii": counts, "findings": [f.as_dict() for f in found]}
+        meta = _meta(found)
         if self.mode == "detect":
             return Verdict.allow(self.name, **meta)
 

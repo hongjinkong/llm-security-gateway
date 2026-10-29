@@ -5,6 +5,7 @@
 이게 있어야 프록시가 요청을 망가뜨렸는지 비교로 확인할 수 있다.
 """
 import asyncio
+import json
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
@@ -30,6 +31,15 @@ async def received():
     return {"bodies": RECEIVED}
 
 
+@app.get("/__stub/multi")
+async def multi(request: Request):
+    """D-102 헤더 계약: 같은 이름의 요청 헤더를 전부 보고, Set-Cookie 두 개를 따로 돌려준다."""
+    response = JSONResponse({"x_multi": request.headers.getlist("x-multi")})
+    response.headers.append("set-cookie", "a=1; Path=/")
+    response.headers.append("set-cookie", "b=2; Path=/")
+    return response
+
+
 @app.post("/api/v1/workspace/{slug}/chat")
 async def chat(slug: str, request: Request):
     payload = await request.json()
@@ -41,6 +51,7 @@ async def chat(slug: str, request: Request):
             # 타겟이 마스킹된 본문을 받았는지. 불리언이라 4-F의 복원에 영향받지 않는다.
             # (echo.body는 복원 대상이므로 그것만으로는 마스킹 여부를 확인할 수 없다)
             "masked_seen": "[PII:" in (payload.get("message") or ""),
+            "session_id_masked": "[PII:" in str(payload.get("sessionId") or ""),   # D-102 #5
             "method": request.method,
             "path": request.url.path,
             "query": request.url.query,
@@ -87,6 +98,21 @@ async def openai_chat(request: Request):
     messages = messages if isinstance(messages, list) else []
     texts = [(m.get("role"), _message_text(m)) for m in messages if isinstance(m, dict)]
     user = next((text for role, text in reversed(texts) if role == "user"), "")
+    tool_args = [call["function"]["arguments"] for m in messages if isinstance(m, dict)
+                 for call in (m.get("tool_calls") or []) if isinstance(call, dict)
+                 and isinstance(call.get("function"), dict) and isinstance(call["function"].get("arguments"), str)]
+    if model == "stub-toolcall":
+        # D-102: 마지막 user 문장을 도구 호출 인자에 실어 돌려준다 — 모델이 값을 인자로 옮겨 적는 흔한 모양.
+        return {
+            "id": "chatcmpl-stub", "object": "chat.completion", "created": 0, "model": model,
+            "choices": [{"index": 0, "finish_reason": "tool_calls", "message": {
+                "role": "assistant", "content": None,
+                "tool_calls": [{"id": "call_1", "type": "function", "function": {
+                    "name": "send_sms", "arguments": json.dumps({"to": user}, ensure_ascii=False)}}]}}],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "gateway_test": {"tool_args_masked_seen": any("[PII:" in a for a in tool_args),
+                             "tool_args_raw_phone_seen": any("010-2345-6789" in a for a in tool_args)},
+        }
     return {
         "id": "chatcmpl-stub",
         "object": "chat.completion",
@@ -106,5 +132,8 @@ async def openai_chat(request: Request):
                                  for role, text in texts),
             "auth": request.headers.get("authorization"),
             "path": request.url.path,
+            "accept_encoding": request.headers.get("accept-encoding"),
+            "tool_args_masked_seen": any("[PII:" in a for a in tool_args),
+            "tool_args_raw_phone_seen": any("010-2345-6789" in a for a in tool_args),
         },
     }

@@ -82,7 +82,7 @@ cat <<EOF
 
 진행 확인:
   docker logs -f garak_${NAME}
-  bash check.sh
+  bash scripts/check_baseline_dan.sh
 
 완주 후:
   python3 scripts/asr_summary.py garak/logs/garak_runs/${NAME}.report.jsonl \\

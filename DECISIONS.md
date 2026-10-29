@@ -9703,3 +9703,170 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 ### 6. 범위 밖
 
 - `gateway/` 코드, compose 기본값, 착수 절차, D-100의 기준·예측·읽는 규칙, 룰 어휘(D-039), (B) 안, assistant 턴 가림.
+
+## D-102. 게이트웨이 결함 수정 묶음 — 독립 리뷰 10건, 판정 동등성 재생으로 D-100 수치를 잇는다, 런처 조각 잇기 개행, 정상셋 중복 관찰 (측정 없음)
+
+- 날짜: 2026-10-29, 집 맥북. 공격 요청 없음(스텁 상류·합성 데이터). 지시: 사용자 "지금까지 했던거 전체 훑어보면서 잘못된부분도 봐줘 고쳐야하니까".
+- 코드 지문: `6d81265136b0`(D-099·D-100) → **`27a16fa1c35b`**. D-100 수치를 이 코드의 값으로 계속 쓰는 근거는 §2의 동등성 재생이다. 다시 재지 않는다.
+- 경위: Claude 서브에이전트가 `gateway/` 코드를 읽고 재현 스크립트로 결함을 찾았고(리뷰 지시서는 의도된 한계 — 인증 없음·워커 1개·스트리밍 거부·
+  system/tool 미마스킹·형식 있는 PII만 — 를 보고하지 말라고 했다), 그중 8건(#1~#4·#6~#9)은 Claude가 같은 스크립트를 다시 돌려 확인했다. #5·#10은 리뷰어 재현만이다.
+- 테스트(맥북 `.venv` 3.14.7): `pytest -q` **591 passed** = 579 + 새 테스트 12(`tests/test_d102_fixes.py`).
+  변이: `scripts/mutate_d102.py` **13/13**(신설 — 처음 돌렸을 때 2건이 안 잡혀 테스트를 고쳤다, §1 비고), `mutate_d099.py` 10/10(O1 앵커 갱신),
+  `mutate_openai_gateway.py` 5/5, `mutate_audit_vault.py` 8/8, `mutate_canary.py` 7/7, `mutate_openai_compose.py` 5/5, `mutate_validate_oa_arm.py` 9/9. `scripts/demo.py` 여섯 장면 종료 0.
+
+### 1. 결함과 수정
+
+| # | 심각도 | 파일 | 결함 (재현 입력 → 관찰) | 수정 |
+|---|---|---|---|---|
+| 1 | 높음 | `pii.py` `find_all`·치환·meta | 탐지 건수의 제곱 시간. 전화번호 2만 개(273KB) 4.1초, 7만 4천 개(1MiB 상한 바로 아래) 60초 — 워커 1개라 그동안 게이트웨이 전체가 멈춘다(D-099 §1과 같은 모양). 감사 한 줄이 6.2MB | 겹침 해소를 종류 우선순위 순 두 포인터 병합으로(선형), 치환을 조각 잇기로, 감사 `findings`는 앞 100건 + `findings_omitted`. 7만 4천 건 0.21초. 결과는 예전 알고리즘과 같다(테스트가 무작위 400건에서 대조) |
+| 2 | 중간 | `main.py` 헤더 | 클라이언트의 `accept-encoding`을 상류로 전달. 상류가 br·zstd로 답하면 게이트웨이의 httpx가 못 풀고 `content-encoding`만 뗀 채 압축 바이트를 내보냈다 — 클라이언트 JSON 파싱 실패, 토큰도 복원되지 않음 | `accept-encoding`을 떼고 httpx가 풀 수 있는 것만 알리게 한다 |
+| 3 | 중간 | `openai_api.py` `map_chat_texts` | 응답 `tool_calls[].function.arguments`에 복원된 값이 다음 턴 assistant 이력으로 돌아오면 원문이 상류로 갔다(D-099 §3의 의도 위배) | assistant의 `tool_calls[*].function.arguments`(문자열)도 가린다 |
+| 4 | 중간 | `pii.py` PEM 정규식 | 옛 경로 재직렬화 텍스트의 `\"`에서 역슬래시만 먹고 멈춰 따옴표가 문자열 밖으로 새어 상류 JSON이 깨짐 | 역슬래시를 다음 글자와 짝으로 먹는다 |
+| 5 | 낮음 | `pii.py` 옛 경로 | 본문 전체 마스킹이 `sessionId` 값까지 가려 상류(AnythingLLM)의 대화 키가 토큰 번호에 따라 바뀜(대화 갈라짐, 쿼리 조회와 불일치) | `sessionId` 값 구간은 치환에서 뺀다 — 그 값은 보호할 입력이 아니라 주소다 |
+| 6 | 낮음 | `main.py` `_clean` | 헤더를 dict로 모아 같은 이름(`X-Forwarded-For` 둘, `Set-Cookie` 둘)이 마지막 것만 남거나 `", "`로 합쳐짐 | (이름, 값) 쌍 목록으로 거르고 응답은 `headers.append` |
+| 7 | 낮음 | `main.py` | `OPTIONS /v1/chat/completions`도 본문 파싱 → 400(CORS 프리플라이트 불가) | POST만 Chat Completions 본문으로 본다 |
+| 8 | 낮음 | `openai_api.py` | `"stream": null`을 400으로 거부(OpenAI 스펙은 boolean·null) | null은 false로 |
+| 9 | 낮음 | `main.py` 예외 경로 | 처리 중 예외 → Starlette 기본 500(본문 텍스트, `X-Gateway-Request-Id` 없음) — 감사 줄과 대조할 길이 없었다 | 예외 핸들러가 OpenAI 오류 형식 500에 요청 ID 헤더를 붙인다. 예외는 그대로 다시 올라가 uvicorn 로그에 남는다 |
+| 10 | 낮음 | `main.py` | 상류(uvicorn)의 `date`·`server`를 그대로 넘겨 둘씩 찍힘 | 응답에서 뗀다 |
+
+- 비고(변이 검사가 잡은 것): 처음 테스트는 #1 치환 복원(D2)과 #5(D7)를 못 잡았다. D2는 4만 건 입력에서 예전 치환도 2초 안에 끝났기 때문이고(7만 4천 건으로 올렸다 — 예전 4.7초·새 코드 0.21초),
+  D7은 스텁의 `echo.body`를 게이트웨이가 복원하므로 sessionId가 가려졌는지 응답으로는 알 수 없었기 때문이다(스텁이 불리언 `session_id_masked`를 낸다). 테스트를 고친 뒤 13/13.
+- 행동이 바뀌는 입력: #3(assistant tool_calls 인자), #4(역슬래시가 든 PEM), #5(개인정보 모양의 sessionId), #7(OPTIONS), #8(`stream: null`), #2·#6·#10(헤더), #9(500 본문·헤더).
+  D-100·D-081 측정 입력에는 이 가운데 어느 것도 없다(§2).
+- 리뷰어가 재현하지 못한 둘은 기록만 한다: 옛 경로 `text/event-stream` 응답은 JSON 판정이 안 돼 원문을 날것으로 끼운다(줄바꿈 있는 값이면 SSE 줄이 깨질 수 있다 — 옛 경로는 v1 측정 입구이고 스트리밍은 범위 밖);
+  13자리 epoch-ms 타임스탬프가 Luhn을 우연히 통과하면(약 10%) `card`로 가려진다(알려진 한계의 한 예).
+
+### 2. 판정 동등성 재생 — D-100 수치를 현재 코드의 값으로 쓰는 근거
+
+- 도구 `scripts/d102_equivalence.py`, 결과 `results/d102_equivalence.md`. 옛 코드는 `git archive 900e7e2 gateway`(지문 `6d81265136b0` 확인)를 별도 프로세스로 띄웠다.
+- 입력 **1,447 고유 문장**: 새 구조 공격 리포트 전부(`results/oa_*.report.jsonl` 23개 — D-081 세 밤, D-089, D-100 두 밤과 조각)의 attempt 프롬프트 pi 435·dan 405·enc 509,
+  정상셋 고유 89(§4), 합성 PII·자격 증명·경계 문장 9. 모양 셋(OpenAI 단일 턴 / OpenAI 이력 2턴 포함 / 옛 경로) × 구성 셋(`rule`=A / `turn`=C / `pii_mask`만) = **13,023회**.
+- 비교: 판정(allow/transform/block)·차단 검사기·사유·검사기 기록(가린 턴 수·발동 룰·마스킹 건수·종류별 건수)·상류로 갈 본문의 지문. **다른 판정 0 / 13,023.**
+  프롬프트 내용은 화면에도 파일에도 내지 않았다(D-039).
+- 한계: 측정 때의 실제 요청(공유 이력 20개)은 본문이 기록되지 않아 그대로 재생할 수 없다. 단일 턴과 이력 2턴 모양으로 갈음했고, 이력 처리(가림·assistant 마스킹)가 두 모양에서 같으므로
+  이력 길이가 결과를 가를 이유는 없다. 지연은 같은 입력에서 느려지는 변경이 없다(제곱 → 선형). 그래서 README 3절은 "`6d81265136b0`으로 잰 값, 현재 코드는 측정 입력 전부에서 같은 판정"으로 적는다.
+
+### 3. 런처 조각 잇기 — 개행 누락 (D-100 dan 리포트, 집계 영향 없음)
+
+- 발견: §2 도구가 `results/oa_dan_20261016_01_{none,rule,turn}.report.jsonl`의 300행·817행을 읽지 못했다. garak은 마지막 줄 끝에 개행을 쓰지 않고, 런처가 조각을 `cat`으로 이어
+  조각 끝 `digest`와 다음 조각 머리 `start_run setup`이 한 줄에 붙었다(팔마다 2줄). 조각 파일 자체는 그대로다.
+- 집계 영향: 회수 도구(`asr_summary.py`·`rescore_blocking.py`)는 못 읽는 줄을 건너뛰는데, 붙은 레코드는 attempt·eval이 아니다. 세 팔 모두 attempt 800·eval 33으로 엄격 파싱과 레코드 전부 파싱이 같다 — D-100 §10 수치는 그대로다.
+- 수정: `scripts/night_run_oa.sh`가 조각 끝에 개행이 없으면 하나 넣는다(앞으로의 실행). 기록된 리포트 파일은 고치지 않는다(산출물 원본 불변). `d102_equivalence.py`는 붙은 줄도 읽는다.
+
+### 4. 관찰: 정상셋 100문항 중 11쌍이 같은 문장
+
+- `eval/benign/all100.jsonl` 일반 질문 60개 가운데 11쌍(G-101=G-202, G-103=G-206, G-104=G-208, G-108=G-210, G-109=G-212, G-112=G-214, G-114=G-218, G-115=G-220, G-116=G-306, G-117=G-310, G-119=G-319)의 `q`가 글자까지 같다
+  (`facts` 허용값만 일부 다르다). 고유 문장은 89개다. 2026-07-27 동결 뒤 처음 센 것이다.
+- 영향: FPR은 같은 문장에 같은 판정이 나므로 비율은 바뀌지 않지만 N=100은 고유 89문항에 11문항이 두 번 센 값이다. 동결 기준(EVAL 3.1)과 과거 보고의 N은 바꾸지 않고, README 3절·RESULTS에 "고유 89"를 병기한다.
+  정상셋을 고치면 재동결이고 이전 FPR 전부가 무효라(EVAL 머리말) 고치지 않는다.
+
+### 5. 범위 밖
+
+- 룰 어휘(D-039), 검사 범위, 2·3차, 스트리밍, 인증, 다중 워커, 정상셋 교체, 리포트 파일 수정. D-100 재측정은 하지 않는다(§2).
+
+## D-103. B3 Claude 기능 검증 — Anthropic OpenAI 호환 입구, 항목·합격 조건·무효 조건·비용 상한 사전 등록 (측정 없음)
+
+- 날짜: 2026-10-29, 집 맥북. 이 절의 커밋 **뒤에** 실행한다. 이 커밋 전에는 실제 API 호출을 하지 않았다. 사용자가 Claude API 크레딧이 넉넉하다고 했다(2026-10-29).
+- 성격: **기능 검증**이다(D-087·D-088과 같다). 방어 효과·성능·지연 측정이 아니며 ASR·FPR을 내지 않는다. README 2절의 "Claude는 키가 없어 범위 밖"을 닫는다.
+- 지위: 동결 기준·D-100 결과·results/·logs/의 기존 파일은 바꾸지 않는다. 결과를 본 뒤 이 절의 기준을 바꾸지 않는다.
+
+### 1. 고정 구성
+
+- 상류: Anthropic의 OpenAI SDK 호환 입구 `https://api.anthropic.com/v1/chat/completions`(공식 문서 "OpenAI SDK compatibility", 2026-10-29 조회 — GA, `authorization` 헤더 지원,
+  `stream` 지원, `temperature`는 Claude 4.7 이후 모델에서 1 미만이면 400이라 보내지 않는다). 따라서 `TARGET_URL=https://api.anthropic.com`, `GATEWAY_CHAT_UPSTREAM_PATH` 미설정(기본 `/v1/chat/completions`).
+  게이트웨이 코드는 바꾸지 않는다 — SCOPE 3절 "공급자별 독자 형식 변환기는 만들지 않는다"가 그대로 성립하는지가 이 검증의 요점이다.
+- 게이트웨이: 맥북 `scripts/check_claude_b3.py`가 임시 포트에 `uvicorn gateway.main:app` 단일 워커를 띄운다. `GATEWAY_DETECTORS=injection_rule_turn,pii_mask`(권장 구성, D-101),
+  `GATEWAY_LOG_PATH=logs/b3_claude_<날짜>.jsonl`(새 파일). 코드는 이 절의 커밋(지문 `27a16fa1c35b`) 그대로.
+- 클라이언트: 같은 스크립트의 httpx, `POST /v1/chat/completions`, 비스트리밍, `model=claude-opus-5-5`, `max_tokens` 200(C2는 300).
+- 키: 환경변수 `ANTHROPIC_API_KEY`(또는 `.env`의 같은 키)로만 넣는다. 파일·저장소·명령 인자·출력에 값을 쓰지 않는다. 끝나면 지운다.
+  게이트웨이는 키를 보관하지 않고 클라이언트의 `Authorization` 헤더를 그대로 상류로 넘긴다(D-085 §3). 워크스페이스에 묶이지 않은 키면 `ANTHROPIC_WORKSPACE_ID` 헤더를 같이 보낸다(문서 요구).
+- 가격 근거: Anthropic 가격표(claude-api 스킬 표, 2026-10-06 조회) `claude-opus-5-5` 입력 $4.00 · 출력 $20.00 / 1M 토큰. 비용은 응답 `usage`로 호출마다 누적한다.
+- 합성 PII: D-087 §1의 5종 그대로(전화 2종 — 그중 하나는 줄바꿈 구분, 이메일, 주민번호, 카드).
+
+### 2. 보내지 않는 것 (절대 원칙 2·4)
+
+- garak·공격 문구·인젝션 문구는 보내지 않는다. 차단 경로는 로컬·스텁과 데모에서 확인했다(D-099 §8, D-102).
+- 429·502·504는 실제로 일으키지 않는다 — D-086 §2 스텁 계약으로 갈음한다.
+
+### 3. 항목과 합격 조건
+
+| 항목 | 요청 | 합격 조건 |
+|---|---|---|
+| C1 정상 대화 | user 한 줄(일상 질문, PII 없음) | 게이트웨이 응답 200, `object=chat.completion`, `choices[0].message.content` 문자열, `usage` 있음. 감사 줄 `status=200`·`blocked=false`·`transformed=false` |
+| C2 PII 마스킹·복원 | user에 합성 PII 5종과 "받은 값을 그대로 한 줄씩 다시 적어 달라" | 200, 응답 `json.loads` 성공, 감사 `transformed=true`·요청 `pii_mask` 마스킹 5건, 응답 `pii_mask` `restored ≥ 1`·`residual_tokens = 0`, content에 `[PII:` 0건 |
+| C3 잘못된 키 | C1과 같은 요청, `Authorization: Bearer sk-ant-invalid-b3-<날짜>` | 401, 본문 JSON `error` 객체(상류 본문 중계). 감사 `status=401` |
+| C4 로그 위생 | 요청 없음 — 뒤에 감사 파일·응답 파일 검사 | 실제 키 값·`Bearer`·`sk-ant`·합성 PII 원문(줄바꿈 전화는 이스케이프 형태 포함) 각각 0건 |
+| C5 stream 거부 | C1 요청에 `stream: true` | 게이트웨이가 400 `unsupported_streaming`, 상류 호출 없음(감사 `upstream_ms` null). 비용 0 |
+
+- C2에서 모델이 토큰을 하나도 되돌려 쓰지 않아 `restored = 0`이면 결함이 아니라 **판정 불가**로 적고 같은 요청으로 1회만 다시 보낸다. 두 번 모두 0이면 판정 불가로 보고한다.
+- 이 검증이 증명하지 않는 것은 D-086 §3·D-087 §3과 같다 — "원문 PII가 상류로 가지 않았다"는 실제 공급자에서 확인할 수 없고, 스텁 결과(같은 코드)와 C2를 합친 데까지만 말한다.
+
+### 4. 실행 순서와 상한
+
+1. 착수 전: HEAD, `git status --short gateway/`(비어 있어야 함), health(`target`·`detectors`·`chat_upstream_path`·`code`)를 스크립트가 기록한다.
+2. C1 → C2 → C3 → C5 → C4. 호출마다 응답 본문을 저장하고 누적 비용을 계산한 뒤 다음으로 간다.
+- 상한: Anthropic으로 가는 호출 **재시도 포함 10회**, 누적 추정 비용 **$0.50**. 어느 쪽이든 넘기 전에 멈추고 남은 항목은 미실시로 보고한다.
+
+### 5. 무효 조건
+
+| 검사 | 무효 사유 |
+|---|---|
+| V1 코드 | 착수 전 `gateway/`에 미커밋 변경이 있거나, HEAD가 이 절의 커밋(또는 `gateway/`를 바꾸지 않은 후속 커밋)이 아니다 |
+| V2 설정 | health의 `target`이 `https://api.anthropic.com`이 아니거나, `detectors`가 `injection_rule_turn,pii_mask`가 아니거나, `chat_upstream_path`가 `/v1/chat/completions`가 아니다 |
+| V3 감사 대응 | 감사 파일 줄 수가 게이트웨이로 보낸 `/v1` 요청 수와 다르다 |
+| V4 상한 | 호출 10회 또는 $0.50을 넘겼다 — 넘긴 호출부터 결과로 쓰지 않는다 |
+
+- C4 실패(키·PII 원문이 로그에 있음)는 무효가 아니라 **결함**으로 보고하고 해당 로그 파일은 커밋하지 않는다.
+
+### 6. 산출물
+
+- `results/b3_claude_<날짜>_{c1,c2,c3}.json`(응답 본문, C2 재시도는 `_c2_retry`), `results/audit_b3_claude_<날짜>.jsonl`(감사 사본, C4 통과 시에만).
+  결과는 이 절 아래 `### 7. 결과`에 적는다. 사용량·누적 비용 표를 함께 싣는다.
+
+### 7. 결과
+
+- (미실행 — 이 절의 커밋·push 뒤, 키를 넣고 `python3 scripts/check_claude_b3.py`를 돌린 뒤 채운다.)
+
+## D-104. 데모 웹 `web/` — 브라우저 비교 화면과 README GIF (게이트웨이 변경 없음, 측정 없음)
+
+- 날짜: 2026-10-29, 집 맥북. 사용자 지시 "웹까지 만들거니까". SCOPE 4.5에 "데모 웹" 한 줄을 더했다(5절 "프로덕션급 UI" 금지는 그대로 — 데모용 최소 화면이다).
+- 구조: `web/app.py`(FastAPI 하나, 새 의존성 없음)와 `web/static/index.html`(바닐라 HTML·JS 한 장). `gateway/`는 손대지 않는다 — 이 앱은 `base_url`만 바꿔 붙는
+  또 하나의 클라이언트이고(SCOPE 7절 이식성의 세 번째 확인: AnythingLLM·OpenAI SDK·데모 웹), 코드 지문 `27a16fa1c35b`가 그대로다.
+- 동작: 기동 때 스텁 상류 둘과 게이트웨이 둘(없음 = 검사기 없음 / 있음 = `injection_rule_turn,pii_mask`, 본문 상한 4096)을 임시 포트에 띄우고,
+  같은 요청을 두 팔에 보내 "상류가 실제로 받은 것"(스텁이 기록한 본문)·"사용자가 받은 답"·감사 한 줄(원문 없음)을 나란히 보여 준다.
+  `scripts/demo.py`의 여섯 장면이 프리셋이고, 직접 입력은 이어지는 대화로 쌓인다(이력 마스킹·가림이 눈에 보인다).
+- 실제 공급자 모드: `WEB_ON_TARGET`·`WEB_ON_MODEL`·`ANTHROPIC_API_KEY`로 **있음 쪽만** 바꾼다. 없음 쪽은 설정과 무관하게 언제나 스텁이다(`arm_target`, 테스트로 고정) —
+  외부 공급자에는 공격 프롬프트를 보내지 않는다(SCOPE 6절). 이 모드에서는 인젝션 프리셋 4·5가 꺼지고, 상류가 받은 것은 볼 수 없어 감사 기록으로 대신한다.
+- 테스트: `tests/test_web.py` 5개 — 정보·장면 목록, 장면 1(없음 쪽 원문 상류 도달 / 있음 쪽 토큰만·답은 복원·`restored=2`), 장면 4·5·6(차단·가림·413), 잘못된 입력 400, 없음 쪽 상류 고정.
+  `pytest -q` 596 passed.
+- GIF: `docs/demo.gif`(1491×812, 14프레임, 2.6MB). 2026-10-29 맥북 크롬에서 이 웹의 장면 1·3·4·5·6을 눌러 녹화했다(스텁 상류, 합성 데이터). README 1절에 넣었다.
+- 한계: 데모용이다 — 인증 없음, 로컬 전용(127.0.0.1), 프로세스 네 개를 자식으로 띄운다, 감사 로그는 임시 폴더에 두고 종료 때 지운다.
+
+## D-105. 프로젝트 종결 — 성공 기준 대비 결과, 남은 일, 잔재 정리
+
+- 날짜: 2026-10-29, 집 맥북. 사용자 지시 "이 프로젝트 마무리를 짓자".
+- 성공 기준(SCOPE 7절) 대비 결과는 SCOPE 7-1·README 2절 표에 적었다. 요약: ASR 감소·FPR((C))·지연은 달성(한계 병기), 단일 명령 재현은 부분 달성(공격 측정은 밤샘 절차),
+  이식성은 클라이언트·상류에서 달성(평가 하네스는 AnythingLLM 전용).
+
+### 1. 남은 일 (딱 하나)
+
+- D-103 실행 — `ANTHROPIC_API_KEY`를 `.env`(커밋 안 됨)에 넣고 `python3 scripts/check_claude_b3.py`. 등록 커밋이 push된 뒤에 한다. 결과는 D-103 §7과 README 2절에 적는다.
+  이것이 끝나면 README 2절 "남은 일"을 "없음"으로 바꾼다.
+
+### 2. 만들지 않은 것 (SCOPE 체크박스에 표시)
+
+- 4.3 응답 내 PII 재노출 검사 — 출력 방향은 관측형 종결(D-059). 모델이 새로 내보낸 개인정보는 사용자에게 그대로 간다(README 5절).
+- 4.5 "룰 변경 시 자동 재측정" — CI는 pytest와 README 설치 절차 동기화(D-069)까지다. 공격 측정은 학원 PC·Ollama·밤샘(약 2.5일)이 필요해 CI에 넣지 않는다.
+- 2차 유사도·3차 Judge — 기각(D-052·D-054), 코드는 `v1` 태그.
+
+### 3. 잔재 정리
+
+- `check.sh`(v1 dan 베이스라인 점검) → `scripts/check_baseline_dan.sh`로 옮기고 `scripts/run_garak.sh`의 호출 경로를 고쳤다(동작 불변).
+- `.vscode/settings.json`을 추적에서 뺐고 `.vscode/`를 `.gitignore`에 넣었다(편집기 설정은 저장소 것이 아니다).
+- `eval/report/.gitkeep` — 아무 도구도 쓰지 않는 빈 폴더라 지웠다.
+- `requirements.txt` 머리말의 지워진 테스트 이름 언급은 역사 기록이라 둔다.
+
+### 4. 이 날의 검증
+
+- `pytest -q` 596 passed(579 + D-102 12 + D-104 5). `scripts/mutate_d102.py` 13/13, `mutate_d099.py` 10/10, `mutate_openai_gateway.py` 5/5, `mutate_audit_vault.py` 8/8,
+  `mutate_canary.py` 7/7, `mutate_openai_compose.py` 5/5, `mutate_validate_oa_arm.py` 9/9, `mutate_ci.py`(README 6절 변경 뒤) 잡혀야 함 28/28·통과해야 함 6/6. `scripts/demo.py` 종료 0. 코드 지문 `27a16fa1c35b`.

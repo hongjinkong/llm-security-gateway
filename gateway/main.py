@@ -24,7 +24,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterable
 from contextlib import asynccontextmanager
 from urllib.parse import unquote
 
@@ -136,15 +136,33 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="LLM Security Gateway", lifespan=lifespan)
 
 
-def _clean(headers: Mapping[str, str], drop: frozenset[str]) -> dict[str, str]:
-    return {k: v for k, v in headers.items()
-            if k.lower() not in HOP_BY_HOP and k.lower() not in drop}
+@app.exception_handler(Exception)
+async def _unhandled(request: Request, exc: Exception) -> Response:
+    """처리 중 예외 → 500. 감사 줄은 미들웨어가 이미 남겼고, 같은 요청 ID를 헤더에 붙여 대조할 수 있게 한다(D-102).
+    예전에는 Starlette 기본 500(본문 텍스트, 헤더 없음)이 나가 감사 줄과 응답을 이을 길이 없었다.
+    Starlette는 이 응답을 보낸 뒤 예외를 그대로 다시 올리므로 uvicorn 로그에는 예전처럼 남는다.
+    본문에 예외 메시지는 넣지 않는다 — 요청 본문 조각이 섞이는 라이브러리가 흔하다.
+    """
+    rid = getattr(request.state, "request_id", None)
+    return JSONResponse(status_code=500, headers={"X-Gateway-Request-Id": rid} if rid else None,
+                        content={"error": {"message": "internal gateway error", "type": "server_error",
+                                           "param": None, "code": "internal_error"}})
+
+
+def _clean(pairs: Iterable[tuple[str, str]], drop: frozenset[str]) -> list[tuple[str, str]]:
+    """(이름, 값) 쌍 목록을 그대로 거른다. dict로 모으면 같은 이름의 헤더(Set-Cookie 둘, X-Forwarded-For 둘)가
+    하나로 합쳐지거나 마지막 것만 남는다(D-102)."""
+    return [(k, v) for k, v in pairs
+            if k.lower() not in HOP_BY_HOP and k.lower() not in drop]
 
 
 # 요청: host는 목적지가 바뀌었으니 httpx가 새로 붙이게, content-length는 재계산되게 뗀다.
-_DROP_REQ = frozenset({"host", "content-length"})
+# accept-encoding도 뗀다 — 클라이언트가 br·zstd를 받겠다고 했는데 게이트웨이의 httpx가 그걸 못 풀면,
+# 압축된 바이트가 content-encoding 없이 그대로 나가고 토큰도 복원되지 않는다. httpx가 자기가 풀 수 있는 것만 알린다(D-102).
+_DROP_REQ = frozenset({"host", "content-length", "accept-encoding"})
 # 응답: content-encoding은 httpx가 이미 압축을 풀어놨으므로 반드시 뗀다(안 떼면 클라이언트가 깨짐).
-_DROP_RES = frozenset({"content-length", "content-encoding"})
+# date·server는 게이트웨이의 서버가 새로 붙인다 — 상류 것까지 넘기면 둘씩 찍힌다(D-102).
+_DROP_RES = frozenset({"content-length", "content-encoding", "date", "server"})
 
 
 @app.middleware("http")
@@ -305,7 +323,8 @@ async def passthrough(request: Request, full_path: str) -> Response:
     request.state.req_digest = digest(body)
 
     chat_request = None
-    if request.url.path == CHAT_COMPLETIONS_PATH:
+    # POST만 Chat Completions 본문으로 본다. OPTIONS(CORS 프리플라이트)·HEAD에는 본문이 없다(D-102).
+    if request.method == "POST" and request.url.path == CHAT_COMPLETIONS_PATH:
         try:
             chat_request = parse_chat_request(body)
         except ChatRequestError as exc:
@@ -391,7 +410,7 @@ async def _relay(request: Request, full_path: str, body: bytes, chat_request: di
             method=request.method,
             url=httpx.URL(path=CHAT_UPSTREAM_PATH if chat_request is not None else f"/{full_path}",
                           query=request.url.query.encode()),
-            headers=_clean(request.headers, _DROP_REQ),
+            headers=_clean(request.headers.items(), _DROP_REQ),
             content=body,
         )
     except httpx.RequestError as exc:
@@ -420,11 +439,10 @@ async def _relay(request: Request, full_path: str, body: bytes, chat_request: di
         if restored != text:
             content = restored.encode("utf-8")
 
-    return Response(
-        content=content,
-        status_code=upstream.status_code,
-        headers=_clean(upstream.headers, _DROP_RES),
-    )
+    response = Response(content=content, status_code=upstream.status_code)
+    for name, value in _clean(upstream.headers.multi_items(), _DROP_RES):
+        response.headers.append(name, value)   # 같은 이름의 헤더를 각각 보존한다
+    return response
 
 
 def _as_text(content: bytes, content_type: str) -> str | None:

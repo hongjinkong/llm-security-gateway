@@ -179,6 +179,9 @@ run_arm() {
     # 조각마다 setup·completion이 하나씩 있으므로 이은 파일에는 validate_oa_arm.py를 쓰지 않는다(조각이 이미 통과했다).
     for k in $(seq 1 ${#PARTS[@]}); do
       cat "results/$(part_name "$name" "$k").report.jsonl"
+      # garak은 마지막 줄 끝에 개행을 쓰지 않는다. 그대로 이으면 조각 끝 digest와 다음 조각 머리가
+      # 한 줄에 붙는다(D-100 dan 세 팔에 2줄씩 — attempt·eval 줄은 아니라 집계는 그대로다, D-102 §3).
+      if [[ -n "$(tail -c 1 "results/$(part_name "$name" "$k").report.jsonl")" ]]; then echo; fi
     done > "results/$name.report.jsonl"
     log "JOIN $name ← ${#PARTS[@]}조각"
   fi

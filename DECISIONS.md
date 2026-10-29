@@ -9823,9 +9823,33 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 - `results/b3_claude_<날짜>_{c1,c2,c3}.json`(응답 본문, C2 재시도는 `_c2_retry`), `results/audit_b3_claude_<날짜>.jsonl`(감사 사본, C4 통과 시에만).
   결과는 이 절 아래 `### 7. 결과`에 적는다. 사용량·누적 비용 표를 함께 싣는다.
 
-### 7. 결과
+### 7. 결과 (2026-10-29, 집 맥북)
 
-- (미실행 — 이 절의 커밋·push 뒤, 키를 넣고 `python3 scripts/check_claude_b3.py`를 돌린 뒤 채운다.)
+- 등록 커밋 `c3ca360`(push 뒤) 상태에서 `python3 scripts/check_claude_b3.py` 1회 실행. 판정 기준(§3·§5)은 결과를 본 뒤 바꾸지 않았다. 재시도 없음.
+- 착수 전: HEAD `c3ca3609c9d329f868a78f87d29029be02d75288` = origin/main, `git status --short gateway/` 비어 있음, 감사 파일 `logs/b3_claude_20261029.jsonl` 새로 시작.
+  health: `target=https://api.anthropic.com`, `detectors=["injection_rule_turn","pii_mask"]`, `chat_upstream_path=/v1/chat/completions`, `code=27a16fa1c35b`.
+  키는 `.env`에서만 읽었고(값은 어디에도 출력하지 않음) 끝난 뒤 사용자가 지운다.
+
+| 검사 | 결과 |
+|---|---|
+| V1 코드 | 통과. HEAD = 등록 커밋, `gateway/` 미변경 |
+| V2 설정 | 통과. health 세 값 일치 |
+| V3 감사 대응 | 통과. `/v1` 요청 4회(C1·C2·C3·C5) = 감사 4줄. 사본 `results/audit_b3_claude_20261029.jsonl` |
+| V4 상한 | 통과. Anthropic 호출 3/10회, 누적 추정 $0.002872 / $0.50 |
+
+- **판정: B3 Claude 유효.**
+
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| C1 정상 대화 | **합격**. 200, `object=chat.completion`, `model=claude-opus-5-5`, content `대한민국의 수도는 서울입니다.`, `usage` 37/18 토큰. 감사 `status=200`·`blocked=false`·`transformed=false`, 두 검사기 allow. `upstream_ms` 1,290.58 · `gateway_ms` 0.93 | `results/b3_claude_20261029_c1.json`, 감사 1행 |
+| C2 PII 마스킹·복원 | **합격**. 200, 응답 `json.loads` 성공. 감사 `transformed=true`, `pii_mask` 마스킹 5, 응답 `restored=5`·`residual_tokens=0`. content에 `[PII:` 0건, 합성 원본 5종(줄바꿈 전화 포함) 모두 그대로. `usage` 101/98. `upstream_ms` 2,060.02 · `gateway_ms` 1.74 | `..._c2.json`, 감사 2행 |
+| C3 잘못된 키 | **합격**. 401, 본문 JSON `error`{`type=invalid_request_error`, `code=authentication_error`, `message=Invalid Anthropic API Key`} 중계. 감사 `status=401`, `upstream_ms` 225.0 | `..._c3.json`, 감사 3행 |
+| C5 stream 거부 | **합격**. 400 `unsupported_streaming`, 감사 `upstream_ms` null(상류 호출 없음) | 감사 4행 |
+| C4 로그 위생 | **합격**. 감사 파일·응답 파일에서 실제 키 값 0(응답 파일 셋과 감사 사본 모두 — Claude가 `.env` 값으로 대조), `Bearer` 0, `sk-ant` 0, 합성 PII 원문(감사) 0, 줄바꿈 전화 이스케이프 0 | 감사 사본 |
+
+- C2가 보이는 것: 게이트웨이 코드 수정 없이 Anthropic의 OpenAI 호환 입구에서도 마스킹·복원이 성립한다(SCOPE 3절 "독자 형식 변환기 없음" 유지). "원문 PII가 상류로 가지 않았다"는 D-086 §2 스텁 결과(같은 코드)와 합친 데까지만 말한다(§3).
+- 범위: Anthropic 1개, `claude-opus-5-5`, 비스트리밍, 단일 워커, 1회씩. 429·502·504 실제 발생, 스트리밍, 지연·비용 특성, 워크스페이스 헤더 경로(이 키는 필요 없었다)는 확인하지 않았다.
+- README 2절: Claude 행을 합격으로, 남은 일을 "없음"으로 바꿨다.
 
 ## D-104. 데모 웹 `web/` — 브라우저 비교 화면과 README GIF (게이트웨이 변경 없음, 측정 없음)
 
@@ -9852,6 +9876,7 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 
 - D-103 실행 — `ANTHROPIC_API_KEY`를 `.env`(커밋 안 됨)에 넣고 `python3 scripts/check_claude_b3.py`. 등록 커밋이 push된 뒤에 한다. 결과는 D-103 §7과 README 2절에 적는다.
   이것이 끝나면 README 2절 "남은 일"을 "없음"으로 바꾼다.
+- (같은 날 실행 완료 — D-103 §7 유효·전 항목 합격. README 2절 남은 일 "없음".)
 
 ### 2. 만들지 않은 것 (SCOPE 체크박스에 표시)
 

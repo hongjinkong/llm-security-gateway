@@ -39,18 +39,6 @@ def test_valid_chat_completion_is_forwarded_unchanged(stack):
     assert proxied.json()["gateway_test"]["auth"] == "Bearer test-key"
 
 
-def test_stream_true_is_rejected_with_openai_error(stack):
-    r = httpx.post(f"{stack.gateway}{PATH}", headers=HEADERS,
-                   json=chat([{"role": "user", "content": "안녕하세요"}], stream=True))
-    assert r.status_code == 400
-    assert r.json() == {"error": {
-        "message": "streaming is not supported",
-        "type": "invalid_request_error",
-        "param": "stream",
-        "code": "unsupported_streaming",
-    }}
-
-
 @pytest.mark.parametrize("body", [
     {"model": "stub-model"},
     {"model": "stub-model", "messages": "not-a-list"},

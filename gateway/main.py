@@ -18,23 +18,27 @@
      검출률이 조용히 0이 되고 그 0이 D-059의 입력이 된다.
 D-099: 본문 크기 상한(GATEWAY_MAX_BODY_BYTES, 기본 1MiB)을 넘으면 413.
      sessionId 없는 요청의 볼트 매핑은 응답 뒤 바로 버린다(TTL까지 원문을 들고 있지 않는다).
+D-106: `stream: true`는 상류 SSE를 조각마다 흘려보낸다(gateway/streaming.py가 토큰을 복원한다).
+     감사 줄은 스트림이 끝난 뒤 한 줄, 차단은 SSE 한 조각 + [DONE]. 옛 경로(/v1 밖)는 그대로다.
 """
 from __future__ import annotations
 
+import json
 import os
 import time
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import AsyncIterator, Callable, Iterable
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from urllib.parse import unquote
 
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.audit import AuditLog, digest, utcnow
-from gateway.chain import ChainResult, DetectorChain
+from gateway.chain import ChainResult, DetectorChain, Step
 from gateway.detectors.base import Detector, Inspection
 from gateway.detectors.canary import CanaryObserveDetector, validate_canary_position
 from gateway.detectors.injection import InjectionRuleDetector
@@ -42,6 +46,8 @@ from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import PIIDetector, session_of
 from gateway.openai_api import (CHAT_COMPLETIONS_PATH, ChatRequestError,
                                 parse_chat_request)
+from gateway.streaming import StreamRestorer
+from gateway.vault import TokenVault
 from gateway.version import canary_fingerprint, code_fingerprint
 
 load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 않는다
@@ -178,8 +184,9 @@ async def audit(request: Request, call_next):
     state.response_steps = []
     state.session = None
     state.upstream_error = None  # 상류 호출 실패를 OpenAI 형식 응답으로 바꿨을 때의 예외 타입 이름
+    state.streaming = False      # 스트리밍 응답이면 감사 줄은 응답 생성기가 스트림 끝에서 쓴다(D-106)
 
-    t0 = time.perf_counter()
+    t0 = state.t0 = time.perf_counter()
     try:
         response = await call_next(request)
     except Exception as exc:
@@ -202,7 +209,7 @@ async def audit(request: Request, call_next):
 
     response.headers["X-Gateway-Request-Id"] = state.request_id
 
-    if request.url.path.startswith(INTERNAL_PREFIX):
+    if request.url.path.startswith(INTERNAL_PREFIX) or state.streaming:
         return response
 
     request.app.state.audit.write(_audit_record(request, response, total_ms, error=None))
@@ -210,11 +217,12 @@ async def audit(request: Request, call_next):
 
 
 def _audit_record(request: Request, response: Response | None,
-                  total_ms: float, error: str | None) -> dict:
+                  total_ms: float, error: str | None, res_bytes: int | None = None) -> dict:
     """감사 로그 한 줄. 예외로 끝난 요청도 **같은 모양으로** 남긴다.
 
     모양이 갈리면 집계 도구가 한쪽을 조용히 빠뜨린다 — 그게 이 프로젝트가
     FPR 집계기에서 이미 겪은 실패다(D-064).
+    `res_bytes`는 스트리밍 응답처럼 content-length가 없을 때 호출자가 센 값이다(D-106).
     """
     state = request.state
     upstream_ms = getattr(state, "upstream_ms", None)
@@ -240,8 +248,8 @@ def _audit_record(request: Request, response: Response | None,
         # 본문 원문은 남기지 않는다. 크기와 지문만.
         "req_bytes": getattr(state, "req_bytes", None),
         "req_sha256_12": getattr(state, "req_digest", None),
-        "res_bytes": (_int_or_none(response.headers.get("content-length"))
-                      if response is not None else None),
+        "res_bytes": res_bytes if res_bytes is not None else (
+            _int_or_none(response.headers.get("content-length")) if response is not None else None),
         "blocked": getattr(state, "blocked", False),
         "client": request.client.host if request.client else None,
         **_chain_fields(getattr(state, "chain_result", None)),
@@ -344,8 +352,9 @@ async def passthrough(request: Request, full_path: str) -> Response:
     finally:
         # sessionId가 없으면 세션이 곧 이 요청이다(OpenAI 형식 입구는 늘 그렇다). 응답이 나가면
         # 매핑을 다시 쓸 일이 없으므로 TTL(30분)까지 원문을 들고 있지 않는다(D-099).
-        # 차단·상류 오류·예외로 끝나도 같다.
-        if session == request.state.request_id:
+        # 차단·상류 오류·예외로 끝나도 같다. 스트리밍 응답은 스트림이 끝난 뒤 생성기가 해제한다(D-106) —
+        # 여기서 먼저 버리면 조각의 토큰을 복원할 원문이 없다.
+        if session == request.state.request_id and not request.state.streaming:
             await chain.release(session)
 
 
@@ -375,9 +384,12 @@ async def _relay(request: Request, full_path: str, body: bytes, chat_request: di
         session=session,
     ))
     request.state.chain_result = result
+    wants_stream = chat_request is not None and chat_request.get("stream") is True
     if result.blocked:
         request.state.blocked = True
         # 차단 시 타겟을 호출하지 않는다 → upstream_ms는 None으로 남는다.
+        if wants_stream:
+            return _blocked_stream(request.state.request_id, chat_request.get("model", "gateway"))
         if chat_request is not None:
             return JSONResponse(status_code=200, content={
                 "id": f"chatcmpl-{request.state.request_id}",
@@ -405,14 +417,20 @@ async def _relay(request: Request, full_path: str, body: bytes, chat_request: di
     body = result.body   # TRANSFORM이 있었으면 바뀐 본문으로 중계한다
 
     t0 = time.perf_counter()
+    client: httpx.AsyncClient = request.app.state.client
+    upstream_request = client.build_request(
+        method=request.method,
+        url=httpx.URL(path=CHAT_UPSTREAM_PATH if chat_request is not None else f"/{full_path}",
+                      query=request.url.query.encode()),
+        headers=_clean(request.headers.items(), _DROP_REQ),
+        content=body,
+    )
     try:
-        upstream = await request.app.state.client.request(
-            method=request.method,
-            url=httpx.URL(path=CHAT_UPSTREAM_PATH if chat_request is not None else f"/{full_path}",
-                          query=request.url.query.encode()),
-            headers=_clean(request.headers.items(), _DROP_REQ),
-            content=body,
-        )
+        # stream: true면 머리만 받고 본문은 이터레이터로 연다. SSE가 아니면(상류 오류 JSON, 스트리밍을 무시하는 상류)
+        # 통째로 읽어 아래 비스트리밍 후처리로 간다 — D-086의 오류 중계 계약이 그대로다(D-106).
+        upstream = await client.send(upstream_request, stream=wants_stream)
+        if wants_stream and not _is_sse(upstream):
+            await upstream.aread()
     except httpx.RequestError as exc:
         # D-086: OpenAI 입구는 상류 장애를 OpenAI 형식 502/504로 돌려준다. 옛 경로는 예전대로
         # 예외를 올려 500(감사 줄은 미들웨어가 남긴다) — v1 측정 경로의 계약을 바꾸지 않는다.
@@ -428,6 +446,9 @@ async def _relay(request: Request, full_path: str, body: bytes, chat_request: di
             "param": None,
             "code": "upstream_timeout" if timed_out else "upstream_unavailable",
         }})
+    if wants_stream and _is_sse(upstream):
+        request.state.streaming = True
+        return _stream_response(request, upstream, chain, session, t0)
     request.state.upstream_ms = (time.perf_counter() - t0) * 1000
 
     content = upstream.content
@@ -443,6 +464,89 @@ async def _relay(request: Request, full_path: str, body: bytes, chat_request: di
     for name, value in _clean(upstream.headers.multi_items(), _DROP_RES):
         response.headers.append(name, value)   # 같은 이름의 헤더를 각각 보존한다
     return response
+
+
+def _is_sse(upstream: httpx.Response) -> bool:
+    return upstream.headers.get("content-type", "").lower().startswith("text/event-stream")
+
+
+def _blocked_stream(request_id: str, model: str) -> Response:
+    """스트리밍 요청의 차단 — 비스트리밍 차단과 같은 뜻을 SSE 한 조각 + [DONE]으로(D-106). 상류는 부르지 않는다."""
+    chunk = {
+        "id": f"chatcmpl-{request_id}",
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "delta": {"role": "assistant", "content": BLOCKED_MESSAGE},
+            "finish_reason": "content_filter",
+        }],
+        "gateway_blocked": True,
+    }
+    body = "data: " + json.dumps(chunk, ensure_ascii=False) + "\n\ndata: [DONE]\n\n"
+    return Response(content=body, status_code=200, media_type="text/event-stream",
+                    headers={"cache-control": "no-cache"})
+
+
+def _stream_response(request: Request, upstream: httpx.Response, chain: DetectorChain,
+                     session: str, t0: float) -> StreamingResponse:
+    """상류 SSE를 조각마다 흘려보낸다(D-106). 복원은 pii_mask 검사기의 볼트로, 감사 줄·볼트 해제는 스트림 끝에서."""
+    pii = next((d for d in chain.detectors if isinstance(d, PIIDetector) and d.mode == "mask"), None)
+    restore = (lambda text: pii.vault.restore(session, text)) if pii else (lambda text: (text, 0))
+    restorer = StreamRestorer(restore)
+    response = StreamingResponse(iter(()), status_code=upstream.status_code)
+    response.body_iterator = _pump(request, upstream, chain, session, restorer, pii is not None, t0, response)
+    for name, value in _clean(upstream.headers.multi_items(), _DROP_RES):
+        response.headers.append(name, value)
+    return response
+
+
+async def _pump(request: Request, upstream: httpx.Response, chain: DetectorChain, session: str,
+                restorer: StreamRestorer, has_pii: bool, t0: float,
+                response: Response) -> AsyncIterator[bytes]:
+    """조각을 복원해 내보내고, 어떻게 끝나든(정상·상류 끊김·클라이언트 취소) 감사 줄을 정확히 한 줄 쓴다."""
+    state = request.state
+    size, error = 0, None
+    try:
+        async for data in upstream.aiter_bytes():
+            out = restorer.feed(data)
+            if out:
+                size += len(out)
+                yield out
+        out = restorer.finish()
+        if out:
+            size += len(out)
+            yield out
+    except BaseException as exc:
+        error = type(exc).__name__      # 메시지는 남기지 않는다
+        raise
+    finally:
+        state.upstream_ms = (time.perf_counter() - t0) * 1000   # 첫 바이트가 아니라 스트림 끝까지
+        try:
+            await upstream.aclose()
+            state.response_steps = await _stream_steps(chain, session, restorer, has_pii)
+            if session == state.request_id:
+                await chain.release(session)
+        finally:
+            request.app.state.audit.write(_audit_record(
+                request, response, (time.perf_counter() - state.t0) * 1000, error=error, res_bytes=size))
+
+
+async def _stream_steps(chain: DetectorChain, session: str, restorer: StreamRestorer,
+                        has_pii: bool) -> list[Step]:
+    """스트림이 끝난 뒤의 응답 검사기 기록. 이어 붙인 원문 content 전체에 체인을 돌리고(카나리는 조각에 걸친 값도
+    한 번으로 센다), pii_mask 항목은 스트림에서 실제로 복원한 건수와 내보낸 출력 전체의 잔여 토큰 수로 바꾼다 —
+    감사는 사용자가 받은 것을 적는다(D-106)."""
+    _, steps = await chain.run_response(session, restorer.content_in)
+    if not has_pii:
+        return steps
+    meta = {"restored": restorer.restored, "residual_tokens": TokenVault.residual_tokens(restorer.out_text)}
+    if any(s.detector == "pii_mask" for s in steps):
+        return [replace(s, meta=meta) if s.detector == "pii_mask" else s for s in steps]
+    if any(meta.values()):
+        steps.append(Step("pii_mask", "restore", 0.0, "", meta))
+    return steps
 
 
 def _as_text(content: bytes, content_type: str) -> str | None:

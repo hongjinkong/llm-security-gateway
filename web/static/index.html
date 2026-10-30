@@ -84,10 +84,24 @@ function render(id, r) {
 async function send(messages) {
   $("#sent").innerHTML = `<h3 style="margin:0 0 4px;font-size:13px;color:var(--mute)">보낸 요청</h3>` + msgs(messages);
   $("#off").innerHTML = $("#on").innerHTML = "<div class='audit'>보내는 중…</div>";
-  const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages }) });
+  const r = await fetch("/api/chat?stream=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages }) });
   if (!r.ok) { $("#on").innerHTML = `<div class="blocked">${esc(await r.text())}</div>`; return; }
-  const out = await r.json();
-  render("off", out.off); render("on", out.on);
+  // NDJSON: "없음" 결과 한 줄 → "있음" delta 줄들(게이트웨이가 조각마다 복원한 답이 도착하는 대로) → "있음" 결과 한 줄
+  const out = {}, reader = r.body.getReader(), dec = new TextDecoder();
+  let buf = "", streamed = "";
+  for (let done = false; !done;) {
+    const got = await reader.read(); done = got.done;
+    buf += done ? dec.decode() : dec.decode(got.value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!line) continue;
+      const row = JSON.parse(line);
+      if (row.delta !== undefined) { streamed += row.delta; $("#on").innerHTML = `<h3>사용자가 받은 답 (스트리밍 중…)</h3><div class="msgs"><div>${hi(short(streamed))}</div></div>`; }
+      else { out[row.arm] = row; render(row.arm, row); }
+    }
+  }
+  if (!out.on) { $("#on").innerHTML = `<div class="blocked">응답이 끊겼다</div>`; return; }
   const last = messages[messages.length - 1];
   if (last.role === "user" && out.on.status === 200) { history = [...messages, { role: "assistant", content: out.on.answer || "" }]; }
   $("#history").innerHTML = history.length ? `<b>이어지는 대화 (${history.length}턴)</b>` + history.map(m => `<div>${esc(m.role)}: ${esc(short(m.content))}</div>`).join("") : "";

@@ -9895,3 +9895,118 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 
 - `pytest -q` 596 passed(579 + D-102 12 + D-104 5). `scripts/mutate_d102.py` 13/13, `mutate_d099.py` 10/10, `mutate_openai_gateway.py` 5/5, `mutate_audit_vault.py` 8/8,
   `mutate_canary.py` 7/7, `mutate_openai_compose.py` 5/5, `mutate_validate_oa_arm.py` 9/9, `mutate_ci.py`(README 6절 변경 뒤) 잡혀야 함 28/28·통과해야 함 6/6. `scripts/demo.py` 종료 0. 코드 지문 `27a16fa1c35b`.
+
+## D-106. 스트리밍 응답 통과 — `stream: true`를 거부하지 않고 상류 SSE를 조각마다 흘려보내되 토큰 복원·감사·차단을 유지한다 (측정 없음)
+
+- 날짜: 2026-10-29, 집 맥북. 공격 요청 없음(스텁 상류·합성 데이터). 지시: 사용자 "피드백 수정부터 한다 — 스트리밍 지원(D-106)".
+  다음 순서는 D-107 진입 정리 → D-108 CI lint·타입 → D-109 웹 공개 배포(2026-10-29 재평가에서 사용자가 정한 순서).
+- 코드 지문: `27a16fa1c35b`(D-102~D-105) → 코드를 바꾼 뒤 §8에 적는다. D-100 수치를 계속 쓰는 근거는 §5의 동등성 재생이다(D-102 §2 방식). 다시 재지 않는다.
+- 이 절은 코드 이전에 썼다. §8 "검증 결과"만 코드 뒤에 채운다.
+
+### 1. 목표
+
+- `/v1/chat/completions`의 `stream: true`를 400(`unsupported_streaming`)으로 거부하지 않는다. 상류의 `text/event-stream` 응답을 조각(SSE 이벤트) 단위로
+  그대로 흘려보내되, 비스트리밍 경로가 하던 세 가지 — 응답 안의 토큰 `[PII:kind:n]` 복원, 요청마다 감사 한 줄, 인젝션 차단 — 를 그대로 지킨다.
+- 왜 지금: D-105 뒤의 재평가에서 "스트리밍 미지원"이 실사용 클라이언트(OpenAI SDK의 `stream=True`, AnythingLLM 일반 OpenAI 모드의 기본 스트리밍)에
+  가장 먼저 걸리는 제약이었다. compose의 AnythingLLM은 `*_STREAMING_DISABLED=true`를 그대로 둔다 — 측정 구조(D-100)는 바꾸지 않는다.
+
+### 2. 설계
+
+- 요청 경로는 그대로다: 본문 상한(413) → 파서(400) → 검사기 체인(차단 또는 마스킹) → 상류 호출. 파서는 `stream`이 불리언·null인지만 보고 true를 받아들인다
+  (`stream: null`은 D-102 #8대로 false).
+- 상류 호출: `stream: true`면 httpx `send(stream=True)`로 머리만 받고 본문은 이터레이터로 연다. 응답 `content-type`이 `text/event-stream`이면 스트리밍 경로,
+  아니면(상류 401·429 JSON, 스트리밍을 무시하는 상류) 본문을 끝까지 읽어 지금의 비스트리밍 후처리(JSON 복원·헤더 정리)로 간다 — D-086의 오류 중계 계약이 그대로다.
+  비스트리밍 요청은 지금처럼 본문을 통째로 받는다(같은 `build_request`+`send`, `stream=False`).
+- 스트리밍 경로(`gateway/streaming.py`, 새 파일): 바이트를 UTF-8 증분 디코더로 풀고 줄 단위로 자른다. `data:` 줄의 JSON에 `choices[0].delta.content`(문자열)가 있으면
+  그 문자열만 복원해 다시 직렬화한다(`ensure_ascii=False`). 그 밖의 줄 — 빈 줄, `:` 주석, `event:`, usage 조각(`choices: []`), `[DONE]`, JSON이 아닌 줄 — 은 바이트 그대로 지난다.
+  내용이 바뀌지 않은 조각도 바이트 그대로 지난다(재직렬화하지 않는다).
+- 조각 경계의 토큰: 토큰이 `[PII:pho` / `ne:1]`처럼 두 조각에 걸릴 수 있다. 조각의 끝이 토큰의 앞부분일 수 있는 꼬리(`[`, `[P`, `[PII:`, `[PII:phone`, `[PII:phone:12` 등 —
+  `\[?(P|PI|PII|PII:[a-z]*|PII:[a-z]+:\d*)$`; 대괄호 없는 꼴도 `vault.TOKEN_RE`가 받으므로 같이 본다)면 그 꼬리를 보류했다가 다음 조각 앞에 붙여 복원한다.
+  보류 상한 32자 — 그보다 길면 토큰이 아니다(`[PII:secret:` 12자 + 번호). 닫는 대괄호까지 온 토큰은 바로 복원해 내보낸다. 보류된 꼬리는 `finish_reason`이 있는 조각에서
+  그 조각의 content 앞에 붙여 비우고, 그런 조각 없이 `[DONE]`이나 스트림 끝을 만나면 마지막 조각의 id·model로 content만 담은 조각 하나를 합성해 `[DONE]` 앞에 내보낸다.
+  조각을 버리거나 순서를 바꾸지 않는다.
+- 복원은 `pii_mask` 검사기의 볼트(`TokenVault.restore`, 평문 — 이스케이프는 직렬화가 한다)로 한다. 세션 키는 비스트리밍과 같다(OpenAI 입구는 요청 단위).
+- 감사 줄: 스트림이 끝난 뒤 한 줄. 미들웨어는 스트리밍 응답이면 쓰지 않고(`state.streaming`), 응답 생성기의 `finally`가 쓴다 — 예외·연결 끊김으로 끝나도 한 줄이다
+  (`error`에 예외 타입 이름). `upstream_ms`는 상류 요청 시작부터 스트림이 닫힐 때까지, `total_ms`는 미들웨어 시작부터 그때까지, `res_bytes`는 내보낸 바이트 수, `status`는 상류 상태.
+  `response_detectors`는 이어 붙인 원문 content 전체에 `chain.run_response`를 돌린 결과이고(카나리 관측은 그래서 조각에 걸친 카나리도 한 번으로 센다), `pii_mask` 항목의
+  `restored`·`residual_tokens`는 스트림에서 실제로 복원한 건수와 내보낸 출력 전체(JSON 포함)의 잔여 토큰 수로 바꾼다 — 감사는 사용자가 받은 것을 적는다.
+  요청 단위 세션의 볼트 해제(D-099)도 스트림이 끝난 뒤로 미룬다(먼저 버리면 복원이 안 된다).
+- 차단: `stream: true` 요청이 차단되면 상류를 부르지 않고 200 `text/event-stream`으로 `chat.completion.chunk` 한 조각(`delta.role=assistant`, `delta.content=차단 문구`,
+  `finish_reason=content_filter`, `gateway_blocked: true`)과 `data: [DONE]`을 돌려준다. 비스트리밍 차단(JSON completion)과 같은 뜻이다.
+- 413·400은 지금처럼 JSON이다(스트림 결정 이전에 난다). 상류 연결 실패·시간 초과도 지금처럼 JSON 502·504다.
+- 옛 경로(`/v1` 밖)는 바꾸지 않는다 — v1 측정 입구다. 옛 경로의 `text/event-stream` 응답은 예전대로 통째로 받아 날것으로 복원한다(D-102 §1 비고의 한계 그대로).
+
+### 3. 테스트 (`tests/test_streaming.py`) — 코드 전에 적는 항목
+
+스텁(`tests/stub_target.py`)에 `stub-stream` 모델을 더한다: 마지막 user 문장을 `[stub] ` 뒤에 붙여 N자씩(기본 3, `stub-stream-N`으로 바꾼다) SSE 조각으로 보낸다.
+역할만 든 첫 조각, `:` 주석 줄, content 조각들, `finish_reason=stop`인 빈 조각, `[DONE]`. 3자 조각이면 13자 토큰 `[PII:phone:1]`은 반드시 경계에 걸린다.
+
+| # | 항목 | 합격 |
+|---|---|---|
+| S1 | 복원기 단위: 토큰이 든 SSE를 조각 길이 1~7과 무작위 바이트 길이로 먹여도 | 이어 붙인 content = 전체를 한 번에 복원한 것, data 줄 수 보존, `[DONE]`이 마지막, 한글 다중 바이트가 바이트 경계에 걸려도 깨지지 않음 |
+| S2 | 복원기 단위: finish 조각 없이 꼬리가 남은 채 `[DONE]` | content만 담은 합성 조각 하나가 `[DONE]` 앞에 나온다 |
+| S3 | 게이트웨이(`injection_rule_turn,pii_mask`) + `stub-stream` 1·2·3·5·7자 조각, 전화번호·이메일 | 응답 `text/event-stream`, 이어 붙인 content에 원래 값, `[PII:` 없음, 상류는 토큰만 받음(`/__stub/received`) |
+| S4 | 차단(`stream: true` + 표준 인젝션 문구) | 200 SSE, 조각 하나 `finish_reason=content_filter`·`gateway_blocked`, `[DONE]`, 상류 수신 없음, 감사 `blocked=true`·`upstream_ms=null` |
+| S5 | PII 없는 요청 | 게이트웨이 출력 바이트 = 스텁 직접 호출 출력 바이트(통과 조각은 재직렬화하지 않는다) |
+| S6 | 감사 한 줄 | 그 request_id로 정확히 한 줄, `status=200`, `upstream_ms`·`total_ms` 있음, `res_bytes`=받은 바이트 수, `response_detectors`의 `pii_mask` `restored=2`·`residual_tokens=0` |
+| S7 | `stream: true`인데 본문 상한 초과 / 잘못된 messages / 상류 401(`stub-401`) | 지금처럼 JSON 413 / 400 / 401 |
+| S8 | `canary_observe` + `pii_mask`, 카나리 값이 조각에 걸림 | 감사 `canary_observe` 항목이 그 값을 1로 센다 |
+| S9 | 조각 모양 | 모든 data 조각에 `id`·`object=chat.completion.chunk`·`created`·`model`·`choices`가 있다(OpenAI SDK가 요구하는 필드) |
+| S10 | 데모 웹 `/api/chat?stream=1` | NDJSON — 없음 결과 한 줄, 있음 delta 줄 2개 이상, 있음 최종 한 줄에 복원된 번호·감사 |
+
+- 기존 `test_stream_true_is_rejected_with_openai_error`(D-074)는 지운다 — 계약이 바뀌었다. `scripts/mutate_openai_gateway.py`의 D2(거부 되돌림)도 함께 뺀다.
+  `scripts/check_openai_sdk.py`의 "stream 거부" 항목은 "stream 통과(조각 n개, 이어 붙인 답에 원래 값)"와 "스트리밍 차단"으로 바꾸고 다시 돌린다.
+- `scripts/check_claude_b3.py`의 C5(stream 거부)는 D-103의 사전 등록 항목이라 스크립트를 고치지 않는다. D-103 §7의 결과는 `27a16fa1c35b`의 값으로 그대로 두고,
+  새 코드에서는 C5가 성립하지 않는다고 여기에 적는다.
+
+### 4. 변이 검사 `scripts/mutate_d106.py` (mutate_d102 형식)
+
+되돌림마다 지정 테스트가 실패해야 한다: 꼬리 보류 제거 / finish 조각에서 보류 꼬리 버림 / `[DONE]` 앞 합성 조각 생략 / UTF-8 증분 디코더를 조각별 decode로 /
+미들웨어가 스트리밍에도 바로 감사 줄을 씀(두 줄) / 요청 단위 세션을 스트림 전에 해제 / 차단을 JSON으로 / 카나리를 이어 붙인 전체가 아니라 조각별로 셈 /
+통과 조각 재직렬화. 무해 변경 하나(문구).
+
+### 5. 동등성 재생 계획
+
+- `python3 scripts/d102_equivalence.py --old 900e7e2 --out results/d106_equivalence.md`. 입력·모양·구성은 D-102 §2와 같다(13,023회). 기대: 다른 판정 0.
+  바뀐 것은 파서가 `stream: true`를 받아들이는 것뿐이고 재생 입력에는 `stream` 키가 없다. 스트리밍 복원은 응답 경로라 판정과 무관하다.
+- 결과가 0이면 README 3절의 "현재 코드" 지문과 결과 파일 이름을 바꾼다.
+
+### 6. 실제 공급자 확인 (선택, 등록만)
+
+- 정상 요청 1~2회만. 키는 `.env`(`ANTHROPIC_API_KEY`, 커밋 안 됨). 절차: `WEB_ON_TARGET=https://api.anthropic.com WEB_ON_MODEL=claude-opus-5-5 python3 web/app.py` →
+  장면 1(개인정보) 한 번. 합격: 있음 쪽 답이 조각으로 도착하고 이어 붙인 답에 `010-2345-6789`가 있고 `[PII:`가 없으며 감사 `pii_mask restored≥1`·`residual_tokens=0`.
+  비용 상한 $0.01. 실행하면 결과를 §8에 적는다. 공격 문장은 보내지 않는다(SCOPE 6절).
+
+### 7. 한계
+
+- `choices[0].delta.content`만 복원한다. `tool_calls[].function.arguments` 조각과 `choices[1..]`(n>1)는 복원하지 않는다 — 비스트리밍 경로(D-102 #3)와 다르다.
+  그런 토큰은 출력 전체의 `residual_tokens`로 감사에 남는다.
+- 보류 꼬리만큼(최대 32자) 글자가 늦게 나간다. 마지막 조각은 finish 조각이나 `[DONE]`에서 나간다.
+- 감사 줄은 상류 스트림이 끝났을 때 쓴다 — 마지막 빈 조각이 클라이언트에 닿기 직전이라 `total_ms`가 그만큼 짧다. 클라이언트가 중간에 끊으면 `error`에 취소 예외 이름이 남는다.
+- SSE 이벤트 하나가 여러 `data:` 줄로 나뉘는 꼴(OpenAI 호환 공급자는 쓰지 않는다)은 줄마다 따로 본다.
+- compose의 AnythingLLM은 스트리밍을 끈 채 둔다(측정 구조 불변). 옛 경로는 바꾸지 않는다.
+- 측정하지 않는다: D-100 수치는 비스트리밍으로 쟀고 스트리밍은 응답 경로라 판정과 무관하다(§5).
+
+### 8. 검증 결과 (2026-10-30)
+
+- 코드 지문 `27a16fa1c35b` → **`c9a8b6fce43e`**. 바뀐 파일은 `gateway/streaming.py`(신설)·`gateway/main.py`·`gateway/openai_api.py`뿐이다.
+- 동등성 재생: `python3 scripts/d102_equivalence.py --old 900e7e2 --out results/d106_equivalence.md` — 입력 1,447문장 × 9가지 = 13,023회, **다른 판정 0**.
+  옛 코드 `6d81265136b0` 대비 판정·차단 검사기·사유·검사기 기록·결과 본문 지문이 전부 같다(§5의 기대대로). README 3절의 지문·결과 파일 이름을 바꿨다.
+- `pytest -q` **611 passed**(596 − 지운 거부 테스트 1 + `tests/test_streaming.py` 15 + `tests/test_web.py` S10 1). S1~S9는 §3의 표 그대로이고 S3은 조각 길이
+  1·2·3·5·7의 다섯 매개변수다(S1은 조각 길이 1~7·13·40 × 무작위 바이트 길이 6회 × 문장 6개).
+- `scripts/mutate_d106.py` **10/10** — M1 꼬리 보류 제거·M2 finish에서 꼬리 버림·M3 합성 조각 생략·M4 조각별 디코딩·M5 미들웨어 이중 감사·M6 스트림 전 볼트 해제·
+  M7 차단 JSON·M8 카나리를 조각 바이트에서 셈·M9 통과 조각 재직렬화가 모두 지정 테스트에 잡혔고, P1(정규식 동치)은 15개 전부 통과했다.
+  §4의 아홉 가지 그대로다. M9가 잡히도록 스텁의 SSE JSON을 실제 OpenAI처럼 빈칸 없는 직렬화(`separators=(",", ":")`)로 바꿨다 —
+  기본 직렬화였다면 재직렬화해도 바이트가 같아 S5가 결함을 구분하지 못했다.
+- `scripts/mutate_openai_gateway.py`는 D2(거부 되돌림)를 빼서 **4/4**. 옛 테스트 `test_stream_true_is_rejected_with_openai_error`는 지웠다(§3).
+- 다른 변이 검사도 그대로 — `mutate_d102.py` 13/13, `mutate_d099.py` 10/10(D5·O3의 앵커를 D-106 뒤의 해제 줄 `... and not request.state.streaming`으로 바꿨다 —
+  바꾸기 전에는 "앵커 0회"로 멈췄다), `mutate_audit_vault.py` 8/8, `mutate_canary.py` 7/7, `mutate_openai_compose.py` 5/5, `mutate_validate_oa_arm.py` 9/9,
+  `mutate_ci.py` 28/28·6/6. `scripts/demo.py` 종료 0.
+- SDK(`scripts/check_openai_sdk.py --sdk-python /Library/Developer/CommandLineTools/usr/bin/python3`, openai 2.48.0): 6/6 — 정상 대화·마스킹과 복원·차단·
+  **`stream=True` 통과(조각 12개, 이어 붙인 답에 원래 값, 토큰 없음)·스트리밍 차단이 `content_filter` 조각 하나로 읽힘**·상류 401 중계.
+- 데모 웹: `/api/chat?stream=1`(NDJSON)을 더했고 브라우저 화면이 그것을 쓴다 — 없음 결과 한 줄, 있음 delta 줄들, 있음 결과 한 줄. S10 통과.
+  Chrome에서 장면 1을 직접 눌러 확인했다: 사용자가 받은 답에 원래 번호·메일, 상류는 `[PII:phone:1]`·`[PII:email:2]`만, 감사 `pii_mask restored=2 residual=0`, 콘솔 오류 없음
+  (스텁 응답이 26ms라 "스트리밍 중…" 중간 상태는 눈에 보이지 않는다 — 실제 공급자에서만 보인다).
+- §6 실제 공급자 확인은 **실행하지 않았다**(선택 항목, 비용 0). `scripts/check_claude_b3.py`의 C5(stream 거부)는 새 코드에서 성립하지 않는다 — D-103 §7의 결과는
+  `27a16fa1c35b`의 값으로 그대로 둔다(§3).
+- 문서: README 상태·2절·5절·6절·문서 지도, SCOPE 4.3 체크 항목·5절 취소선, RESULTS 5.4 문구. `docs/project_summary_2026-10-29.pdf`(10-29 요약 보고서, 11쪽)를 이 커밋에 넣는다.

@@ -1,6 +1,8 @@
 """D-104: 데모 웹 — 두 팔(게이트웨이 없음/있음)의 비교 응답 계약."""
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -49,6 +51,29 @@ def test_injection_scene_blocks_only_with_gateway(web):
     assert masked["on"]["status"] == 200 and not masked["on"]["blocked"]
     assert masked["on"]["upstream"][0]["content"] == "[보안 정책에 의해 가려진 이전 메시지]"
     assert chat(web, 6)["on"]["status"] == 413
+
+
+def stream_rows(web: str, scene_id: int) -> list[dict]:
+    scene = next(s for s in httpx.get(f"{web}/api/scenes").json() if s["id"] == scene_id)
+    with httpx.stream("POST", f"{web}/api/chat?stream=1", json={"messages": scene["messages"]}, timeout=30) as r:
+        assert r.headers["content-type"].startswith("application/x-ndjson")
+        return [json.loads(line) for line in r.iter_lines() if line.strip()]
+
+
+def test_s10_streaming_sends_restored_deltas_then_one_final_row(web):
+    """D-106 S10: NDJSON — 없음 결과 한 줄, 있음 delta 줄 2개 이상, 있음 최종 한 줄에 복원된 번호·감사."""
+    rows = stream_rows(web, 1)
+    assert rows[0]["arm"] == "off" and "delta" not in rows[0] and "010-2345-6789" in rows[0]["answer"]
+    deltas = [x["delta"] for x in rows[1:-1]]
+    assert len(deltas) >= 2 and all(x["arm"] == "on" and "delta" in x for x in rows[1:-1])
+    final = rows[-1]
+    assert final["arm"] == "on" and "delta" not in final and final["status"] == 200
+    assert "".join(deltas) == final["answer"] and "010-2345-6789" in final["answer"] and "[PII:" not in final["answer"]
+    assert "[PII:phone:1]" in final["upstream"][0]["content"]
+    assert final["audit"]["transformed"] and final["audit"]["response_detectors"][0]["restored"] == 2
+    blocked = stream_rows(web, 4)[-1]
+    assert blocked["arm"] == "on" and blocked["blocked"] and blocked["upstream"] is None and blocked["audit"]["blocked"]
+    assert stream_rows(web, 6)[-1]["status"] == 413
 
 
 def test_bad_input_is_400(web):

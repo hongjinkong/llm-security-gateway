@@ -57,11 +57,11 @@ MUTATIONS = [
      "for m in messages[start:] if m[\"role\"] == \"user\"",
      [f"{T_SCOPE}::test_turn_마지막_user_뒤의_tool은_이번_턴이다"]),
     ("D5", "결함 복원", "요청 단위 세션을 응답 뒤에 버리지 않는다", MAIN,
-     "        if session == request.state.request_id:\n            await chain.release(session)",
+     "        if session == request.state.request_id and not request.state.streaming:\n            await chain.release(session)",   # D-106 뒤의 줄
      "        if False:\n            await chain.release(session)",
      [f"{T_VAULT}::test_gateway_releases_request_scoped_session_but_keeps_client_session"]),
     ("O3", "과잉 수정·부작용", "클라이언트 세션까지 버린다(다음 턴 복원 실패)", MAIN,
-     "        if session == request.state.request_id:\n            await chain.release(session)",
+     "        if session == request.state.request_id and not request.state.streaming:\n            await chain.release(session)",   # D-106 뒤의 줄
      "        if True:\n            await chain.release(session)",
      [f"{T_VAULT}::test_gateway_releases_request_scoped_session_but_keeps_client_session"]),
     ("D6", "결함 복원", "본문 크기 상한을 없앤다", MAIN,

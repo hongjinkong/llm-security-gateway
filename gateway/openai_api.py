@@ -49,8 +49,7 @@ def parse_chat_request(body: bytes) -> dict:
         stream = False   # OpenAI 스펙은 boolean | null — null은 "지정 안 함"이다(D-102)
     if not isinstance(stream, bool):
         raise ChatRequestError("stream must be a boolean", "stream", "invalid_stream")
-    if stream:
-        raise ChatRequestError("streaming is not supported", "stream", "unsupported_streaming")
+    # true는 받아들인다 — 상류 SSE를 조각마다 흘려보내며 복원·감사·차단을 지킨다(D-106, gateway/streaming.py).
     return payload
 
 

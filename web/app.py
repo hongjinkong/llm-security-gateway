@@ -5,7 +5,8 @@
 
 기본은 스텁 상류(tests/stub_target.py — 받은 마지막 user 문장을 되돌려주는 가짜 모델)라 Docker·Ollama·키가 필요 없다.
 "있음" 쪽만 실제 공급자로 바꿀 수 있다 — WEB_ON_TARGET=https://api.anthropic.com WEB_ON_MODEL=claude-opus-5-5, 키는 ANTHROPIC_API_KEY(.env 가능).
-"없음" 쪽은 언제나 스텁이다. 외부 공급자에는 공격 프롬프트를 보내지 않는다(SCOPE 6절) — 실제 공급자 모드에서는 인젝션 프리셋을 끄고
+"없음" 쪽은 언제나 스텁이다. 브라우저 화면은 `/api/chat?stream=1`(NDJSON)로 "있음" 쪽을 스트리밍으로 받는다 — 게이트웨이가 조각마다
+복원한 답이 도착하는 대로 보인다(D-106). 외부 공급자에는 공격 프롬프트를 보내지 않는다(SCOPE 6절) — 실제 공급자 모드에서는 인젝션 프리셋을 끄고
 정상 질문만 보낸다. 상류가 실제로 받은 것은 스텁에서만 볼 수 있다(실제 공급자는 받은 본문을 돌려주지 않는다). 데이터는 전부 합성이다.
 """
 from __future__ import annotations
@@ -20,7 +21,7 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -154,27 +155,33 @@ def _audit(log: Path, request_id: str | None) -> dict | None:
     return None
 
 
-async def _run(request: Request, arm: str, messages: list[dict]) -> dict:
-    a = request.app.state.arms[arm]
-    client: httpx.AsyncClient = request.app.state.client
+def _request(a: dict, messages: list[dict], stream: bool) -> tuple[dict, dict]:
+    """게이트웨이로 보낼 (본문, 헤더). 스텁은 `stub-stream`(3자 조각)으로 스트리밍한다."""
     real = a["stub"] is None
-    body = {"model": os.environ.get("WEB_ON_MODEL", "stub-model") if real else "stub-model", "messages": messages}
+    model = os.environ.get("WEB_ON_MODEL", "stub-model") if real else ("stub-stream" if stream else "stub-model")
+    body: dict = {"model": model, "messages": messages}
+    if stream:
+        body["stream"] = True
     headers = {"Authorization": "Bearer " + (os.environ.get("ANTHROPIC_API_KEY", "") if real else "local-only")}
     if real and os.environ.get("ANTHROPIC_WORKSPACE_ID"):
         headers["anthropic-workspace-id"] = os.environ["ANTHROPIC_WORKSPACE_ID"]
     if real:
         body["max_tokens"] = 300
-    r = await client.post(a["gateway"] + PATH, json=body, headers=headers)
-    rid = r.headers.get("x-gateway-request-id")
-    data = r.json() if r.headers.get("content-type", "").startswith("application/json") else None
-    blocked = bool(isinstance(data, dict) and data.get("gateway_blocked"))
-    answer = error = None
+    return body, headers
+
+
+def _error(r: httpx.Response, data: object) -> str | None:
     if r.status_code == 200 and isinstance(data, dict):
-        answer = data["choices"][0]["message"].get("content")
-    elif isinstance(data, dict) and isinstance(data.get("error"), dict):
-        error = f'{r.status_code} {data["error"].get("code") or data["error"].get("type")}'
-    else:
-        error = str(r.status_code)
+        return None
+    if isinstance(data, dict) and isinstance(data.get("error"), dict):
+        return f'{r.status_code} {data["error"].get("code") or data["error"].get("type")}'
+    return str(r.status_code)
+
+
+async def _result(request: Request, a: dict, r: httpx.Response, answer: str | None, blocked: bool, error: str | None) -> dict:
+    """한 팔의 결과 — 사용자가 받은 답, 상류가 실제로 받은 것(스텁만), 감사 한 줄."""
+    client: httpx.AsyncClient = request.app.state.client
+    rid = r.headers.get("x-gateway-request-id")
     upstream = None
     if a["stub"] and r.status_code == 200 and not blocked:
         got = (await client.get(a["stub"] + "/__stub/received")).json()["bodies"]
@@ -184,9 +191,51 @@ async def _run(request: Request, arm: str, messages: list[dict]) -> dict:
             "upstream": upstream, "audit": _audit(a["log"], rid)}
 
 
+async def _run(request: Request, arm: str, messages: list[dict]) -> dict:
+    a = request.app.state.arms[arm]
+    body, headers = _request(a, messages, stream=False)
+    r = await request.app.state.client.post(a["gateway"] + PATH, json=body, headers=headers)
+    data = r.json() if r.headers.get("content-type", "").startswith("application/json") else None
+    blocked = bool(isinstance(data, dict) and data.get("gateway_blocked"))
+    answer = data["choices"][0]["message"].get("content") if r.status_code == 200 and isinstance(data, dict) else None
+    return await _result(request, a, r, answer, blocked, _error(r, data))
+
+
+async def _run_stream(request: Request, arm: str, messages: list[dict]):
+    """`stream: true`로 보내고 content 조각을 도착하는 대로 낸다(`{"arm","delta"}`), 끝나면 _run과 같은 결과 한 줄.
+    SSE가 아닌 응답(413·400·상류 401)은 _run과 같은 결과 한 줄만 낸다. 스트림을 끝까지 읽어야 게이트웨이의 감사 줄이 써진다."""
+    a = request.app.state.arms[arm]
+    body, headers = _request(a, messages, stream=True)
+    async with request.app.state.client.stream("POST", a["gateway"] + PATH, json=body, headers=headers) as r:
+        if not r.headers.get("content-type", "").startswith("text/event-stream"):
+            data = json.loads(await r.aread()) if r.headers.get("content-type", "").startswith("application/json") else None
+            yield {"arm": arm, **await _result(request, a, r, None, False, _error(r, data))}
+            return
+        parts, blocked = [], False
+        async for line in r.aiter_lines():
+            if not line.startswith("data:") or line[5:].strip() == "[DONE]":
+                continue
+            chunk = json.loads(line[5:])
+            blocked = blocked or bool(chunk.get("gateway_blocked"))
+            delta = chunk["choices"][0]["delta"].get("content") if chunk.get("choices") else None
+            if delta:
+                parts.append(delta)
+                yield {"arm": arm, "delta": delta}
+    yield {"arm": arm, **await _result(request, a, r, "".join(parts), blocked, None if r.status_code == 200 else str(r.status_code))}
+
+
+async def _ndjson(request: Request, messages: list[dict]):
+    yield json.dumps({"arm": "off", **await _run(request, "off", messages)}, ensure_ascii=False) + "\n"
+    async for row in _run_stream(request, "on", messages):
+        yield json.dumps(row, ensure_ascii=False) + "\n"
+
+
 @app.post("/api/chat")
-async def chat(request: Request) -> dict:
+async def chat(request: Request, stream: int = 0):
+    """두 팔의 결과. `?stream=1`이면 NDJSON — "없음" 결과 한 줄, "있음" delta 줄들, "있음" 결과 한 줄(D-106)."""
     messages = _messages(await request.json())
+    if stream:
+        return StreamingResponse(_ndjson(request, messages), media_type="application/x-ndjson")
     return {arm: await _run(request, arm, messages) for arm in ("off", "on")}
 
 

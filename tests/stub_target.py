@@ -9,7 +9,7 @@ import json
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 app = FastAPI(title="stub target")
 # 실제 AnythingLLM처럼 gzip 응답을 만든다 → 프록시의 content-encoding 처리 검증용
@@ -101,6 +101,27 @@ async def openai_chat(request: Request):
     tool_args = [call["function"]["arguments"] for m in messages if isinstance(m, dict)
                  for call in (m.get("tool_calls") or []) if isinstance(call, dict)
                  and isinstance(call.get("function"), dict) and isinstance(call["function"].get("arguments"), str)]
+    if isinstance(model, str) and model.startswith("stub-stream"):
+        # D-106: 마지막 user 문장을 N자씩 SSE 조각으로 보낸다(기본 3, `stub-stream-5`처럼 바꾼다). 3자 조각이면
+        # 13자 토큰 `[PII:phone:1]`은 반드시 조각 경계에 걸린다. 실제 상류처럼 주석 줄·역할 조각·finish 조각·[DONE]을 낸다.
+        size = int(model[len("stub-stream-"):]) if model.startswith("stub-stream-") else 3
+        text = f"[stub] {user}"
+
+        def chunk(delta: dict, finish: str | None = None) -> str:
+            return "data: " + json.dumps({
+                "id": "chatcmpl-stub", "object": "chat.completion.chunk", "created": 0, "model": model,
+                "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]},
+                ensure_ascii=False, separators=(",", ":")) + "\n\n"      # 실제 OpenAI처럼 빈칸 없는 JSON — 재직렬화하면 바이트가 달라진다
+
+        async def events():
+            yield ": stub stream\n\n"
+            yield chunk({"role": "assistant", "content": ""})
+            for i in range(0, len(text), size):
+                yield chunk({"content": text[i:i + size]})
+                await asyncio.sleep(0)          # 조각마다 전송 기회를 준다 — 한 덩어리로 뭉치지 않게
+            yield chunk({}, "stop")
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(events(), media_type="text/event-stream")
     if model == "stub-toolcall":
         # D-102: 마지막 user 문장을 도구 호출 인자에 실어 돌려준다 — 모델이 값을 인자로 옮겨 적는 흔한 모양.
         return {

@@ -21,9 +21,7 @@ MUTATIONS = [
          'INJECTION_ROLES = frozenset({"user"})'),
     ], ["test_injection_scope_is_user_and_tool_text_only",
         "test_tool_injection_returns_openai_block_completion"]),
-    ("D2", "결함 복원", "stream=true를 상류로 통과시킨다", [
-        ("    if stream:\n", "    if False:\n"),
-    ], ["test_stream_true_is_rejected_with_openai_error"]),
+    # D2(stream=true 거부 되돌림)는 D-106에서 뺐다 — 계약이 '통과'로 바뀌었다(scripts/mutate_d106.py).
     ("D3", "결함 복원", "assistant 이력의 PII를 다시 가리지 않는다 (D-099)", [
         ('PII_ROLES = frozenset({"user", "assistant"})',
          'PII_ROLES = frozenset({"user"})'),

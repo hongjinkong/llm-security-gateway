@@ -1,0 +1,506 @@
+# 상용화 실행 계획
+
+이 파일이 계획의 원본이다. Claude Code에서 `/next-step`을 치면(또는 부록 B의 프롬프트를 붙여 넣으면) 아래 '진행 상황'에서 체크 안 된 첫 단계부터 이어서 진행한다.
+
+- 출발점: 커밋 `34c16fb`(D-107 서비스 전환).
+- 근거: 2026-10-30 상용화 검토. 리뷰 7영역 결함 91건, 코드 결함 28건 반박 검증(반박 0건), 핵심 4건 직접 재현. 요약은 부록 A.
+- 목표 모양: 자체 호스팅 한국 PII 가명화 프록시. 파는 것은 '인젝션 차단'이 아니라 '밖으로 나가는 한국 개인정보를 같은 모양의 가짜 값으로 바꾸고 돌려받는, 증빙 가능한 프록시'다. Python·FastAPI는 유지한다.
+
+## 진행 상황
+
+**A. 정리와 긴급 수정**
+- [x] 1. 제품 저장소로 정리 — 연구 산출물은 태그로, LICENSE·pyproject·CI
+- [x] 2. 보안 경계 — 경로·헤더 허용 목록, 관리 엔드포인트, 컨테이너
+- [x] 3. 가용성 — 볼트 제곱 시간, 탐지 상한, 스레드 오프로드, 상류 풀, 보류 상한
+
+**B. 마스킹 재설계**
+- [x] 4. 결정적 대체값 + 7단계 실측 사전 등록
+- [x] 5. 마스킹 범위를 모든 역할로 + thinking 서명 보존
+- [x] 6. 응답 필드별 복원 + 복원 가시화 + 안전한 가짜 값
+- [ ] 7. 실 공급자 2턴 확인(Claude, 비용 상한 $1)
+
+**C. 한국 식별자**
+- [ ] 8. PII 평가 코퍼스 + CI 오탐 게이트(기준선)
+- [ ] 9. 정규화 + 오탐 축소
+- [ ] 10. 한국 식별자 확장
+
+**D. 설정·운영**
+- [ ] 11. 설정 객체화 + 인프로세스 테스트 + mypy
+- [ ] 12. 설정 파일 + 상류 라우팅 + 클라이언트 정책
+- [ ] 13. 감사·관측·문구 카탈로그
+- [ ] 14. 배포 패키지 + 제품 문서
+- [ ] 15. 부하·안정성
+
+**E. 탐지 모델**
+- [ ] 16. 한국어 평가셋 v1 + 기준선
+- [ ] 17. 탐지 사이드카 + 한국어 PII NER(채택 게이트)
+- [ ] 18. 인젝션 분류기(관측) + 가드레일 웹훅
+
+**F. 출시**
+- [ ] 19. 보안 백서 + 법적 위치 메모 + PoC 키트
+- [ ] 20. 릴리스 공정
+- [ ] 21. 공개 데모(선택)
+- [ ] 22. 디자인 파트너 PoC + 가격 + v1.0
+
+## 진행 기록
+
+단계를 끝내거나 중간에 멈출 때마다 한 줄씩 붙인다.
+
+| 날짜 | 단계 | 결정 | 결과 | 다음에 이어갈 곳 |
+|---|---|---|---|---|
+| 2026-10-30 | — | — | 계획 작성 | 1단계 처음부터 |
+| 2026-10-30 | 1 | D-108 | pytest 379(3.14·3.12)·ruff 통과, 추적 3.2MB, `research-final` 태그(로컬). 제품 테스트는 계획 추정 410이 아니라 379개 | 2단계 |
+| 2026-10-30 | 2 | D-109 | B1~B8·pytest 386(3.14·3.12)·ruff·SDK 8/8·6/6 통과. 공유 httpx 쿠키 저장소 누수를 찾아 고침. 계획과 다른 점: 인증이 켜져 있으면 상류 키가 없어도 클라이언트 인증 헤더를 넘기지 않음 | 3단계 |
+| 2026-10-30 | 3 | D-110 | V1~V7·pytest 397·ruff 통과. 전화 5,000개 0.19초, 168자 키·PEM 스트림 복원, 풀 503·볼트 503·응답 502 | 4단계 |
+| 2026-10-30 | 4 | D-111 | R1~R5·pytest 410·ruff 통과. HMAC 시드 결정적 대체값, 키 없으면 mask 기동 실패. 7단계 실측을 D-111 §6에 사전 등록(커밋 전 — 7단계는 이 커밋 뒤) | 5단계 |
+| 2026-10-30 | 5 | D-112 | M1~M4·pytest 425·ruff 통과. system·tool·문서까지 마스킹, thinking·reasoning 무변경(JSON 문자열 단위 복원) | 6단계 |
+| 2026-10-30 | 6 | D-113 | F1~F5·pytest 437·ruff 통과. 인자 텍스트 복원+안쪽 이스케이프, x-gateway-pii·pii_suspect, 예약 이메일 도메인. 스트림 PEM 보류 결함 2건 수정 | **7단계 — D-111 사전 등록이 커밋된 뒤에만**(사용자 커밋 대기) |
+
+## 사용자 할 일
+
+세션이 대신할 수 없는 일이다. 세션은 여기에 붙이고, 사용자는 끝나면 체크한다.
+
+- [ ] (1단계 전, 선택) 결정 표를 훑어보고 바꿀 값이 있으면 표만 고친다.
+- [ ] (언제든) 디자인 파트너 후보 1곳을 찾는다. 22단계의 전제다.
+- [ ] (1단계) `git push origin research-final` — 커밋을 푸시하기 전이나 같이.
+- [ ] (7단계 전) 1~6단계를 커밋·푸시한다(마지막 답의 명령). D-111 §6의 사전 등록이 커밋돼야 7단계(실 공급자 호출)를 할 수 있다. 커밋 뒤 `/next-step`.
+- [x] (7단계 전) `.env`에 `ANTHROPIC_API_KEY`가 있는지 확인 — 2026-10-30 세션이 있음을 확인(값은 출력하지 않음).
+- [ ] (1단계, 선택) 죽은 브랜치 `codex/*` 3개를 로컬·원격에서 삭제, GitHub 저장소 설명을 제품 설명으로 변경.
+
+## 결정 표
+
+기본값으로 바로 진행한다. 바꾸고 싶으면 그 단계를 시작하기 전에 이 표의 값만 고친다.
+
+| # | 결정 | 기본값 | 쓰이는 단계 |
+|---|---|---|---|
+| 1 | 라이선스 | Apache-2.0 | 1 |
+| 2 | 저장소 | 이 폴더를 그대로 제품 저장소로 쓴다. 연구는 `research-final` 태그로 보존한다. 메모리·원격·CI가 그대로 이어진다. 히스토리가 남아 클론 크기는 줄지 않는다(조건부 표 참고) | 1 |
+| 3 | 배포 이름 | `llm-security-gateway`. import 이름은 `gateway` 그대로 | 1 |
+| 4 | 복원 매핑 보관 | 요청 단위 메모리 + 대체값 키만. 원문은 어디에도 저장하지 않는다. `previous_response_id`·서버 저장 대화는 미지원 | 4, 14 |
+| 5 | 대상 고객 | 외부 LLM API로 고객 데이터를 다루는 국내 B2B 개발팀(50~300명)·금융권 협력 핀테크. 자체 호스팅 | 14, 19, 22 |
+| 6 | 인젝션 | 관측 + 외부 가드레일 웹훅. 자체 모델 학습은 하지 않는다. 분류기 기본 후보는 protectai/deberta-v3-base-prompt-injection-v2 | 18 |
+| 7 | NER 게이트 | x86 CPU p95 +40ms 이하, F1 0.85 이상. 미달이면 v1.0에서 뺀다 | 17 |
+| 8 | 대체값 키 | 환경변수(K8s Secret) 하나. 회전은 수동이고 문서화한다. 법률 검토 전까지 PIPA '추가정보'로 취급 | 4, 19 |
+| 9 | 가격 | 코드는 전부 공개 라이선스. 유료는 배포 단위 연간 계약(지원 SLA·컴플라이언스 문서·설치와 PoC 지원), 연 수백만~2천만 원대(추정). 좌석·토큰 과금 없음 | 22 |
+| 10 | 언어 | 한국어 기본, 영문 병행(`README.en.md`, `GATEWAY_LANG=en`) | 13, 14 |
+| 11 | 커밋 | 세션은 커밋하지 않고 명령만 준다. 여러 단계를 이어서 했으면 커밋 하나에 결정 번호를 모두 적는다 | 전부 |
+| 12 | 실 공급자 비용 | 단계마다 상한을 결정에 적는다(7단계 $1). 정상 요청·합성 PII만 | 7, 16 |
+
+## 모든 단계 공통 규칙
+
+1. 시작할 때 `git status`·`git log -1`로 상태를 보고, 진행 기록 마지막 줄에서 이어갈 곳을 찾는다.
+2. 결정 먼저. `DECISIONS.md`에 다음 번호(1단계가 D-108)로 근거·결정·버린 대안·완료 기준(테스트 표)·한계를 적고 시작한다. 끝나면 결과 절에 한 것·수치·못 한 것을 채운다. 1단계 이후 옛 결정은 `git show research-final:DECISIONS.md`로 본다.
+3. 완료 기준의 명령을 직접 돌려 통과시킨다. 단계 끝에는 전체 `pytest -q`가 초록이어야 한다(1단계 이후 `ruff check .`도).
+4. 계획과 코드가 다르면 코드를 기준으로 판단하고, 이 파일을 고친 뒤 진행 기록에 한 줄 남긴다.
+5. 세션은 커밋하지 않는다. 마지막 답에 `pytest -q`, `git add`, `git commit`, `git push`를 코드 블록 하나에 한 줄씩, 주석 없이 준다.
+6. `git fetch`·`pull`·`push`는 실행하지 않는다(샌드박스에서 멈춘다). 설치·다운로드가 네트워크 때문에 막히면 사용자에게 `! 명령` 형식으로 준다.
+7. 실 공급자(유료) 호출은 그 기준을 적은 결정이 커밋된 뒤에만 한다(사전 등록). 등록만 하고 아직 커밋 전이면 거기서 멈춘다.
+8. 공격 프롬프트를 외부 공급자에 보내지 않는다. 실제 개인정보는 쓰지 않는다(합성만). 키·토큰을 출력하지 않는다.
+9. 사용자 몫 항목은 하지 않고 '사용자 할 일'에 붙인다. 단계의 남은 일이 사용자 몫뿐이면 그 단계를 체크하고 다음 단계로 간다.
+10. 한 단계를 끝내면 다음 단계로 이어간다. 멈추는 때는 셋이다. 사전 등록 커밋이나 사용자 몫을 기다릴 때, 사용량 한도가 가까울 때, 풀지 못한 실패가 있을 때. 멈출 때는 테스트가 초록인 지점에서 체크박스와 진행 기록에 이어갈 곳을 남긴다.
+
+## 단계
+
+### 1. 제품 저장소로 정리
+
+목표: 작업 트리에는 제품만 남긴다. 연구 기록은 태그로 보존한다. 누구나 합법적으로 설치하고 CI가 품질을 지킨다.
+
+할 일
+- [x] 정리 직전 커밋에 주석 태그 `research-final`을 단다.
+- [x] 트리에서 뺀다(태그에 남는다): `results/` `garak/` `target/` `docs/`(제품 README가 쓰는 `docs/demo.gif`만 남김) `eval/`(`eval/benign/all100.jsonl`만 남김) `SCOPE.md` `EVAL_CRITERIA.md` `DECISIONS.md` `docker-compose.yml` `requirements.txt` `.github/workflows/cpu-tests.yml` `gateway/.gitkeep`.
+- [x] `scripts/`는 `check_openai_sdk.py` `check_anthropic_sdk.py` `demo.py`만 남긴다.
+- [x] 연구 하네스 테스트 19개를 뺀다: test_canary test_canary_fn_scan test_canary_k test_ci_junit_check test_ci_readme_sync test_cluster_ci test_d090 test_d094 test_fpr_link_time test_fpr_report test_matched_baseline test_multiturn_run test_night_chain_oa test_openai_compose test_paired_arms test_rescore_blocking test_setup_target test_validate_encoding test_validate_oa_arm. 남는 제품 테스트 17개와 도우미(`conftest.py`·`stub_target.py`·`chain_app.py`)가 통과해야 한다.
+- [x] 새 `DECISIONS.md`: 머리말 한 단락(D-001~D-107은 `research-final` 태그에 있다) + D-108(이 단계).
+- [x] `LICENSE`: 결정 표 1번. Apache-2.0이면 원문을 그대로 복사한다. 오프라인 원문이 `.venv/lib/python3.14/site-packages/packaging-26.2.dist-info/licenses/LICENSE.APACHE`에 있다(첫 줄이 `Apache License`, `Version 2.0, January 2004`인지 확인).
+- [x] `pyproject.toml`: 이름(결정 표 3번), 버전 0.1.0, `requires-python = ">=3.12"`, 의존성은 지금 `requirements-gateway.txt`의 고정 버전 4개 그대로, `dev` 추가 의존성(pytest·ruff), ruff·pytest 설정. `requirements-gateway.txt`는 지우고 Dockerfile은 `pip install .`으로.
+- [x] `gateway/version.py`에 패키지 버전을 노출한다(`importlib.metadata`). 코드 지문은 그대로 둔다.
+- [x] `CHANGELOG.md`(0.1.0), `.dockerignore`(.git·.venv·logs·tests·__pycache__ 등).
+- [x] CI `.github/workflows/ci.yml`: Python 3.12·3.14에서 `pip install -e ".[dev]"` → `ruff check .` → `pytest -q`, 그리고 `docker build -f gateway/Dockerfile .`. 액션은 지금 워크플로의 SHA 고정을 그대로 쓴다.
+- [x] ruff는 기본 규칙(E·F)부터 켠다. 걸리는 것은 고치거나 그 규칙만 좁힌다. 전체 서식 변경은 하지 않는다.
+- [x] README를 제품 중심으로 줄인다: 무엇을 하나·막지 못하는 것·실행·설정·구조·라이선스. 연구 수치(3절)와 측정 장치(4절), 코드 지문 문구는 빼고 `research-final` 태그를 가리키는 한 줄을 둔다.
+- [x] `.env.example`에서 연구용 변수(TARGET_API_KEY·WORKSPACE_SLUG·CANARY_*·ANYTHINGLLM_* 등)를 뺀다.
+- [x] `PLAN.md`와 `.claude/commands/next-step.md`를 커밋 대상에 넣는다.
+
+완료 기준
+- `pytest -q` 전부 통과, `ruff check .` 통과
+- `git ls-files -z | xargs -0 du -ch | tail -1`이 5MB 미만
+- `git show research-final:DECISIONS.md | head -3`이 옛 결정 기록을 보여 준다
+- Docker가 있으면 `docker build -f gateway/Dockerfile .` 성공(없으면 CI가 확인)
+
+사용자 몫: `git push origin research-final`, (선택) 죽은 브랜치 `codex/*` 3개를 로컬·원격에서 삭제, (선택) GitHub 저장소 설명 변경.
+
+근거: 추적 용량의 98%(약 1GB)가 `results/`다. LICENSE·pyproject가 없어 법적으로 쓸 수 없다. CI는 pytest 한 단계이고 `tests/test_ci_readme_sync.py`가 CI 확장을 실패로 만든다. 723개 테스트 중 제품 검증은 410개다.
+
+### 2. 보안 경계
+
+목표: 게이트웨이 키 하나로 운영자 공급자 계정 전체를 쓰는 길을 닫는다.
+
+할 일
+- [x] 경로 허용 목록: `POST /v1/chat/completions` `POST /v1/responses` `POST /v1/messages` `GET /v1/models`만 받는다. 그 밖의 경로·메서드는 404이고 상류에 연결하지 않는다. `gateway/main.py`의 캐치올 라우트(`/{full_path:path}`)를 없앤다.
+- [x] 어댑터 없는 옛 경로를 지운다: `detectors/pii.py`의 `doc is None` 분기와 그 도우미(`_session_spans`·`_outside`, 쓰는 곳이 없어지면 `normalized_text`), `detectors/injection.py`의 `user_text`·`USER_FIELDS`, `_relay`의 AnythingLLM 형식 차단 응답.
+- [x] 카나리 검사기를 지운다: `detectors/canary.py`, `GATEWAY_CANARY_*`, health의 `canary_fp`, 관련 테스트. `detectors/noop.py`는 테스트만 쓰면 `tests/`로 옮긴다.
+- [x] 상류 키는 허용 경로에만 붙는다(`gateway/auth.py`의 `upstream_headers`).
+- [x] 요청 헤더 허용 목록: content-type·accept·user-agent·anthropic-version·anthropic-beta·openai-beta·idempotency-key. 상류 키 모드에서는 클라이언트의 인증 헤더와 openai-organization·openai-project를 떼고, 상류 키가 없는 통과 모드에서는 openai-organization·openai-project를 넘긴다. cookie·x-forwarded-*는 항상 뗀다.
+- [x] 응답 헤더 허용 목록: content-type·cache-control·retry-after·retry-after-ms·x-should-retry. 게이트웨이 자신의 `x-gateway-*`는 그대로. 상류 request-id(x-request-id·request-id)는 클라이언트에 넘기지 않고 감사 줄 `upstream_request_id`에 적는다.
+- [x] `GATEWAY_AUTH=off`인데 `GATEWAY_UPSTREAM_KEY`가 있으면 기동 실패.
+- [x] `/__gateway/health`는 인증 없이 `{"status": "ok"}`만 준다. 상세(target·code·detectors)는 `/__gateway/info`로 옮기고, 그것과 `/__gateway/metrics`는 `GATEWAY_ADMIN_KEY` Bearer가 맞을 때만 응답한다(관리 키가 없으면 404).
+- [x] `gateway/Dockerfile`: 비root `USER`, 베이스 이미지 다이제스트 고정(Docker Hub에서 조회), `HEALTHCHECK`, `--workers 1` 제거(uvicorn이 기본으로 읽는 `WEB_CONCURRENCY`로 조절), `--timeout-graceful-shutdown 25`, `--limit-concurrency`(스트림이 오래 열려 있으므로 넉넉히), 낡은 주석(garak·볼트 워커) 정리. 프록시 신뢰는 uvicorn의 `FORWARDED_ALLOW_IPS`로 한다고 문서에 적는다.
+
+완료 기준
+- `DELETE /v1/files/x`, `POST /v1/fine_tuning/jobs`, `GET /v1/organization/users` → 404이고 스텁 상류 수신 0건
+- `GET /v1/models` → 스텁 상류가 상류 키를 받는다
+- 상류 키 모드에서 클라이언트의 `Cookie`·`OpenAI-Organization`이 상류에 닿지 않고, 상류의 `openai-organization` 응답 헤더가 클라이언트에 닿지 않는다
+- `GATEWAY_AUTH=off` + 상류 키 → 기동 실패(종료 코드가 0이 아님)
+- 무인증 health는 status만, 관리 키 없는 metrics·info는 404
+- 전체 pytest·ruff 통과
+
+근거: 캐치올이 메서드 7개를 받고 경로와 무관하게 상류 키를 단다(검증자 재현: 파일 삭제·파인튜닝·조직 API가 상류 키로 도달). 헤더는 요청 3개·응답 4개만 뗀다(`main.py:217·220`). 무인증 health가 상류 주소·검사기 구성·8자리 카나리 지문을, metrics가 PII 처리량을 공개한다. 세 POST 경로 밖은 검사 없이 통과하고 multipart 본문이 깨진다.
+
+### 3. 가용성
+
+목표: 요청 한 건이 게이트웨이 전체를 멈추지 못하게 한다.
+
+할 일
+- [x] `gateway/vault.py`의 `token_for`: 새 값마다 `taken` 집합을 다시 만드는 것을, 세션에 집합을 두고 발급할 때 넣는 방식으로 바꾼다(O(1)).
+- [x] 요청당 탐지 상한 `GATEWAY_MAX_FINDINGS`(기본 5000). 넘으면 상류로 보내지 않고 413(어댑터 오류 형식). 가리지 못한 값을 내보내지 않는다.
+- [x] 순수 함수(`find_all`·`match_rules`)만, 검사할 텍스트가 16KB를 넘을 때 `asyncio.to_thread`로 돌린다. 볼트 조작은 이벤트 루프에 둔다.
+- [x] 상류 클라이언트: `httpx.Timeout(connect=5, read=GATEWAY_TIMEOUT, write=30, pool=5)`, `httpx.Limits(max_connections=100)`, 풀 대기 초과는 503 + `retry-after: 1`.
+- [x] 스트리밍 보류 상한 = 이 요청에서 발급한 가장 긴 대체값 길이(16KB 상한). 고정값 `MAX_HOLD = 128`을 없앤다. D-107 결정문이 원래 이렇게 정했다.
+- [x] 볼트 TTL을 `GATEWAY_TIMEOUT`보다 길게 하고, 스트림의 모든 이벤트(ping·thinking 포함)에서 세션을 갱신한다. 용량을 넘으면 진행 중 세션을 축출하지 말고 503.
+- [x] 비스트리밍 상류 응답 크기 상한 32MiB, 넘으면 502.
+
+완료 기준
+- 볼트 발급 1,000개 대비 4,000개 시간 비가 8 미만(지금 약 14배: 0.50s → 6.84s)
+- 고유 전화 5,000개 본문이 1초 안에 끝나고, 5,001개면 413이며 스텁 상류 수신 0건
+- 168자 `sk-proj-` 대체값이 스트리밍 조각 경계에 걸려도 복원된다
+- `Limits(max_connections=1)`로 띄우고 동시에 두 요청을 보내면 하나는 503
+- 전체 pytest·ruff 통과
+
+근거: 직접 재현값, 고유 전화 1,000/2,000/4,000개 → 0.50/2.19/6.84s. 같은 입력의 `find_all`은 20,000건에 0.05s라 병목은 볼트다. 168자 대체값의 보류 길이는 0이었다. 상류 타임아웃 600초가 연결·풀 대기에도 걸린다. 워커가 하나라 이 동안 health도 응답하지 못한다.
+
+### 4. 결정적 대체값 + 7단계 실측 사전 등록
+
+목표: 같은 원문은 언제나 같은 가짜 값이 되게 해서, 둘째 턴부터 이력 바이트가 바뀌지 않게 한다. Anthropic thinking 서명·프롬프트 캐시와 양립한다.
+
+할 일
+- [x] `GATEWAY_SURROGATE_KEY`: PII mask 모드면 필수(없으면 기동 실패). `python -m gateway keygen` 출력을 그대로 써도 된다.
+- [x] `gateway/surrogate.py`: 모듈 전역 `_rng`(`secrets.SystemRandom`) 대신 생성기마다 `rng`를 받는다. 시드 = HMAC-SHA256(대체값 키, 종류 + "\0" + `norm_key(종류, 값)`), `random.Random(시드)`. 모양 규칙(접두사·Luhn·생년월일)은 그대로.
+- [x] 한 요청 안에서 두 원문이 같은 대체값을 받으면 카운터를 붙여 다시 만든다(지금 20회 루프 재사용). `# ponytail:` 주석으로 천장을 적는다. 그 값만 다른 턴과 바이트가 달라질 수 있다.
+- [x] 결정의 한계 절: 같은 원문이 늘 같은 가명이 되므로 공급자 로그에서 요청 간 연결이 가능하다. 키 회전 절차와 회전 시 진행 중 대화의 이력 바이트가 바뀐다는 점을 적는다.
+- [x] 7단계 실측을 같은 결정에 사전 등록한다: 모델, 대화 수, 두 팔(옛 코드·새 코드), 성공 기준, 비용 상한 $1. 이 단계의 커밋에 들어가야 7단계를 할 수 있다.
+
+완료 기준
+- 같은 키·같은 값 100회 → 같은 대체값, 다른 키 → 다른 대체값
+- 한 요청 안에서 서로 다른 원문이 같은 대체값을 받지 않는다
+- 모양 규칙 테스트가 그대로 통과
+- 2턴 대화(스텁): 턴 1에 상류가 받은 user 메시지 바이트와 턴 2 이력 속 같은 메시지 바이트가 같다
+- 전체 pytest·ruff 통과
+
+근거: `surrogate.py:25`가 요청마다 난수를 쓴다. 현행 Claude 모델의 thinking 서명은 앞선 메시지 바이트에 묶이고, 어긋나면 기본 400이다. 프롬프트 캐시는 바이트 prefix 일치라 PII가 처음 나온 턴부터 매번 미스다. 둘 다 공급자 문서 근거이고 실 API로는 아직 재현하지 않았다(7단계).
+
+### 5. 마스킹 범위를 모든 역할로 + thinking 서명 보존
+
+목표: 에이전트·RAG 앱에서 도구 결과와 system 문서 속 값도 상류에 평문으로 나가지 않게 한다.
+
+할 일
+- [x] `gateway/openai_api.py`의 `PII_ROLES` 기본을 user·assistant·tool·system·developer로 넓히고, `GATEWAY_PII_ROLES`로 좁힐 수 있게 한다. D-073("답에 필요한 값을 훼손")을 뒤집는 근거를 결정에 적는다. 결정적 대체값이면 모델은 어디서나 같은 가짜 값을 보고 사용자는 원문을 돌려받는다.
+- [x] 세 어댑터가 system·developer·tool(Chat `tool` 메시지, Anthropic `tool_result`, Responses `function_call_output`·`instructions`)을 TextRef로 내는지 확인하고 빠진 곳을 채운다.
+- [x] Anthropic `thinking`·`redacted_thinking` 블록과 `signature`, Responses `reasoning` 항목은 요청 마스킹도 응답 복원도 하지 않는다. 비스트리밍이 thinking 텍스트를 복원하던 동작을 없앤다. thinking 요약에 가짜 값이 보일 수 있다는 점을 문서에 적는다.
+
+완료 기준
+- Chat `tool` 메시지·Anthropic `tool_result`·Responses `function_call_output`·system 속 합성 전화·이메일이 상류에 평문으로 가지 않는다(`tests/stub_target.py`의 `RAW_MARKERS` 판정)
+- 에이전트 루프 2요청(스텁): 도구 결과 속 값이 가려지고 최종 답에서 원래 값으로 돌아온다
+- thinking 블록 바이트가 요청·응답 양쪽에서 바뀌지 않는다
+- `GATEWAY_PII_ROLES=user,assistant`면 옛 동작
+- 전체 pytest·ruff 통과
+
+근거: `openai_api.py:13`이 user·assistant만 가린다. 직접 재현에서 Chat `tool` 메시지 속 전화·이메일이 상류에 평문 그대로 갔다.
+
+### 6. 응답 필드별 복원 + 복원 가시화 + 안전한 가짜 값
+
+목표: 복원이 JSON을 깨뜨리지 않게 하고, 실패하면 보이게 한다.
+
+할 일
+- [x] 비스트리밍 응답을 파싱해 텍스트 필드 위에서 복원하고 한 번 직렬화한다(어댑터에 응답 텍스트 참조를 추가). 대상: Chat `choices[].message.content`·`tool_calls[].function.arguments`, Anthropic `content[].text`·`tool_use.input`의 문자열, Responses 출력 텍스트·`function_call.arguments`. thinking은 제외한다. arguments는 안쪽 JSON을 파싱해 문자열 값에서 복원한 뒤 다시 직렬화하고, 파싱에 실패하면 안쪽 이스케이프를 한 번 더 적용한다. JSON이 아닌 응답은 지금처럼.
+- [x] 응답 헤더 `x-gateway-pii: issued=N restored=M`, 같은 값을 감사 줄에.
+- [x] 의심 잔여 지표 `gateway_pii_suspect_total`: 응답에 남은 대체값(지금의 `residual`)과, 발급한 대체값의 식별 조각(전화·카드 끝 4자리, 이메일 로컬파트)이 복원 없이 나타난 경우를 센다. `issued>0 && restored==0`은 모델이 값을 되풀이하지 않는 정상 응답과 구별되지 않으므로 쓰지 않는다.
+- [x] 이메일 대체값 도메인을 예약 도메인(`example.com`·`example.net`·`example.org`)으로 바꾼다. 전화는 공식 미할당 대역이 있는지 확인하고, 있으면 그 대역에서 뽑고 없으면 '복원 실패 시 제3자 번호' 위험을 문서에 적는다.
+
+완료 기준
+- 도구 인자에 PEM·개행 포함 값이 들어가도 복원 뒤 `json.loads(arguments)`가 성공하고 원문과 같다
+- 응답 JSON에서 `<`가 붙은 대체값도 복원된다
+- 이메일 대체값이 예약 도메인이다
+- 헤더·감사·지표 값 테스트
+- 전체 pytest·ruff 통과
+
+근거: 비스트리밍 복원이 응답 JSON 텍스트 전체에 정규식 + 이스케이프 1단계(`detectors/pii.py:201`)라 문자열 안의 JSON이 깨진다. `residual`은 정확 일치만 세서 끝 4자리 언급·`+82` 국제화·TTL 만료를 0으로 보고한다. 가짜 이메일·전화가 실제 할당 대역에서 나온다.
+
+### 7. 실 공급자 2턴 확인
+
+전제: 4단계 결정(사전 등록)이 커밋돼 있다. `git log`로 확인하고, 아니면 멈춘다. 비용 상한 $1. 정상 요청·합성 PII만.
+
+할 일
+- [ ] `scripts/check_multiturn_claude.py`: 사전 등록한 수만큼 2턴 대화를 한다. system에 캐시 최소 길이 이상의 정상 업무 문서(합성)를 넣고 `cache_control`을 명시한다(최소 길이는 claude-api 스킬의 prompt-caching 문서에서 확인). 턴 1 user에 합성 전화·이메일, 턴 2는 게이트웨이가 돌려준 턴 1 응답(thinking 블록 포함)을 그대로 이력에 붙인다.
+- [ ] 모든 요청에 `anthropic-beta: thinking-binding-controls-2026-08-01`과 `thinking: {"type": "adaptive", "block_binding": {"prefix_mismatch_behavior": "error"}}`를 넣어 서명 검사를 명시적으로 켠다(계정 강제 여부와 무관). 모델은 `claude-haiku-5-5`($0.10/$0.50 per MTok), 안 되면 `claude-sonnet-5-5`.
+- [ ] 기록: 상태 코드, 오류 문구, 응답의 `input_transformations`, `usage.cache_read_input_tokens`, 복원 여부, 비용.
+- [ ] 옛 팔: `git worktree add`로 `research-final`을 따로 꺼내 다른 포트에 띄운다. 새 팔: 현재 코드.
+- [ ] 요약은 `docs/verification/multiturn_claude.md`에, 원자료는 같은 폴더의 jsonl로(키·원문 없음).
+
+완료 기준(사전 등록과 같게)
+- 옛 팔: 둘째 턴 400(prefix 불일치) 또는 캐시 읽기 0 중 하나 이상 재현. 재현되지 않으면 그대로 적는다
+- 새 팔: 400 없음, 둘째 턴 `cache_read_input_tokens > 0`, 복원 100%
+- 비용 $1 이하
+
+사용자 몫: 샌드박스가 네트워크를 막으면 스크립트를 `!`로 실행한다. 키가 `.env`에 이미 있으면 그대로 쓴다.
+
+### 8. PII 평가 코퍼스 + CI 오탐 게이트
+
+목표: 탐지를 바꾸기 전에 지금 수치를 잰다. 이후 모든 PII 변경은 같은 자로 잰다.
+
+할 일
+- [ ] `eval/pii/make_corpus.py`(시드 고정)로 합성 코퍼스를 만든다. 종류별 양성 100건(검증식 통과·실패 섞음, 문장 속 위치·구분자 다양), 숫자 밀도 높은 음성 1,000건(주문번호·송장·타임스탬프·Snowflake ID·IMEI·diff 줄·로그·버전·내선번호). 손으로 쓴 어려운 사례는 별도 파일.
+- [ ] `eval/pii/score.py`: 종류별 재현율·오탐률과 Wilson 95% 구간을 마크다운 표로.
+- [ ] 지금 5종의 기준선을 결정 결과 절에 적는다.
+- [ ] `tests/test_pii_corpus.py`: 오탐률 상한·재현율 하한을 넘으면 실패. 기준선이 목표(오탐 1% 이하, 체크섬 종류 재현율 99% 이상)에 못 미치면 게이트를 기준선 값에 두고 9단계에서 조인다.
+
+완료 기준: 코퍼스·점수 스크립트·게이트 테스트가 CI에서 돈다. 기준선 표가 결정에 있다.
+
+근거: 지금 FPR 1.0%는 HR 도메인 89문항 기준이다(Wilson 95% 0.2~5.4%). 13~19자리 숫자의 약 10%가 Luhn을 통과해 카드로 가려진다(검토 추정).
+
+### 9. 정규화 + 오탐 축소
+
+할 일
+- [ ] 정규화: NFKC(전각 숫자·문자), 제로폭·서식 문자(Unicode Cf) 제거, 숫자 구분자 변형(‐ – — · 등) 통일. 문자 단위로 정규화하면서 원문 인덱스 표를 만들어 대체값은 원문 위치에 넣는다. 인젝션 룰도 정규화된 텍스트를 본다.
+- [ ] 체크섬이 맞지 않는 주민번호 꼴: 하이픈 형식(`YYMMDD-NNNNNNN`)은 지금처럼 가리고, 하이픈 없는 13자리는 문맥어(주민·생년·등록번호 등) 창 안에서만 가린다. 밖이면 detect(감사만). 2020년 10월 이후 번호에는 체크섬이 없다는 점을 결정에 적는다.
+- [ ] 카드: 발급사 범위(IIN 4, 51–55, 2221–2720, 34·37, 35, 62와 국내 전용 대역은 확인 후)와 길이 규칙을 더한다. Luhn만 통과하고 범위 밖이면 문맥어 창 안에서만 가린다.
+- [ ] 8단계 게이트를 목표값으로 조인다.
+
+완료 기준: 게이트 목표값 통과, 전각 숫자·제로폭이 섞인 전화·주민번호 탐지, 전체 통과.
+
+근거: 정규화 층이 없어 전각·제로폭·구분자 변형이 두 탐지기를 우회한다. 약한 주민번호·Luhn 통과 숫자열을 문맥 없이 가려 업무 번호가 가짜 값으로 바뀐다.
+
+### 10. 한국 식별자 확장
+
+할 일
+- [ ] 새 종류와 대체값 생성기(모양·검증식 유지, 결정적 시드): 여권(구 M+8자리·신 M+3자리+영문 1자+4자리), 운전면허(지역 2-2-6-2), 사업자등록번호(3-2-5, 검증식), 법인등록번호(6-7, 검증식, 주민번호와 분리), 외국인등록번호(지금은 주민번호 성별 자리 5~8로 잡힘 → 별도 종류), 계좌번호(은행별 자릿수·하이픈 꼴 + 문맥어 창, 기본 detect), IPv4.
+- [ ] 패턴·검증식은 Presidio의 KR 인식기(KR_RRN·KR_BRN·KR_FRN·KR_PASSPORT·KR_DRIVER_LICENSE, MIT)와 공개 검증식으로 대조하고 출처를 결정에 적는다.
+- [ ] 8단계 코퍼스에 새 종류의 양성·음성을 더하고 게이트를 통과시킨다.
+- [ ] README에 커버리지 표(종류·검증식·기본 모드·한계).
+
+완료 기준: 종류별 게이트 통과, 1MiB `find_all` 시간 기록(지금 약 0.1초), 전체 통과.
+
+근거: 법정 고유식별정보 4종 중 2종만 잡는다. Presidio가 KR 5종을 공식 지원한다(2026-10-30 확인). 지금 '한국형 PII'는 차별점이 아니라 따라가야 할 기준이다.
+
+### 11. 설정 객체화 + 인프로세스 테스트 + mypy
+
+할 일
+- [ ] `gateway/main.py`의 import 시점 전역 설정을 `Settings`(dataclass, 환경변수를 한 번 읽음)와 `create_app(settings)`로 바꾼다. 모듈의 `app = create_app(Settings.from_env())`는 uvicorn용으로 남긴다. `.env` 자동 로드는 없애고 uvicorn `--env-file`을 쓴다.
+- [ ] `main.py`(약 600줄)를 라우팅·중계·관리 엔드포인트로 나눈다. 파일 수는 최소로.
+- [ ] 테스트에 `httpx.ASGITransport` 인프로세스 픽스처를 더하고, 서브프로세스는 스트리밍·기동 실패처럼 꼭 필요한 테스트에만 쓴다.
+- [ ] 낡은 설정을 지운다: `GATEWAY_INJECTION_SCOPE=all`(다중 턴 FPR 100%), `GATEWAY_CHAT_UPSTREAM_PATH`, 테스트만 쓰게 되면 `GATEWAY_DETECTORS`.
+- [ ] CI에 mypy(관대한 설정)를 더한다.
+
+완료 기준: 전체 통과, 테스트 시간 전후 기록, mypy 통과.
+
+근거: 설정이 import 시점 전역이라 테스트마다 uvicorn 서브프로세스를 띄우고, 키 회전마다 재시작이 필요하다.
+
+### 12. 설정 파일 + 상류 라우팅 + 클라이언트 정책
+
+할 일
+- [ ] `GATEWAY_CONFIG` 파일(TOML, 표준 라이브러리 `tomllib`): `[[clients]]` name·key_sha256·policy, `[policies.<이름>]` pii_mode·pii_kinds·pii_roles·injection·allowed_models, `[upstreams.<api>]` base_url·key_env·timeout. 환경변수만으로도 지금처럼 뜬다.
+- [ ] 클라이언트 키는 sha256으로 저장·비교한다(`keygen --hash`).
+- [ ] 어댑터별 상류: OpenAI(Chat·Responses)와 Anthropic(Messages)을 한 게이트웨이에서 동시에. `TARGET_URL`은 둘 다의 기본값으로 하위 호환.
+- [ ] `allowed_models` 밖의 모델은 403(어댑터 오류 형식).
+- [ ] 설정 버전(파일 sha256 앞 12자)을 info와 감사 줄에.
+
+완료 기준: `scripts/check_openai_sdk.py`와 `scripts/check_anthropic_sdk.py`가 스텁 상류로 한 게이트웨이에서 함께 통과, 해시 키 인증 테스트, 모델 차단 테스트, 전체 통과.
+
+사용자 몫: Anthropic SDK가 없으면 `python3 -m venv /tmp/sdkvenv && /tmp/sdkvenv/bin/pip install anthropic`.
+
+근거: 클라이언트 키는 이름뿐이고 정책·허용 모델이 없다. 상류 URL·키가 각각 하나라 공급자마다 게이트웨이를 따로 띄워야 한다. 키를 평문으로 보관·비교한다.
+
+### 13. 감사·관측·문구 카탈로그
+
+할 일
+- [ ] 감사 줄에 client·api·model·usage(입력·출력·캐시 토큰)·config_version. 스트리밍 usage는 Anthropic `message_start`·`message_delta`에서 읽는다. OpenAI는 `stream_options.include_usage`를 넣어 받고, 클라이언트가 요청하지 않았으면 usage 전용 조각을 클라이언트 스트림에서 뺀다.
+- [ ] 출력 방향 관측: 복원 뒤 응답에서 우리가 발급하지 않은 PII·비밀 건수 `new_in_response`(감사·지표). 가리지는 않는다.
+- [ ] 사용자·운영자에게 가는 문구(차단 문구·REDACTED_TURN·설정 오류)를 카탈로그로 모은다. `GATEWAY_LANG=ko`(기본)·`en`.
+- [ ] 상류가 사내 서비스일 때를 위해 게이트웨이 요청 ID를 `x-gateway-request-id`로 상류에 넘긴다.
+
+완료 기준: 스트리밍·비스트리밍 둘 다 usage가 감사 줄에 있다, 카탈로그 en·ko 테스트, 전체 통과.
+
+근거: usage를 읽지 않아 비용·예산 집계가 불가능하다. 문구가 한국어로 하드코딩돼 있다. 출력 방향은 카나리로만 셌다.
+
+### 14. 배포 패키지 + 제품 문서
+
+할 일
+- [ ] `deploy/compose.yml`: 게이트웨이 + 스텁 상류(로컬 체험용).
+- [ ] `deploy/k8s/`: Deployment(레플리카 2, readiness=health, preStop sleep 5, terminationGracePeriodSeconds 30), Service, Secret(클라이언트·대체값·관리 키), ConfigMap(설정 파일), PodDisruptionBudget. Helm은 고객이 요구할 때.
+- [ ] `docs/configuration.md`(모든 환경변수·설정 키), `docs/operations.md`(배포·키 회전·로그 수집·지표·용량), `docs/api-compat.md`(지원과 미지원: `previous_response_id`, embeddings, files, audio, `count_tokens`, 서버 측 도구), `SECURITY.md`(취약점 제보 경로).
+- [ ] `README.en.md`.
+- [ ] 문서의 환경변수 목록이 코드와 같은지 확인하는 테스트.
+
+완료 기준: Docker가 있으면 compose로 띄워 두 SDK 점검 통과, k8s YAML 검증(`kubectl apply --dry-run=client`가 되면), 문서 동기화 테스트 통과.
+
+### 15. 부하·안정성
+
+할 일
+- [ ] `scripts/load.py`(httpx 비동기, 새 의존성 없음): 지연을 주입한 스텁 상류 앞에서 동시 50 스트림과 비스트리밍을 섞어 게이트웨이 지연 p50·p95·p99와 오류율을 잰다.
+- [ ] 30분 soak: RSS·열린 파일 수·볼트 세션 수가 안정적인지 본다.
+- [ ] 결과를 `docs/operations.md` 용량 표에 적는다.
+
+완료 기준: 오류율 0, soak RSS 증가 10% 미만, 수치가 문서에 있다.
+
+### 16. 한국어 평가셋 v1 + 기준선
+
+목표: 인젝션 탐지를 어떤 방법으로 바꾸든 같은 자로 잰다. 한국어 수치가 생기기 전에는 차단 성능을 주장하지 않는다.
+
+할 일
+- [ ] 공격셋: 공개 데이터셋(실행 시 탐색하고 라이선스 확인. 예: deepset/prompt-injections, jackhhao/jailbreak-classification, 한국어 공개셋) + `gateway/data/injection_corpus.jsonl` 59건 + 기존 표본을 결정적 스크립트로 변형한 것(동의어·띄어쓰기·전각·인코딩). LLM으로 새 공격을 만들지 않는다. 언어·유형(직접·간접·역할 위조·인코딩·다중 턴) 태그를 단다.
+- [ ] 정상셋 2,000건 이상: 여러 도메인(HR·고객 지원·개발·금융·의료·법률) 업무 문장, 하드 네거티브('지시사항 무시', '개발자 모드', 'DAN 프로젝트', '시스템 프롬프트 작성법' 등) 20% 이상. 세션이 직접 쓰거나 템플릿 조합 스크립트로 만들고, 기존 `eval/benign/all100.jsonl`을 포함한다.
+- [ ] 홀드아웃 20%를 봉인한다: 파일 sha256을 결정에 적고, 룰·임계값 조정에 쓰지 않는다.
+- [ ] `eval/injection/score.py`: recall@FPR 1%·0.5%, Wilson 구간, 언어·유형별 표. 판정기 인터페이스 하나로 룰·분류기·웹훅을 같은 자로 잰다.
+- [ ] 지금 룰(R1·R2)의 기준선을 결정과 README 한계 절에 적는다.
+
+완료 기준: 셋 파일·해시·라이선스 표가 결정에 있다, 기준선 표, CI에 점수 스크립트 스모크 테스트.
+
+근거: 헤드라인 74.5%→0.2%는 garak 템플릿의 "ignore … instructions"를 R1이 문자 그대로 맞춘 결과다(동의어 하나로 14/14 미탐). 한국어 공격 탐지율은 측정된 적이 없다. 정상셋은 HR 89문항뿐이다.
+
+### 17. 탐지 사이드카 + 한국어 PII NER
+
+할 일
+- [ ] `detect/`: 별도 컨테이너(FastAPI + onnxruntime, 게이트웨이 이미지와 의존성 분리). `POST /v1/detect {texts: [{id, role, text}], tasks: ["pii_ner"]}` → 스팬, `GET /health`에 모델 해시.
+- [ ] 후보 모델을 실행 시 확인한다(존재·라이선스·크기): KoELECTRA 계열 한국어 PII NER(검토에서 거론된 `1T/veil-pii-ko-lite` 등). INT8 ONNX로 변환한다.
+- [ ] NER 평가셋: 합성 200문장(이름·주소·직장, 템플릿과 사전으로 생성해 정답 스팬 자동) + 공개셋(라이선스 확인).
+- [ ] 게이트(결정 표 7번): x86 CPU에서 512토큰 이하 p95 +40ms 이하, F1 0.85 이상. 맥북은 arm이므로 지연은 CI 러너(x86)에서 잰다.
+- [ ] 통과하면 게이트웨이에 `GATEWAY_DETECT_URL`, 타임아웃 50ms, 기본 detect(감사만) → 정책에서 mask. 이름·주소 대체값 생성기(성씨·이름 사전, 주소는 시·도 유지). 사이드카 장애 시 detect는 통과, mask는 설정에 따른다.
+- [ ] 미달이면 수치를 결정에 적고 v1.0에서 뺀다.
+
+완료 기준: 게이트 수치가 결정에 있다, 사이드카 꺼짐·켜짐 두 구성에서 전체 테스트 통과, 장애 시 동작 테스트.
+
+사용자 몫: 게이트가 걸린 모델이면 Hugging Face에서 라이선스 동의, 다운로드가 막히면 `!`로 실행.
+
+### 18. 인젝션 분류기(관측) + 가드레일 웹훅
+
+할 일
+- [ ] 같은 사이드카에 `tasks: ["injection"]`: 기본 후보 protectai/deberta-v3-base-prompt-injection-v2(실행 시 라이선스 재확인), 비교 후보 Llama Prompt Guard 2 86M(Llama 4 Community 라이선스, 게이트 승인 필요). 512토큰 청크.
+- [ ] 16단계 평가셋으로 recall@FPR 1%를 잰다(홀드아웃은 마지막에 한 번). 관측 모드: 점수만 감사 줄에.
+- [ ] 옛 D-054의 메타 인젝션 양성 대조(`git show research-final:DECISIONS.md`의 D-054 §6)를 분류기 게이트에 재사용한다.
+- [ ] 가드레일 웹훅 검사기: `GATEWAY_GUARD_URL` → `POST {texts, role}` → `{verdict, score}`, 타임아웃과 fail-open/closed 설정, 사이드카를 웹훅으로 쓰는 예제.
+- [ ] 한국어 recall이 기준에 못 미치면 조건부 '자체 파인튜닝' 트리거를 결정에 적는다.
+
+완료 기준: 언어·유형별 수치 표, 관측 모드에서 차단 0과 점수 기록 테스트, 웹훅 타임아웃 테스트.
+
+근거: 옛 2·3차 기각(D-052 유사도, D-054 gemma3:4b Judge)은 특정 구성과 8GB VRAM 환경의 결과이고, 인코더 분류기는 시험하지 않았다.
+
+### 19. 보안 백서 + 법적 위치 메모 + PoC 키트
+
+할 일
+- [ ] `docs/security-whitepaper.md`: 데이터 흐름, 저장하지 않는 것(원문 무저장·요청 단위 메모리), 대체값 키를 추가정보로 다루는 법, 위협 모델, 한계.
+- [ ] `docs/legal-position.md`(2쪽 이내, '변호사 검토 전 초안' 표시): PIPA 제2조 가명처리 정의와의 관계, 제28조의2 특례가 서비스 운영에 적용되지 않는 이유, 처리위탁·국외이전 때 최소화와 안전성 확보조치로서의 위치, 제28조의4 추가정보.
+- [ ] `scripts/poc_report.py`: 고객 샘플(JSONL) → 종류별 탐지 수·오탐 후보·복원률·지연 p95 마크다운 리포트. 원문은 리포트에 넣지 않는다.
+
+완료 기준: 문서 둘, poc_report가 합성 샘플로 리포트를 만드는 테스트.
+
+사용자 몫: 변호사 검토 1회, 외부 1인 백서 리뷰.
+
+### 20. 릴리스 공정
+
+할 일
+- [ ] `.github/workflows/release.yml`: 태그 `v*` → 이미지 빌드·GHCR 푸시·SBOM·서명(cosign 키리스)·취약점 스캔(HIGH 0이면 통과). 액션은 SHA로 고정한다.
+- [ ] dependabot(pip·actions·docker).
+- [ ] CHANGELOG 정리와 버전 올림.
+
+완료 기준: 워크플로 문법 검사 통과, 사용자가 태그를 푸시한 뒤 릴리스 성공.
+
+사용자 몫: 태그 push, GHCR 패키지 공개 설정.
+
+### 21. 공개 데모(선택)
+
+옛 D-109 계획이다. 공개 자유 입력을 외부 공급자로 보내지 않는다.
+
+할 일
+- [ ] `web/` 데모를 공개용으로: 상류는 스텁 고정, 본문 상한 4096, 레이트리밋, 로그는 임시 폴더.
+- [ ] 데모용 Dockerfile과 배포 설정(Fly.io 또는 Render).
+
+완료 기준: 로컬 docker run과 전체 통과, README 상단 링크.
+
+사용자 몫: 계정·배포, 남용 징후가 보이면 끄기.
+
+### 22. 디자인 파트너 PoC + 가격 + v1.0
+
+할 일
+- [ ] (사용자) 디자인 파트너 1곳: 하루 설치 → 2주 observe → mask 전환.
+- [ ] PoC에서 나온 오탐을 정책별 예외 규칙(설정 파일 `allow_patterns`)으로 처리한다.
+- [ ] 가격·계약 초안 `docs/pricing.md`(결정 표 9번).
+- [ ] v1.0.0 기준: 2주 트래픽에서 의심 잔여 0.1% 미만, 5xx 0.1% 미만.
+
+## 조건부
+
+트리거가 생길 때만 단계로 올린다.
+
+| 트리거 | 할 일 |
+|---|---|
+| 고객이 `previous_response_id`·서버 저장 대화의 복원을 요구 | 봉투 암호화 역매핑(TTL·KMS·접근·파기 로그) 또는 FF1 형식 보존 암호화 |
+| 한 클러스터를 고객 둘 이상이 공유 | Redis 레이트리밋·지표 |
+| 금융권 고객이 출력 단계 대책을 요구 | 응답 DLP(마스킹) |
+| 분류기의 한국어 recall@FPR 1%가 기준 미달 | mDeBERTa 자체 파인튜닝 |
+| SaaS 고객 3곳 이상 | 관리 API·콘솔 |
+| 공개 출시 직전 클론 크기가 문제 | 새 히스토리 저장소 |
+| 목표 부하에서 게이트웨이 p95 > 50ms | 언어·런타임 교체 검토 |
+| embeddings·files 요구 | 결정적 대체값으로 경로 추가 |
+
+## 하지 않는 것
+
+자체 인젝션 모델 학습(측정은 한다) · 관리 콘솔·SSO·RBAC · SaaS 호스팅 · 금융·공공 직판(파트너 경유만) · 영속 볼트 · Redis · 응답 마스킹 · 서킷브레이커·재시도·폴백 · OTel · 연구 ASR 수치 영업 · 다국어 PII.
+
+## 부록 A. 검증된 결함 요약 (2026-10-30, 커밋 34c16fb)
+
+'직접'은 메인 세션 재현, '검증자'는 반박 전담 검증자의 재현, '미검증'은 검증 상한으로 재현하지 않은 것이다. 위치의 연구 파일은 1단계 이후 `research-final` 태그에 있다.
+
+| 영역 | 결함 | 위치 | 확인 | 단계 |
+|---|---|---|---|---|
+| 보안 | 캐치올이 모든 경로·메서드에 운영자 상류 키를 붙인다 | main.py:377, auth.py:75 | 검증자 | 2 |
+| 보안 | AUTH=off + 상류 키 = 무인증 중계 | main.py:90 | 검증자 | 2 |
+| 보안 | 요청·응답 헤더가 거의 그대로 통과 | main.py:217·220 | 검증자 | 2 |
+| 보안 | 무인증 시 X-Forwarded-For로 레이트리밋 우회·감사 ip 위조 | main.py:387 | 검증자 | 2 |
+| 보안 | 세 POST 경로 밖은 검사 없이 통과, multipart 본문 깨짐 | main.py:405, pii.py:154 | 검증자 | 2 |
+| 보안 | 무인증 health·metrics가 내부 정보 공개 | main.py:345·351 | 미검증 | 2 |
+| 보안 | root 실행·태그 미고정·HEALTHCHECK·.dockerignore 없음 | gateway/Dockerfile | 미검증 | 1·2 |
+| 가용성 | 볼트 발급이 고유 값 수의 제곱 시간 | vault.py:92 | 직접 | 3 |
+| 가용성 | CPU 검사가 이벤트 루프 위, 워커 1 고정의 근거 소멸 | chain.py:97, Dockerfile:14 | 검증자 | 3 |
+| 가용성 | 상류 600초 타임아웃이 연결·풀까지, 기본 풀 100 | main.py:175 | 검증자 | 3 |
+| 마스킹 | 128자 넘는 대체값이 스트리밍에서 복원되지 않음 | vault.py:33 | 직접 | 3 |
+| 마스킹 | 볼트 TTL 600초·용량 2,000 고정 | vault.py:63 | 미검증 | 3 |
+| 마스킹 | 요청마다 난수 대체값 → thinking 서명·캐시 깨짐 | surrogate.py:25 | 검증자(기제), 실 API 미재현 | 4·7 |
+| 마스킹 | tool·system 역할을 가리지 않음 | openai_api.py:13 | 직접 | 5 |
+| 마스킹 | 비스트리밍이 thinking 텍스트까지 복원 | api/anthropic.py | 미검증 | 5 |
+| 마스킹 | 도구 인자 복원 이스케이프가 한 단계 모자람 | pii.py:201 | 미검증 | 6 |
+| 마스킹 | residual이 실제 복원 실패 대부분을 0으로 보고 | vault.py:137 | 검증자 | 6 |
+| 마스킹 | 가짜 값이 실제 할당 대역에서 나옴 | surrogate.py:68 | 미검증 | 6 |
+| 탐지 | 인젝션이 정규식 2개, 어휘 밖은 전부 통과 | injection.py:86 | 검증자 | 16·18 |
+| 탐지 | 헤드라인 ASR이 garak 템플릿 문구 매칭 | docs/RESULTS.md:567 | 검증자 | 1 |
+| 탐지 | 한국어 공격 탐지율 측정 0회 | tests/test_injection.py:266 | 검증자 | 16 |
+| 탐지 | PII가 법정 고유식별정보 4종 중 2종 | patterns.py:24 | 검증자 | 10 |
+| 탐지 | 약한 주민번호·Luhn 통과 숫자열 오탐 | pii.py:155 | 검증자 | 9 |
+| 탐지 | 정규화 층 없음 | patterns.py | 미검증 | 9 |
+| 탐지 | 2·3차 기각은 특정 구성의 결과, 인코더 분류기 미시험 | DECISIONS.md D-052·D-054 | 미검증(판단) | 18 |
+| 탐지 | 정상셋 100문항(HR 단일 도메인, 고유 89) | eval/benign/all100.jsonl | 미검증 | 16 |
+| 탐지 | 출력 방향은 세기만 함 | detectors/canary.py | 미검증 | 13 |
+| 구조 | 멀티테넌시·정책·usage 집계 없음 | auth.py:63 | 검증자 | 12·13 |
+| 구조 | 상류 URL·키가 하나 | main.py:61 | 검증자 | 12 |
+| 구조 | 설정이 import 시점 전역 | main.py:57 | 미검증 | 11 |
+| 저장소 | LICENSE·pyproject·릴리스 없음 | — | 직접 | 1·20 |
+| 저장소 | 추적 용량의 98%가 results/ | results/ | 검증자 | 1 |
+| 저장소 | CI가 pytest 한 단계, 자체 테스트가 확장을 막음 | tests/test_ci_readme_sync.py:158 | 검증자 | 1 |
+| 시장 | Presidio가 KR 5종 공식 지원 | — | 직접 | 10 |
+| 시장 | '모양 보존 대체값+복원'은 Kong·Private AI·Azure·Skyflow·LiteLLM이 이미 제공 | — | 반박 검증 안 함 | 22 |
+| 규제 | 제28조의2 특례는 서비스 운영에 적용되지 않음, 매핑을 영속화하면 제28조의4 의무 | — | 반박 검증 안 함 | 19 |
+
+## 부록 B. 실행 프롬프트
+
+`/next-step`과 같은 내용이다. 명령이 안 보이면 이것을 붙여 넣는다.
+
+```
+/Users/hongjinkong/Desktop/project/llm-security-gateway/PLAN.md를 읽고 '결정 표'와 '모든 단계 공통 규칙'대로, '진행 상황'에서 체크 안 된 첫 단계부터 이어서 진행해줘. 되묻지 말고, 멈출 때는 진행 기록과 사용자 할 일을 갱신한 뒤 커밋 명령을 줘.
+```

@@ -59,7 +59,7 @@ def msg(content, model: str = "stub-model", **extra) -> dict:
     return {"model": model, "max_tokens": 100, "messages": [{"role": "user", "content": content}], **extra}
 
 
-def test_c1_messages_masks_user_and_tool_use_keeps_system_and_restores_the_answer(secured):
+def test_c1_messages_masks_every_role_and_restores_the_answer(secured):
     body = {"model": "stub-tool", "max_tokens": 100,
             "system": [{"type": "text", "text": "관리자 system@example.com"}],
             "messages": [
@@ -76,11 +76,11 @@ def test_c1_messages_masks_user_and_tool_use_keeps_system_and_restores_the_answe
     assert PHONE in out["content"][0]["text"]                                  # 답은 복원됐다
     assert out["content"][1]["type"] == "tool_use" and out["content"][1]["input"]["to"] == f"제 번호는 {PHONE}입니다"
     t = out["gateway_test"]
-    assert t["user_masked_seen"] and t["system_raw_seen"] and t["tool_result_raw_seen"] and t["tool_input_masked_seen"]
+    assert t["user_masked_seen"] and not t["system_raw_seen"] and not t["tool_result_raw_seen"] and t["tool_input_masked_seen"]   # D-112
     assert t["auth"] == "up-key" and t["bearer"] is None and t["version"] == "2023-06-01"   # 상류 키는 x-api-key로, 클라이언트 키는 없다
     sent = received(secured)
     raw = json.dumps(sent, ensure_ascii=False)
-    assert PHONE not in raw and EMAIL not in raw and "system@example.com" in raw and "rag@example.com" in raw
+    assert PHONE not in raw and EMAIL not in raw and "system@example.com" not in raw and "rag@example.com" not in raw
     surrogates = {sent["messages"][0]["content"][0]["text"], sent["messages"][1]["content"][0]["text"],
                   sent["messages"][1]["content"][1]["input"]["to"], sent["messages"][2]["content"][1]["text"]}
     phones = {m[f.start:f.end] for m in surrogates for f in find_all(m) if f.kind == "phone"}
@@ -88,7 +88,8 @@ def test_c1_messages_masks_user_and_tool_use_keeps_system_and_restores_the_answe
     line = audit(secured, r)
     assert line["api"] == "messages" and line["transformed"] and line["client"] == "t"
     (pii,) = [d for d in line["response_detectors"] if d["detector"] == "pii_mask"]
-    assert pii["restored"] == 3 and pii["residual_tokens"] == 0 and pii["issued"] == 2   # 답 1 + 도구 입력 to·note 2
+    assert pii["restored"] == 3 and pii["residual_tokens"] == 0   # 답 1 + 도구 입력 to·note 2
+    assert pii["issued"] == 4                                      # 전화·이메일 + system·tool_result의 이메일(D-112)
 
 
 @pytest.mark.parametrize("body, status, type_", [
@@ -185,7 +186,7 @@ def resp(inp, model: str = "stub-model", **extra) -> dict:
     return {"model": model, "input": inp, **extra}
 
 
-def test_c4_responses_masks_input_items_keeps_instructions_and_restores_output(secured):
+def test_c4_responses_masks_input_items_and_instructions_and_restores_output(secured):
     body = resp([
         {"role": "user", "content": f"제 번호는 {PHONE}입니다"},
         {"type": "function_call", "call_id": "c1", "name": "send_sms", "arguments": json.dumps({"to": PHONE})},
@@ -198,10 +199,10 @@ def test_c4_responses_masks_input_items_keeps_instructions_and_restores_output(s
     assert out["object"] == "response" and EMAIL in out["output"][0]["content"][0]["text"]
     assert json.loads(out["output"][1]["arguments"])["to"] == f"메일은 {EMAIL}입니다"
     t = out["gateway_test"]
-    assert t["user_masked_seen"] and t["instructions_raw_seen"] and t["output_raw_seen"] and t["auth"] == "Bearer up-key"
+    assert t["user_masked_seen"] and not t["instructions_raw_seen"] and not t["output_raw_seen"] and t["auth"] == "Bearer up-key"   # D-112
     sent = received(secured)
     raw = json.dumps(sent, ensure_ascii=False)
-    assert PHONE not in raw and EMAIL not in raw and "system@example.com" in raw and "rag@example.com" in raw
+    assert PHONE not in raw and EMAIL not in raw and "system@example.com" not in raw and "rag@example.com" not in raw
     assert json.loads(sent["input"][1]["arguments"])["to"] != PHONE
     line = audit(secured, r)
     assert line["api"] == "responses" and line["transformed"]

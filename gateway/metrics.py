@@ -5,6 +5,7 @@
   gateway_injection_hits_total{mode}           인젝션 룰 적중(observe는 would_block, block은 차단·가림)
   gateway_pii_masked_total{kind}               마스킹 건수(종류별)
   gateway_pii_restored_total / gateway_pii_residual_total   복원 건수 / 복원 뒤 남은 대체값 수
+  gateway_pii_suspect_total                    의심 잔여 — 남은 대체값 + 대체값의 식별 조각(끝 4자리·로컬파트)만 나타난 경우(D-113)
   gateway_upstream_ms_sum/_count, gateway_total_ms_sum/_count   지연 합·횟수(평균은 나눠서)
 """
 from __future__ import annotations
@@ -19,7 +20,7 @@ class Metrics:
         self.requests: Counter = Counter()
         self.injection: Counter = Counter()
         self.masked: Counter = Counter()
-        self.restored = self.residual = 0
+        self.restored = self.residual = self.suspect = 0
         self.upstream_ms = self.total_ms = 0.0
         self.upstream_n = self.total_n = 0
 
@@ -37,6 +38,7 @@ class Metrics:
                 if d.get("detector") == "pii_mask":
                     self.restored += d.get("restored") or 0
                     self.residual += d.get("residual_tokens") or 0
+                    self.suspect += d.get("suspect") or 0
             if rec.get("total_ms") is not None:
                 self.total_ms += rec["total_ms"]
                 self.total_n += 1
@@ -55,6 +57,7 @@ class Metrics:
             lines += [f'gateway_pii_masked_total{{kind="{k}"}} {n}' for k, n in sorted(self.masked.items())]
             lines += ["# TYPE gateway_pii_restored_total counter", f"gateway_pii_restored_total {self.restored}",
                       "# TYPE gateway_pii_residual_total counter", f"gateway_pii_residual_total {self.residual}",
+                      "# TYPE gateway_pii_suspect_total counter", f"gateway_pii_suspect_total {self.suspect}",
                       "# TYPE gateway_upstream_ms summary", f"gateway_upstream_ms_sum {self.upstream_ms:.2f}",
                       f"gateway_upstream_ms_count {self.upstream_n}",
                       "# TYPE gateway_total_ms summary", f"gateway_total_ms_sum {self.total_ms:.2f}",

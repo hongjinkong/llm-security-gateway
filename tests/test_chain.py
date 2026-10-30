@@ -5,7 +5,7 @@ import pytest
 
 from gateway.chain import DetectorChain
 from gateway.detectors.base import Action, Detector, Inspection, Verdict
-from gateway.detectors.noop import NoOpDetector
+from tests.chain_app import NoOpDetector
 
 INSP = Inspection(request_id="r1", method="POST", path="/chat", headers={}, body=b"hello SECRET")
 

@@ -24,11 +24,13 @@ D-099)이다. 자격 증명도 같은 볼트·같은 토큰 형식으로 가리�
 """
 from __future__ import annotations
 
+import asyncio
 import json
 
+from gateway.api.base import ApiError
 from gateway.detectors.base import Detector, Inspection, Verdict
 from gateway.openai_api import PII_ROLES
-from gateway.vault import TokenVault
+from gateway.vault import TokenVault, map_strings, strings
 
 # 탐지 패턴·검증식·겹침 해소는 patterns.py에 있다(D-107 B). 이름은 여기서도 그대로 쓴다(테스트·변이 검사 호환).
 from gateway.detectors.patterns import (  # noqa: E402,F401
@@ -64,130 +66,49 @@ def _meta(found: list[Finding]) -> dict:
     return meta
 
 
-def _session_spans(text: str, body: bytes) -> list[tuple[int, int]]:
-    """재직렬화한 옛 경로 본문에서 `sessionId` 값이 차지하는 구간들.
-
-    세션 키는 상류(AnythingLLM)가 대화를 나누는 열쇠다. 값이 개인정보 모양이라고 가리면 토큰 번호에 따라
-    키가 바뀌어 같은 대화가 갈라지고, 쿼리로 오는 조회(`?sessionId=`)와도 어긋난다(D-102).
-    그 값은 게이트웨이가 보호할 입력이 아니라 주소다 — 그대로 둔다.
-    """
-    try:
-        obj = json.loads(body)
-    except (ValueError, UnicodeDecodeError):
-        return []
-    sid = obj.get("sessionId") if isinstance(obj, dict) else None
-    if not isinstance(sid, str) or not sid:
-        return []
-    needle = json.dumps({"sessionId": sid}, ensure_ascii=False)[1:-1]   # "sessionId": "…"
-    head = len(json.dumps({"sessionId": ""}, ensure_ascii=False)[1:-2])  # 값 앞까지의 길이
-    spans, i = [], text.find(needle)
-    while i != -1:
-        spans.append((i + head, i + len(needle) - 1))
-        i = text.find(needle, i + 1)
-    return spans
-
-
-def _outside(found: list[Finding], spans: list[tuple[int, int]]) -> list[Finding]:
-    return [f for f in found if not any(f.start < e and s < f.end for s, e in spans)]
-
-
-def normalized_text(body: bytes) -> str:
-    r"""정규식을 돌릴 본문 텍스트. **원문 바이트를 그대로 쓰지 않는다** (L-005 / D-055).
-
-    JSON은 한글을 두 가지로 담는다.
-        ensure_ascii=False → {"message": "번호900101-1234563"}
-        ensure_ascii=True  → {"message": "\ubc88\ud638900101-1234563"}
-
-    두 번째에서 주민번호 앞 문자가 한글 `호`가 아니라 이스케이프의 `8`이 되고,
-    숫자 패턴의 경계 조건 `(?<![0-9A-Za-z-])`에 걸려 **조용히 미탐**이 난다.
-    로그에는 `allow`만 남아서 정상처럼 보인다 — 이 프로젝트가 가장 경계하는 실패다.
-
-    `json.loads`가 `\uXXXX`를 실제 문자로 되돌려주므로, 파싱한 뒤 `ensure_ascii=False`로
-    다시 직렬화해 넘긴다. 5-A의 `injection.py`가 `user_text()`로 한 것과 같은 처방이다.
-
-    **입력 필드만 꺼내지 않고 본문 전체를 재직렬화하는 이유**: 마스킹은 본문을 통째로
-    치환해 돌려줘야 하는데, 필드만 꺼내면 나머지를 다시 조립해야 하고 그 조립 과정이
-    새 버그 자리가 된다. 재직렬화는 의미를 보존하면서 이스케이프만 푼다.
-
-    파싱에 실패하면 예전처럼 통째로 디코딩한다. 놓치는 것보다는 낫다.
-    """
-    try:
-        obj = json.loads(body)
-    except (ValueError, UnicodeDecodeError):
-        return body.decode("utf-8", errors="ignore")
-    return json.dumps(obj, ensure_ascii=False)
-
-
-def _is_json(text: str) -> bool:
-    """응답 본문이 JSON인가. JSON이면 토큰은 문자열 리터럴 안에만 있을 수 있다
-    (`PII:kind:n`은 문자열 밖에서 JSON 문법이 아니다)."""
-    try:
-        json.loads(text)
-    except ValueError:
-        return False
-    return True
-
-
-def _json_escape(value: str) -> str:
-    r"""JSON 문자열 리터럴 안에 넣을 형태. 원본에 줄바꿈·탭이 있으면(전화번호 구분자 \s)
-    날것으로 끼울 때 응답 JSON이 깨졌다 — 2026-10-01 리뷰 결함."""
-    return json.dumps(value, ensure_ascii=False)[1:-1]
-
-
 ALL_KINDS = ("rrn", "card", "phone", "email", "secret")
+# 이보다 긴 검사 텍스트의 정규식 탐지는 스레드에서 돈다 — 이벤트 루프가 다른 요청을 계속 받는다(D-110). 볼트 조작은 루프에 둔다.
+OFFLOAD_CHARS = 16 * 1024
 
 
 class PIIDetector(Detector):
     def __init__(self, mode: str = "detect", kinds: tuple[str, ...] = ALL_KINDS,
-                 vault: TokenVault | None = None) -> None:
+                 vault: TokenVault | None = None, max_findings: int = 5000,
+                 roles: frozenset[str] = PII_ROLES) -> None:
         if mode not in ("detect", "mask"):
             raise ValueError(f"mode는 detect 또는 mask여야 한다: {mode!r}")
         self.mode = mode
         self.kinds = kinds
         self.name = "pii" if mode == "detect" else "pii_mask"
         self.vault = vault or TokenVault()
+        self.max_findings = max_findings     # mask 모드에서 한 요청의 탐지 상한(D-110, GATEWAY_MAX_FINDINGS)
+        self.roles = roles                   # 가리는 역할(D-112, GATEWAY_PII_ROLES)
 
     async def inspect(self, insp: Inspection) -> Verdict:
-        if insp.doc is not None:
-            return self._inspect_doc(insp)
+        """어댑터가 준 텍스트(D-107 C) 중 user·assistant 텍스트(도구 호출 인자 포함)만 제자리에서 가린다. 직렬화는 체인이 한다.
+        어댑터가 파싱한 문자열을 보므로 JSON의 `\\uXXXX` 이스케이프가 정규식을 피해 가지 못한다(L-005)."""
+        doc, session = insp.doc, insp.session or insp.request_id
+        refs = [r for r in doc.texts() if r.role in self.roles]
+        texts = [r.get() for r in refs]
 
-        text = normalized_text(insp.body)   # L-005: \uXXXX를 먼저 되돌린다
-        found = [f for f in find_all(text) if f.kind in self.kinds]
-        found = _outside(found, _session_spans(text, insp.body))   # 세션 키는 가리지 않는다(D-102)
+        def scan() -> list[list[Finding]]:
+            return [[f for f in find_all(t) if f.kind in self.kinds] for t in texts]
+
+        per_ref = await asyncio.to_thread(scan) if sum(map(len, texts)) > OFFLOAD_CHARS else scan()
+        found = [f for local in per_ref for f in local]
         if not found:
             return Verdict.allow(self.name)
         meta = _meta(found)
-
         if self.mode == "detect":
             return Verdict.allow(self.name, **meta)
-
-        session = insp.session or insp.request_id   # 볼트는 요청 단위다(D-107 A)
-        tokens = [self.vault.token_for(session, f.kind, text[f.start:f.end]) for f in found]
-        masked = _replace(text, found, tokens)
-
-        return Verdict.transform(self.name, masked.encode("utf-8"),
-                                 f"PII {len(found)}건 마스킹", masked=len(found), **meta)
-
-    def _inspect_doc(self, insp: Inspection) -> Verdict:
-        """어댑터 경로(D-107 C): user·assistant 텍스트(도구 호출 인자 포함)만 제자리에서 가린다. 직렬화는 체인이 한다."""
-        doc, session = insp.doc, insp.session or insp.request_id
-        found: list[Finding] = []
-        for ref in doc.texts():
-            if ref.role not in PII_ROLES:
-                continue
-            text = ref.get()
-            local = [f for f in find_all(text) if f.kind in self.kinds]
-            if not local:
-                continue
-            found.extend(local)
-            if self.mode == "mask":
+        if len(found) > self.max_findings:
+            # 대체값을 하나도 발급하기 전에 거절한다 — 가리지 못한 값을 내보내지 않는다(D-110). 413은 main이 그 API의 오류 형식으로 낸다.
+            raise ApiError(f"too many sensitive values in request ({len(found)} > {self.max_findings})",
+                           None, "too_many_findings", 413)
+        for ref, text, local in zip(refs, texts, per_ref):
+            if local:
                 tokens = [self.vault.token_for(session, f.kind, text[f.start:f.end]) for f in local]
                 doc.put(ref, _replace(text, local, tokens))
-        if not found:
-            return Verdict.allow(self.name)
-        meta = _meta(found)
-        if self.mode == "detect":
-            return Verdict.allow(self.name, **meta)
         return Verdict.transform(self.name, doc.serialize(), f"PII {len(found)}건 마스킹", masked=len(found), **meta)
 
     async def on_response(self, session: str, text: str) -> tuple[str, dict] | None:
@@ -198,11 +119,23 @@ class PIIDetector(Detector):
         """
         if self.mode != "mask" or not self.vault.issued(session):
             return None
-        restored, n = self.vault.restore(session, text, _json_escape if _is_json(text) else None)
-        residual = self.vault.residual(session, restored)
+        try:
+            obj = json.loads(text)
+        except ValueError:
+            obj = None
+        if not isinstance(obj, (dict, list)):          # JSON이 아니면 텍스트 전체를 복원한다
+            restored, n = self.vault.restore(session, text)
+            visible = restored
+        else:
+            # 문자열 값마다 복원하고 한 번 직렬화한다. 도구 인자는 안쪽 JSON 이스케이프로(D-113), thinking·reasoning은 건너뛴다(D-112).
+            n = map_strings(obj, lambda value, escape: self.vault.restore(session, value, escape))
+            restored = json.dumps(obj, ensure_ascii=False) if n else text
+            visible = "\n".join(strings(obj))             # 잔여·의심은 사용자에게 복원된 채로 보이는 텍스트에서만 센다
+        residual = self.vault.residual(session, visible)
         # residual > 0 이면 복원에 실패한 대체값이 사용자에게 가짜 값으로 나간다는 뜻이다(D-107 B — 토큰과 달리 눈에 안 띈다).
         # 조용히 넘기지 않고 로그에 남겨 운영·측정 때 잡히게 한다. 발급 수(issued)와 함께 비율을 본다.
-        return restored, {"restored": n, "residual_tokens": residual, "issued": self.vault.issued(session)}
+        return restored, {"restored": n, "residual_tokens": residual, "issued": self.vault.issued(session),
+                          "suspect": self.vault.suspect(session, visible)}
 
     async def release(self, session: str) -> None:
         """다시 쓰일 일이 없는 세션의 원문을 지운다(D-099). TTL까지 기다리지 않는다."""

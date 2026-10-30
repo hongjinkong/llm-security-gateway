@@ -132,6 +132,10 @@ class ResponsesShape:
     def is_done(payload: str) -> bool:
         return payload.strip() == "[DONE]"
 
+    @staticmethod
+    def json_channel(channel: str) -> bool:
+        return channel.endswith(".args")
+
     def deltas(self, obj: dict) -> list:
         t = obj.get("type")
         if t == "response.output_text.delta" and isinstance(obj.get("delta"), str):

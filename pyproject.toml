@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling==1.33.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "llm-security-gateway"
+version = "0.1.0"
+description = "LLM API 앞에 두는 자체 호스팅 프록시 — 밖으로 나가는 한국 개인정보를 같은 모양의 가짜 값으로 바꿔 보내고 응답에서 되돌린다"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+# 런타임 의존성은 정확히 고정한다. 올릴 때는 DECISIONS에 근거를 남긴다.
+dependencies = [
+    "fastapi==0.141.1",
+    "uvicorn==0.52.0",
+    "httpx==0.28.1",
+    "python-dotenv==1.2.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1", "ruff==0.17.3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["gateway"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F"]
+# 줄 길이는 보지 않는다 — 한국어 주석이 긴 줄이 많고, 서식 전체를 바꾸지 않는다(D-108).
+ignore = ["E501"]

@@ -1,20 +1,27 @@
-"""4-A 완료 조건 검증: 게이트웨이 경유 응답 == 타겟 직접 호출 응답.
+"""4-A 완료 조건 검증: 게이트웨이 경유 응답 == 상류 직접 호출 응답(검사기 없음).
 
-이 파일이 통과하는 한 ASR 변화의 원인은 방어 로직뿐이다.
-프록시가 요청을 망가뜨려서 생긴 ASR 감소는 측정이 아니라 거짓말이다.
+프록시가 요청을 망가뜨리면 방어가 바꾼 것과 프록시가 망가뜨린 것을 구별할 수 없다. 투명성이 모든 판정의 전제다.
 """
+import json
+
 import httpx
 import pytest
 
-PATH_ = "/api/v1/workspace/demo-slug/chat"
-BODY = {"message": "안녕하세요, 연차는 며칠인가요?", "mode": "query", "sessionId": "eval-abc123"}
+PATH_ = "/v1/chat/completions"
+BODY = {"model": "stub-model", "messages": [{"role": "user", "content": "안녕하세요, 연차는 며칠인가요?"}],
+        "sessionId": "eval-abc123"}
 HDR = {"Authorization": "Bearer test-key-123", "Content-Type": "application/json"}
+
+
+def received(stack) -> list[str]:
+    """상류가 실제로 받은 본문(스텁 기록)."""
+    return httpx.get(f"{stack.target}/__stub/received").json()["bodies"]
 
 
 def test_health(stack):
     r = httpx.get(f"{stack.gateway}/__gateway/health")
     assert r.status_code == 200
-    assert r.json()["status"] == "ok"
+    assert r.json() == {"status": "ok"}         # 인증이 없으므로 구성은 싣지 않는다(D-109)
 
 
 def test_passthrough_identical(stack):
@@ -44,20 +51,15 @@ def test_response_headers_handled_correctly(stack):
 
 
 def test_body_and_auth_preserved(stack):
-    echo = httpx.post(f"{stack.gateway}{PATH_}", json=BODY, headers=HDR).json()["echo"]
-    assert echo["body"] == BODY  # 한글·sessionId 포함 본문 무손상 (D-013)
-    assert echo["auth"] == HDR["Authorization"]  # API 키가 타겟까지 전달됨
+    echo = httpx.post(f"{stack.gateway}{PATH_}", json=BODY, headers=HDR).json()["gateway_test"]
+    assert json.loads(received(stack)[-1]) == BODY  # 한글·다른 필드 포함 본문 무손상 (D-013)
+    assert echo["auth"] == HDR["Authorization"]  # 인증을 끈 통과 모드에서는 클라이언트 키가 상류까지 간다(D-109)
     assert echo["path"] == PATH_
 
 
 def test_query_string_preserved(stack):
-    echo = httpx.post(f"{stack.gateway}{PATH_}?a=1&b=2", json=BODY, headers=HDR).json()["echo"]
+    echo = httpx.post(f"{stack.gateway}{PATH_}?a=1&b=2", json=BODY, headers=HDR).json()["gateway_test"]
     assert echo["query"] == "a=1&b=2"
-
-
-def test_status_code_passthrough(stack):
-    """타겟의 404를 200으로 바꾸거나 삼키지 않는다."""
-    assert httpx.get(f"{stack.gateway}/no/such/path").status_code == 404
 
 
 # ---------- D-099: 본문 크기 상한 ----------
@@ -77,7 +79,7 @@ def _line(stack, r):
 
 
 def test_over_limit_is_413_and_never_reaches_target(small):
-    big = {**BODY, "message": "가" * 1000}                    # UTF-8 3바이트 x 1000 > 2KB
+    big = {**BODY, "messages": [{"role": "user", "content": "가" * 1000}]}   # UTF-8 3바이트 x 1000 > 2KB
     r = httpx.post(f"{small.gateway}{PATH_}", json=big, headers=HDR)
     assert r.status_code == 413
     assert r.json()["error"]["code"] == "request_too_large"
@@ -95,4 +97,4 @@ def test_over_limit_without_content_length_is_413(small):
 
 def test_under_limit_still_passes_through(small):
     r = httpx.post(f"{small.gateway}{PATH_}", json=BODY, headers=HDR)
-    assert r.status_code == 200 and r.json()["echo"]["body"] == BODY
+    assert r.status_code == 200 and json.loads(received(small)[-1]) == BODY

@@ -1,15 +1,14 @@
-"""가짜 타겟 앱 — 맥북에서 프록시를 검증하기 위한 도구. 게이트웨이 코드가 아니다.
+"""가짜 상류(공급자) — 게이트웨이를 검증하기 위한 도구. 게이트웨이 코드가 아니다.
 
-맥북에는 AnythingLLM 상태가 없으므로(PROGRESS 주의사항), 타겟 흉내만 내는
-최소 서버를 띄운다. 핵심은 '받은 것을 그대로 되돌려주는' echo 필드다.
-이게 있어야 프록시가 요청을 망가뜨렸는지 비교로 확인할 수 있다.
+핵심은 '받은 것을 그대로 되돌려주는' 필드(gateway_test·echo)와 실제 수신 기록(/__stub/received·/__stub/hits)이다.
+이게 있어야 프록시가 요청을 망가뜨렸는지, 무엇이 상류에 닿았는지 비교로 확인할 수 있다.
 """
 import asyncio
 import json
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from gateway.detectors.patterns import find_all
 
@@ -18,8 +17,15 @@ app = FastAPI(title="stub target")
 # D-107 B: 게이트웨이는 토큰이 아니라 같은 모양의 대체값을 보낸다. "가려진 것을 봤다"는 **PII 모양의 값이 있는데 테스트의
 # 합성 원문이 아니다**로 판정한다. 테스트가 쓰는 합성 값의 조각 목록이다 — 새 값을 테스트에 들이면 여기에도 더한다.
 RAW_MARKERS = ("2345-6789", "1234-5678", "1111-2222", "5566-7788", "9876-5432", "1122-3344", "123-4567", "1234563",
-               "1234567", "1456782", "2345671", "4111-1111", "A1b2C3d4", "ABCDEFGHIJKLMNOP", "example.com",
+               "1234567", "1456782", "2345671", "4111-1111", "A1b2C3d4", "ABCDEFGHIJKLMNOP", "system@example.com",
+               "rag@example.com", "kim@example.com", "kim.synthetic@example.com",
                "hanbit-tech.example", "2345\n6789", "2345\t6789")
+
+
+def thinking_sig(text: str) -> str:
+    """D-112: Anthropic thinking 서명 흉내 — 텍스트 바이트에 묶인다. 다음 턴에 바이트가 바뀌어 돌아오면 맞지 않는다."""
+    import hashlib
+    return "sig-" + hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 def masked(text: object) -> bool:
@@ -31,6 +37,15 @@ app.add_middleware(GZipMiddleware, minimum_size=100)
 # D-086: 상류가 **실제로 받은** chat 본문. 응답은 게이트웨이가 복원하므로 응답만으로는
 # "원문이 상류로 가지 않았다"를 증명할 수 없다. 이 기록이 그 증거다(테스트 전용 프로세스 메모리).
 RECEIVED: list[str] = []
+# D-109: 상류에 닿은 모든 요청의 (메서드, 경로). 허용 목록 밖의 경로가 상류에 연결되지 않았다는 증거다.
+HITS: list[list[str]] = []
+
+
+@app.middleware("http")
+async def record_hits(request: Request, call_next):
+    if not request.url.path.startswith("/__stub/"):
+        HITS.append([request.method, request.url.path])
+    return await call_next(request)
 
 
 @app.get("/")
@@ -43,36 +58,18 @@ async def received():
     return {"bodies": RECEIVED}
 
 
-@app.get("/__stub/multi")
-async def multi(request: Request):
-    """D-102 헤더 계약: 같은 이름의 요청 헤더를 전부 보고, Set-Cookie 두 개를 따로 돌려준다."""
-    response = JSONResponse({"x_multi": request.headers.getlist("x-multi")})
-    response.headers.append("set-cookie", "a=1; Path=/")
-    response.headers.append("set-cookie", "b=2; Path=/")
-    return response
+@app.get("/__stub/hits")
+async def hits():
+    return {"hits": HITS}
 
 
-@app.post("/api/v1/workspace/{slug}/chat")
-async def chat(slug: str, request: Request):
-    RECEIVED.append((await request.body()).decode("utf-8", errors="replace"))
-    payload = await request.json()
-    return {
-        "id": "stub", "type": "textResponse",
-        "textResponse": f"[stub] slug={slug} msg={payload.get('message')}",
-        "sources": [], "metrics": {"duration": 0.01},
-        "echo": {
-            # 타겟이 마스킹된 본문을 받았는지. 불리언이라 4-F의 복원에 영향받지 않는다.
-            # (echo.body는 복원 대상이므로 그것만으로는 마스킹 여부를 확인할 수 없다)
-            "masked_seen": masked(payload.get("message")),
-            "session_id_masked": masked(payload.get("sessionId")),   # D-102 #5
-            "method": request.method,
-            "path": request.url.path,
-            "query": request.url.query,
-            "body": payload,
-            "auth": request.headers.get("authorization"),
-            "content_type": request.headers.get("content-type"),
-        },
-    }
+@app.get("/v1/models")
+async def models(request: Request):
+    """D-109: 받은 헤더를 그대로 돌려주고, 클라이언트에 넘어가면 안 되는 응답 헤더를 단다."""
+    return JSONResponse({"object": "list", "data": [{"id": "stub-model", "object": "model"}],
+                         "gateway_test": {"headers": dict(request.headers)}},
+                        headers={"openai-organization": "org-stub", "x-request-id": "req_stub_models",
+                                 "set-cookie": "__cf_bm=stub; Path=/", "openai-processing-ms": "3"})
 
 
 def _message_text(message: dict) -> str:
@@ -111,6 +108,8 @@ async def openai_chat(request: Request):
     messages = messages if isinstance(messages, list) else []
     texts = [(m.get("role"), _message_text(m)) for m in messages if isinstance(m, dict)]
     user = next((text for role, text in reversed(texts) if role == "user"), "")
+    if model == "stub-agent":                     # D-112 에이전트 루프: 도구 결과를 읽고 답한다
+        user = next((text for role, text in reversed(texts) if role == "tool"), user)
     tool_args = [call["function"]["arguments"] for m in messages if isinstance(m, dict)
                  for call in (m.get("tool_calls") or []) if isinstance(call, dict)
                  and isinstance(call.get("function"), dict) and isinstance(call["function"].get("arguments"), str)]
@@ -156,14 +155,20 @@ async def openai_chat(request: Request):
             "gateway_test": {"tool_args_masked_seen": any(masked(a) for a in tool_args),
                              "tool_args_raw_phone_seen": any("010-2345-6789" in a for a in tool_args)},
         }
-    return {
+    answer = f"[stub] {user}"
+    if model == "stub-last4":                     # D-113: 받은 번호의 끝 4자리만 말한다(복원되지 않는 조각)
+        phones = [user[f.start:f.end] for f in find_all(user) if f.kind == "phone"]
+        answer = "[stub] 끝자리 " + ("".join(c for c in phones[0] if c.isdigit())[-4:] if phones else "없음") + " 번호로 연락하세요"
+    elif model == "stub-quiet":                   # 값을 되풀이하지 않는 정상 답
+        answer = "[stub] 확인했습니다"
+    body = {
         "id": "chatcmpl-stub",
         "object": "chat.completion",
         "created": 0,
         "model": payload.get("model", "stub"),
         "choices": [{
             "index": 0,
-            "message": {"role": "assistant", "content": f"[stub] {user}"},
+            "message": {"role": "assistant", "content": answer},
             "finish_reason": "stop",
         }],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
@@ -175,11 +180,16 @@ async def openai_chat(request: Request):
                                  for role, text in texts),
             "auth": request.headers.get("authorization"),
             "path": request.url.path,
+            "query": request.url.query,
             "accept_encoding": request.headers.get("accept-encoding"),
             "tool_args_masked_seen": any(masked(a) for a in tool_args),
             "tool_args_raw_phone_seen": any("010-2345-6789" in a for a in tool_args),
         },
     }
+    if model == "stub-html":                      # D-113: `<`·`>`를 \u003c·\u003e로 쓰는 직렬화(Go encoding/json 등)
+        return Response(json.dumps(body, ensure_ascii=False).replace("<", "\\u003c").replace(">", "\\u003e"),
+                        media_type="application/json")
+    return body
 
 
 # ======================================================================================
@@ -244,6 +254,12 @@ async def anthropic_messages(request: Request):
         "bearer": request.headers.get("authorization"),
         "version": request.headers.get("anthropic-version"),
     }
+    history_thinking = [b for m in payload.get("messages", []) if isinstance(m, dict) and m.get("role") == "assistant"
+                        and isinstance(m.get("content"), list) for b in m["content"] if isinstance(b, dict) and b.get("type") == "thinking"]
+    gateway_test["thinking_ok"] = all(b.get("signature") == thinking_sig(b.get("thinking", "")) for b in history_thinking)
+    gateway_test["thinking_seen"] = len(history_thinking)
+    gateway_test["thinking_raw_seen"] = any(m in b.get("thinking", "") for b in history_thinking for m in RAW_MARKERS)
+    thinking = f"사용자가 준 값을 확인한다: {last}" if isinstance(model, str) and model.endswith("thinking") else None
     tool = model == "stub-tool" or model == "stub-stream-tool"
     args = {"to": last, "note": f"메모 {last}"}
     if isinstance(model, str) and model.startswith("stub-stream"):
@@ -253,13 +269,24 @@ async def anthropic_messages(request: Request):
             yield _sse("message_start", {"type": "message_start", "message": {
                 "id": "msg_stub", "type": "message", "role": "assistant", "model": model, "content": [],
                 "stop_reason": None, "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 0}}})
-            yield _sse("content_block_start", {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}})
+            t0 = 0
+            if thinking is not None:                    # D-112: thinking 델타와 서명 델타
+                t0 = 1
+                yield _sse("content_block_start", {"type": "content_block_start", "index": 0,
+                                                   "content_block": {"type": "thinking", "thinking": "", "signature": ""}})
+                for i in range(0, len(thinking), size):
+                    yield _sse("content_block_delta", {"type": "content_block_delta", "index": 0,
+                                                       "delta": {"type": "thinking_delta", "thinking": thinking[i:i + size]}})
+                yield _sse("content_block_delta", {"type": "content_block_delta", "index": 0,
+                                                   "delta": {"type": "signature_delta", "signature": thinking_sig(thinking)}})
+                yield _sse("content_block_stop", {"type": "content_block_stop", "index": 0})
+            yield _sse("content_block_start", {"type": "content_block_start", "index": t0, "content_block": {"type": "text", "text": ""}})
             yield _sse("ping", {"type": "ping"})
             for i in range(0, len(text), size):
-                yield _sse("content_block_delta", {"type": "content_block_delta", "index": 0,
+                yield _sse("content_block_delta", {"type": "content_block_delta", "index": t0,
                                                    "delta": {"type": "text_delta", "text": text[i:i + size]}})
                 await asyncio.sleep(0)
-            yield _sse("content_block_stop", {"type": "content_block_stop", "index": 0})
+            yield _sse("content_block_stop", {"type": "content_block_stop", "index": t0})
             if tool:
                 yield _sse("content_block_start", {"type": "content_block_start", "index": 1, "content_block": {
                     "type": "tool_use", "id": "toolu_1", "name": "send_sms", "input": {}}})
@@ -274,6 +301,8 @@ async def anthropic_messages(request: Request):
             yield _sse("message_stop", {"type": "message_stop"})
         return StreamingResponse(events(), media_type="text/event-stream")
     content = [{"type": "text", "text": text}]
+    if thinking is not None:
+        content.insert(0, {"type": "thinking", "thinking": thinking, "signature": thinking_sig(thinking)})
     if tool:
         content.append({"type": "tool_use", "id": "toolu_1", "name": "send_sms", "input": args})
     return {"id": "msg_stub", "type": "message", "role": "assistant", "model": model, "content": content,
@@ -331,6 +360,8 @@ async def openai_responses(request: Request):
                "content": [{"type": "output_text", "text": text, "annotations": []}]}
     call = {"type": "function_call", "id": "fc_stub", "call_id": "call_1", "name": "send_sms", "arguments": args, "status": "completed"}
     output = [message] + ([call] if tool else [])
+    if isinstance(model, str) and model.endswith("reasoning"):      # D-112: 요약에 상류가 본 값(대체값)이 그대로 있어야 한다
+        output.insert(0, {"type": "reasoning", "id": "rs_stub", "summary": [{"type": "summary_text", "text": f"요약: {last}"}]})
     response = {"id": "resp_stub", "object": "response", "created_at": 0, "status": "completed", "error": None,
                 "incomplete_details": None, "model": model, "output": output,
                 "usage": {"input_tokens": 1, "output_tokens": 9, "total_tokens": 10}, "gateway_test": gateway_test}

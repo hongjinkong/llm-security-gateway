@@ -35,44 +35,12 @@ LLM Judge(3차)가 애매한 것만 비싸게 판단한다. 2·3차는 사전 �
 """
 from __future__ import annotations
 
-import json
+import asyncio
 import re
 from dataclasses import dataclass
 
 from gateway.detectors.base import Action, Detector, Inspection, Verdict
-from gateway.openai_api import INJECTION_ROLES, chat_texts
-
-# --- 룰이 볼 텍스트 -----------------------------------------------------------
-# 사용자 입력이 들어 있는 필드. 타겟을 바꿔도 여기만 고치면 된다(SCOPE 7절 이식성).
-USER_FIELDS = ("message", "prompt", "input", "query", "text")
-
-
-def user_text(body: bytes) -> str:
-    """룰이 볼 텍스트를 꺼낸다. **원문 바이트를 그대로 정규식에 넣지 않는다.**
-
-    JSON은 한글을 두 가지로 담을 수 있다.
-        ensure_ascii=False → {"message": "이전 지시를 무시하고"}
-        ensure_ascii=True  → {"message": "\\uc774\\uc804 \\uc9c0\\uc2dc..."}
-    같은 요청이지만 두 번째에서는 한글 룰이 **하나도** 맞지 않는다. 바이트를 그대로
-    훑으면 탐지기가 조용히 아무것도 못 잡고 로그에는 'allow'만 남는다.
-    D-035에서 겪은 것과 같은 실패다 — 검사 대상을 좁게 잡으면 없는 것을 있다고 착각한다.
-    json.loads가 \\uXXXX를 한글로 되돌려주므로, 파싱해서 입력 필드를 꺼내 쓴다.
-
-    파싱에 실패하면 본문 전체를 디코딩해 넘긴다. 놓치는 것보다는 낫다.
-    """
-    try:
-        obj = json.loads(body)
-    except (ValueError, UnicodeDecodeError):
-        return body.decode("utf-8", errors="ignore")
-    if isinstance(obj, dict):
-        if isinstance(obj.get("messages"), list):
-            return "\n".join(chat_texts(obj, INJECTION_ROLES))
-        parts = [v for k in USER_FIELDS
-                 if isinstance(v := obj.get(k), str) and v]
-        if parts:
-            return "\n".join(parts)
-    return body.decode("utf-8", errors="ignore")
-
+from gateway.openai_api import INJECTION_ROLES
 
 # 문장 경계. 동사와 목적어가 같은 문장에 있어야 "그 동사의 목적어"라고 말할 수 있다.
 _SENTENCE = re.compile(r"[.!?。！？\n]+")
@@ -137,6 +105,13 @@ class RuleHit:
         return d
 
 
+OFFLOAD_CHARS = 16 * 1024   # 이보다 긴 텍스트는 스레드에서 본다 — 이벤트 루프를 막지 않는다(D-110)
+
+
+async def _match(text: str) -> list[RuleHit]:
+    return await asyncio.to_thread(match_rules, text) if len(text) > OFFLOAD_CHARS else match_rules(text)
+
+
 def match_rules(text: str) -> list[RuleHit]:
     """발동한 룰을 전부 돌려준다. 비어 있으면 통과."""
     hits: list[RuleHit] = []
@@ -177,8 +152,7 @@ class InjectionRuleDetector(Detector):
     사용자 입장에서는 서비스가 고장난 것과 구분되지 않는다.
     그래서 룰은 좁게 잡는다(D-040).
 
-    차단 응답은 main.py가 만든다: **200 + 타겟 스키마 + gateway_blocked: true**.
-    403을 쓰면 garak이 오류로 처리해 total_evaluated가 줄고 EVAL 5.2 비교가 무효가 된다.
+    차단 응답은 어댑터가 만든다: **200 + 그 API의 정상 응답 모양 + gateway_blocked: true** — 클라이언트 SDK가 오류로 다루지 않는다.
     차단 사유는 응답에 넣지 않는다 — 룰을 역산당한다. 사유는 감사 로그에만 남기고
     X-Gateway-Request-Id로 대조한다(D-030, D-040).
 
@@ -188,7 +162,7 @@ class InjectionRuleDetector(Detector):
       scope="turn"  `injection_rule_turn`. 막을지는 이번 턴 — 마지막 user 메시지와 그 뒤 tool 메시지 —
                     만 보고 정한다. 이력의 user·tool 메시지는 메시지마다 판정해, 걸린 메시지만
                     REDACTED_TURN으로 바꿔 보낸다(TRANSFORM). 막힌 질문이 다음 턴 이력으로 모델에
-                    그대로 가는 것도 이것으로 막는다. OpenAI 형식 입구에만 해당하고 옛 경로는 둘이 같다.
+                    그대로 가는 것도 이것으로 막는다.
     """
 
     def __init__(self, scope: str = "all", mode: str = "block") -> None:
@@ -203,13 +177,10 @@ class InjectionRuleDetector(Detector):
 
     async def inspect(self, insp: Inspection) -> Verdict:
         if self.mode == "observe":
-            text = "\n".join(r.get() for r in insp.doc.texts() if r.role in INJECTION_ROLES) \
-                if insp.doc is not None else user_text(insp.body)
-            hits = _dedupe(match_rules(text))
+            text = "\n".join(r.get() for r in insp.doc.texts() if r.role in INJECTION_ROLES)
+            hits = _dedupe(await _match(text))
             return Verdict.allow(self.name, **({"rules": [h.as_dict() for h in hits], "would_block": True} if hits else {}))
-        if insp.doc is not None:
-            return self._inspect_doc(insp)
-        return self._verdict(_dedupe(match_rules(user_text(insp.body))))
+        return await self._inspect_doc(insp)
 
     def _verdict(self, hits: list[RuleHit]) -> Verdict:
         if not hits:
@@ -221,14 +192,14 @@ class InjectionRuleDetector(Detector):
             rules=[h.as_dict() for h in hits],
         )
 
-    def _inspect_doc(self, insp: Inspection) -> Verdict:
+    async def _inspect_doc(self, insp: Inspection) -> Verdict:
         """어댑터 경로(D-107 C). user·tool 텍스트만 본다 — API가 무엇이든 어댑터가 역할·이번 턴·메시지 번호를 붙여 준다."""
         doc = insp.doc
         refs = [r for r in doc.texts() if r.role in INJECTION_ROLES]
         if self.scope == "all":
-            return self._verdict(_dedupe(match_rules("\n".join(r.get() for r in refs))))
+            return self._verdict(_dedupe(await _match("\n".join(r.get() for r in refs))))
         # 이번 턴은 scope="all"과 같은 방식(이어 붙여 한 번)으로 본다 — 두 범위의 차이를 이력 처리 하나로 좁힌다.
-        verdict = self._verdict(_dedupe(match_rules("\n".join(r.get() for r in refs if r.turn))))
+        verdict = self._verdict(_dedupe(await _match("\n".join(r.get() for r in refs if r.turn))))
         if verdict.action is Action.BLOCK:
             return verdict
 
@@ -238,7 +209,7 @@ class InjectionRuleDetector(Detector):
                 by_msg.setdefault(r.msg, []).append(r)
         masked, hits = 0, []
         for parts in by_msg.values():                     # 이력은 메시지마다 판정해 걸린 메시지만 가린다(D-095 (C))
-            found = match_rules("\n".join(r.get() for r in parts))
+            found = await _match("\n".join(r.get() for r in parts))
             if found:
                 for r in parts:
                     doc.put(r, REDACTED_TURN)             # 텍스트만 자리표시로 — 이미지 같은 다른 파트는 그대로

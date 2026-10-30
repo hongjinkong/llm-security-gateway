@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import secrets
 import sys
 import tempfile
 from pathlib import Path
@@ -67,6 +68,7 @@ def main() -> int:
                 "TARGET_URL": f"http://127.0.0.1:{tp}",
                 "GATEWAY_LOG_PATH": str(Path(tmp) / "gateway.jsonl"),
                 "GATEWAY_CLIENT_KEYS": "sdk=test-key",
+                "GATEWAY_SURROGATE_KEY": secrets.token_urlsafe(32),  # 결정적 대체값 키(D-111) — 실행마다 새로
             }, probe="/__gateway/health"))
             return subprocess.run([a.sdk_python, "-c", CLIENT, f"http://127.0.0.1:{gp}"]).returncode
         finally:

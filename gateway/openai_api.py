@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Collection
 
 CHAT_COMPLETIONS_PATH = "/v1/chat/completions"
 VALID_ROLES = frozenset({"system", "developer", "user", "assistant", "tool"})
 INJECTION_ROLES = frozenset({"user", "tool"})
-# assistant가 들어가는 이유(D-099): 게이트웨이가 응답에 복원해 준 값을 클라이언트가 저장했다가
-# 다음 요청의 이력(assistant)으로 다시 보낸다. user만 가리면 둘째 턴부터 원문이 상류로 간다.
-# system·developer(RAG 문서 포함)·tool은 가리지 않는다 — 답변에 필요한 값을 훼손할 수 있다(D-073).
-PII_ROLES = frozenset({"user", "assistant"})
+# PII를 가리는 역할의 기본값(D-112). 어댑터가 developer·instructions를 system으로 정규화한다.
+# assistant(D-099): 게이트웨이가 복원해 준 값이 다음 요청의 이력으로 돌아온다. tool·system(D-112, D-073을 뒤집음): 에이전트·RAG 앱의
+# 개인정보는 대부분 도구 결과와 system 문서로 들어온다. 가짜 값이 결정적이라(D-111) 모델은 어디서나 같은 값을 보고 사용자는 원래 값을 돌려받는다.
+PII_ROLES = frozenset({"user", "assistant", "tool", "system"})
 
 
 class ChatRequestError(ValueError):
@@ -57,50 +56,3 @@ def _valid_part(part: object) -> bool:
     if not isinstance(part, dict) or not isinstance(part.get("type"), str):
         return False
     return part.get("type") != "text" or isinstance(part.get("text"), str)
-
-
-def chat_texts(payload: dict, roles: Collection[str]) -> list[str]:
-    texts: list[str] = []
-    for message in payload.get("messages", []):
-        # 이 함수는 /v1 밖의 경로(파싱 검증을 거치지 않는 본문)에서도 불린다. role 타입을 먼저 본다.
-        if not isinstance(message, dict) or not isinstance(message.get("role"), str) \
-                or message["role"] not in roles:
-            continue
-        texts.extend(message_texts(message))
-    return texts
-
-
-def message_texts(message: dict) -> list[str]:
-    """메시지 하나의 비어 있지 않은 텍스트. 문자열 content와 text 파트만 본다."""
-    content = message.get("content")
-    if isinstance(content, str):
-        return [content] if content else []
-    if isinstance(content, list):
-        return [part["text"] for part in content
-                if isinstance(part, dict) and part.get("type") == "text"
-                and isinstance(part.get("text"), str) and part["text"]]
-    return []
-
-
-def map_chat_texts(payload: dict, roles: Collection[str], transform: Callable[[str], str]) -> None:
-    """선택한 역할의 텍스트만 제자리에서 바꾼다. 파싱 직후 객체에만 사용한다.
-
-    assistant의 `tool_calls[].function.arguments`도 바꾼다(D-102). 게이트웨이는 응답 JSON 전체를 복원하므로
-    도구 호출 인자에 들어간 값도 원문으로 돌아가고, 클라이언트는 그 메시지를 다음 턴 이력으로 그대로 보낸다.
-    content만 가리면 인자 속 원문이 둘째 턴부터 상류로 갔다.
-    """
-    for message in payload["messages"]:
-        if message["role"] not in roles:
-            continue
-        content = message.get("content")
-        if isinstance(content, str):
-            message["content"] = transform(content)
-        elif isinstance(content, list):
-            for part in content:
-                if part.get("type") == "text":
-                    part["text"] = transform(part["text"])
-        calls = message.get("tool_calls")
-        for call in calls if isinstance(calls, list) else []:
-            fn = call.get("function") if isinstance(call, dict) else None
-            if isinstance(fn, dict) and isinstance(fn.get("arguments"), str):
-                fn["arguments"] = transform(fn["arguments"])

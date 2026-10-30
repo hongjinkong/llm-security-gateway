@@ -64,7 +64,7 @@ class Inspection:
     prior: Mapping[str, Mapping[str, Any]] = field(default_factory=_no_prior)
 
     # D-107 C: 어댑터가 파싱한 본문. 있으면 검사기는 body 바이트 대신 doc.texts()를 보고 제자리에서 바꾼다 —
-    # 파싱은 요청당 한 번, 직렬화는 체인 끝에서 한 번이다. 옛 경로(어댑터 없음)는 None이고 예전처럼 바이트를 본다.
+    # 파싱은 요청당 한 번, 직렬화는 체인 끝에서 한 번이다. 검사기는 언제나 doc를 본다(D-109 — 어댑터 없는 경로는 없어졌다).
     # main.py가 만들어 넘긴다. 넘기지 않았는데 아는 API 경로의 POST면(검사기 단위 테스트) 여기서 만든다.
     doc: Any = None
 

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import sys
 import tempfile
 from pathlib import Path
@@ -57,6 +58,7 @@ def main() -> int:
                 "GATEWAY_DETECTORS": "injection_rule_turn,pii_mask",
                 "GATEWAY_MAX_BODY_BYTES": "4096",
                 "GATEWAY_CLIENT_KEYS": "demo=demo-key",
+                "GATEWAY_SURROGATE_KEY": secrets.token_urlsafe(32),  # 결정적 대체값 키(D-111) — 실행마다 새로
             }, probe="/__gateway/health"))
             gw, up = f"http://127.0.0.1:{gp}", f"http://127.0.0.1:{tp}"
             print("게이트웨이: injection_rule_turn,pii_mask(차단 모드 — 기본값은 observe)  /  상류: 받은 문장을 되돌려주는 스텁 모델")

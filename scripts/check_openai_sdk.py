@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import subprocess
+import secrets
 import sys
 import tempfile
 from pathlib import Path
@@ -71,6 +72,7 @@ def main() -> int:
                 "GATEWAY_LOG_PATH": str(Path(tmp) / "gateway.jsonl"),
                 "GATEWAY_DETECTORS": "injection_rule_turn,pii_mask",
                 "GATEWAY_CLIENT_KEYS": "sdk=test-key",              # SDK의 api_key는 게이트웨이 키다(D-107 A)
+                "GATEWAY_SURROGATE_KEY": secrets.token_urlsafe(32),  # 결정적 대체값 키(D-111) — 실행마다 새로
             }, probe="/__gateway/health"))
             return subprocess.run([a.sdk_python, "-c", CLIENT, f"http://127.0.0.1:{gp}"]).returncode
         finally:

@@ -9,6 +9,16 @@ from gateway.detectors.base import Detector, Inspection, Verdict
 from gateway.main import DETECTOR_REGISTRY, app  # noqa: F401  (uvicorn이 app을 가져간다)
 
 
+class NoOpDetector(Detector):
+    """아무 판단도 하지 않는 검사기 — 검사기를 꽂아도 중계가 바뀌지 않는다는 것을 배선만으로 보인다."""
+
+    def __init__(self, name: str = "noop") -> None:
+        self.name = name
+
+    async def inspect(self, insp: Inspection) -> Verdict:
+        return Verdict.allow(self.name)
+
+
 class AlwaysBlockOnMarker(Detector):
     name = "test_block"
 
@@ -35,6 +45,7 @@ class Exploding(Detector):
         raise RuntimeError("검사기 내부 버그 재현")
 
 
+DETECTOR_REGISTRY["noop"] = NoOpDetector
 DETECTOR_REGISTRY["test_block"] = AlwaysBlockOnMarker
 DETECTOR_REGISTRY["test_mask"] = MaskSecret
 DETECTOR_REGISTRY["test_boom"] = Exploding

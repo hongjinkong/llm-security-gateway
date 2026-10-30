@@ -1,9 +1,9 @@
 """Anthropic Messages API 어댑터(D-107 C) — `/v1/messages`.
 
-요청: `system`(문자열 또는 text 블록 목록)은 그대로(D-073), `messages[].content`는 문자열 또는 블록 목록.
+요청: `system`(문자열 또는 text 블록 목록) → system, `messages[].content`는 문자열 또는 블록 목록. 텍스트 document 블록 → system(D-112).
   text 블록 → 메시지 역할(user·assistant), tool_result 블록(user 메시지 안) → tool, tool_use.input의 문자열 값 → assistant(도구 인자).
-  image·document·thinking 블록은 손대지 않는다(thinking의 signature는 바꾸면 상류가 거부한다).
-응답: 비스트리밍은 JSON 텍스트 전체 복원(content[].text·tool_use.input). 스트리밍은 content block index가 채널이다.
+  image·thinking·redacted_thinking 블록은 손대지 않는다(thinking의 signature는 바꾸면 상류가 거부한다).
+응답: 비스트리밍은 문자열 값마다 복원하되 thinking 블록은 건너뛴다(D-112). 스트리밍은 content block index가 채널이다.
 차단: `stop_reason: "refusal"`(Anthropic의 거부 종료 사유) + `gateway_blocked`. 오류: `{"type":"error","error":{"type","message"}}`.
 """
 from __future__ import annotations
@@ -89,6 +89,9 @@ class MessagesAdapter(Adapter):
                                 refs.append(str_ref(ib, "text", "tool", i, turn))
                 elif t == "tool_use" and isinstance(b.get("input"), (dict, list)):   # 도구 호출 인자 = assistant(마스킹 대상)
                     walk_strings(b["input"], "assistant", i, turn, refs)
+                elif t == "document" and isinstance(b.get("source"), dict) and b["source"].get("type") == "text" \
+                        and isinstance(b["source"].get("data"), str):                  # 텍스트 문서(RAG) = system 문서처럼(D-112)
+                    refs.append(str_ref(b["source"], "data", "system", i, turn))
         return refs
 
     def error(self, status: int, message: str, type_: str, code: str, param: str | None = None) -> JSONResponse:
@@ -124,6 +127,9 @@ class MessagesShape:
     @staticmethod
     def is_done(payload: str) -> bool:
         return False
+
+    def json_channel(self, channel: str) -> bool:
+        return self.kinds.get(int(channel[1:])) == "tool_use"      # input_json_delta.partial_json
 
     def deltas(self, obj: dict) -> list:
         t = obj.get("type")

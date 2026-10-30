@@ -16,7 +16,6 @@ from gateway.detectors.base import Action, Inspection
 from gateway.detectors.pii import FINDINGS_LIMIT, PRIORITY, Finding, PIIDetector, find_all
 
 PATH = "/v1/chat/completions"
-LEGACY = "/api/v1/workspace/demo-slug/chat"
 HEADERS = {"Authorization": "Bearer test-key", "Content-Type": "application/json"}
 
 
@@ -87,7 +86,7 @@ def test_find_all_is_linear_in_hit_count():
 
 @pytest.mark.anyio
 async def test_masking_many_hits_is_fast_and_audit_meta_is_capped():
-    det = PIIDetector("mask")
+    det = PIIDetector("mask", max_findings=100_000)   # 치환 속도를 본다 — 기본 탐지 상한(5000, D-110)은 test_d110이 본다
     body = json.dumps(chat([{"role": "user", "content": "010-1234-5678 " * 74_000}])).encode()   # 1,011KB — 상한 바로 아래
     t0 = time.perf_counter()
     v = await det.inspect(Inspection(request_id="r", method="POST", path=PATH, headers={}, body=body, session="s"))
@@ -125,45 +124,14 @@ def test_tool_call_arguments_are_masked_on_the_next_turn(secured):
     assert seen["tool_args_masked_seen"] and not seen["tool_args_raw_phone_seen"]
 
 
-# ---------- #4 옛 경로: 이스케이프된 따옴표가 든 PEM ----------
-
-@pytest.mark.anyio
-async def test_pem_with_escaped_quote_keeps_legacy_body_valid_json():
-    det = PIIDetector("mask")
-    msg = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg said \"quoted\" tail"
-    body = json.dumps({"message": msg, "mode": "query", "sessionId": "s1"}, ensure_ascii=False).encode("utf-8")
-    v = await det.inspect(Inspection(request_id="r", method="POST", path=LEGACY, headers={}, body=body, session="s1"))
-    assert v.action is Action.TRANSFORM
-    out = json.loads(v.body)                      # 예전에는 역슬래시만 먹어 JSON이 깨졌다
-    (f,) = find_all(out["message"])
-    assert f.kind == "secret" and f.start == 0 and out["message"].startswith("-----BEGIN PRIVATE KEY-----\n")
-    assert "MIIEvQIBADANBg" not in out["message"]          # 키 본문은 같은 모양의 무작위로 바뀌었다
-    assert out["sessionId"] == "s1" and out["mode"] == "query"
-
-
-# ---------- #5 옛 경로: sessionId 값은 가리지 않는다 ----------
-
-def test_legacy_session_id_is_not_masked(secured):
-    body = {"message": "제 번호는 010-2345-6789입니다", "mode": "query", "sessionId": "010-1111-2222"}
-    echo = httpx.post(f"{secured.gateway}{LEGACY}", json=body, headers=HEADERS).json()["echo"]
-    assert echo["masked_seen"]                       # 메시지는 가렸고
-    assert not echo["session_id_masked"]             # 세션 키는 그대로 갔다(echo.body는 복원되므로 불리언으로 본다)
-
-
-# ---------- #6 같은 이름의 헤더를 양방향으로 보존한다 ----------
-
-def test_multi_value_headers_survive_both_ways(stack):
-    r = httpx.get(f"{stack.gateway}/__stub/multi", headers=httpx.Headers([("x-multi", "1"), ("x-multi", "2")]))
-    assert r.status_code == 200
-    assert r.json()["x_multi"] == ["1", "2"]
-    assert r.headers.get_list("set-cookie") == ["a=1; Path=/", "b=2; Path=/"]
+# ---------- #4·#5(옛 경로 본문)·#6(캐치올의 헤더 통과)는 D-109로 대상이 없어졌다 ----------
 
 
 # ---------- #7 OPTIONS는 Chat Completions 본문으로 보지 않는다 ----------
 
-def test_options_on_chat_path_is_relayed_not_rejected(stack):
+def test_options_on_chat_path_is_not_parsed_or_relayed(stack):
     r = httpx.options(f"{stack.gateway}{PATH}")
-    assert r.status_code == 405        # 스텁에 OPTIONS 라우트가 없어 405. 본문 파싱 400이 아니다
+    assert r.status_code == 404        # D-109: 허용 목록 밖의 메서드. 본문 파싱 400이 아니다
 
 
 # ---------- #8 "stream": null ----------
@@ -177,19 +145,19 @@ def test_stream_null_is_accepted(stack):
 # ---------- #9 500에도 요청 ID가 붙는다 ----------
 
 def test_unhandled_error_response_carries_request_id(make_stack):
-    dead = make_stack(TARGET_URL="http://127.0.0.1:9")     # 아무도 듣지 않는 포트
-    r = httpx.post(f"{dead.gateway}{LEGACY}", json={"message": "hi"}, headers=HEADERS)
+    boom = make_stack("tests.chain_app:app", GATEWAY_DETECTORS="test_boom")   # 검사기 내부 예외
+    r = httpx.post(f"{boom.gateway}{PATH}", json=chat([{"role": "user", "content": "hi"}]), headers=HEADERS)
     assert r.status_code == 500
     assert r.json()["error"]["code"] == "internal_error"
     rid = r.headers["x-gateway-request-id"]
-    (line,) = [l for l in dead.log_lines() if l["request_id"] == rid]
-    assert line["status"] == 500 and line["error"] == "ConnectError"
+    (line,) = [x for x in boom.log_lines() if x["request_id"] == rid]
+    assert line["status"] == 500 and line["error"] == "RuntimeError"
 
 
 # ---------- #10 date·server 헤더를 상류 것까지 둘씩 내보내지 않는다 ----------
 
 def test_upstream_date_and_server_headers_are_not_duplicated(stack):
-    r = httpx.get(f"{stack.gateway}/")
+    r = httpx.post(f"{stack.gateway}{PATH}", json=chat([{"role": "user", "content": "hi"}]), headers=HEADERS)
     assert r.status_code == 200
     assert len(r.headers.get_list("date")) == 1
     assert len(r.headers.get_list("server")) == 1

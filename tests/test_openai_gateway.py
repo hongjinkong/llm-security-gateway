@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from gateway.detectors.base import Action, Inspection
-from gateway.detectors.injection import user_text
+from gateway.openai_api import INJECTION_ROLES
 from gateway.detectors.patterns import find_all
 from gateway.detectors.pii import PIIDetector
 from gateway.openai_api import ChatRequestError, parse_chat_request
@@ -61,13 +61,14 @@ def test_injection_scope_is_user_and_tool_text_only():
         {"role": "assistant", "content": ATTACK},
         {"role": "tool", "content": [{"type": "text", "text": ATTACK}]},
     ]), ensure_ascii=False).encode()
-    assert user_text(body) == f"정상 질문\n{ATTACK}"
+    insp = Inspection(request_id="r", method="POST", path=PATH, headers={}, body=body)
+    assert [r.get() for r in insp.doc.texts() if r.role in INJECTION_ROLES] == ["정상 질문", ATTACK]
 
 
 @pytest.mark.anyio
-async def test_pii_masking_changes_only_user_and_assistant_messages():
-    """D-099: assistant도 가린다 — 게이트웨이가 복원해 준 값이 다음 요청 이력으로 돌아온다.
-    같은 요청 안에서 같은 값은 같은 토큰이어야 모델이 같은 것으로 읽는다."""
+async def test_pii_masking_covers_every_role():
+    """D-099: assistant도 가린다 — 게이트웨이가 복원해 준 값이 다음 요청 이력으로 돌아온다. D-112: system·tool도 가린다.
+    같은 요청 안에서 같은 값은 같은 대체값이어야 모델이 같은 것으로 읽는다."""
     body = json.dumps(chat([
         {"role": "system", "content": "관리자 system@example.com"},
         {"role": "user", "content": "제 번호는 010-2345-6789입니다"},
@@ -78,13 +79,13 @@ async def test_pii_masking_changes_only_user_and_assistant_messages():
         request_id="r1", method="POST", path=PATH, headers={}, body=body, session="s1"))
     assert verdict.action is Action.TRANSFORM
     out = json.loads(verdict.body)
-    assert out["messages"][0]["content"] == "관리자 system@example.com"
+    assert "system@example.com" not in out["messages"][0]["content"]
     user, assistant = out["messages"][1]["content"], out["messages"][2]["content"]
     surrogate = user.removeprefix("제 번호는 ").removesuffix("입니다")
     assert surrogate != "010-2345-6789" and [f.kind for f in find_all(surrogate)] == ["phone"]
     assert assistant == f"{surrogate}로 연락드리겠습니다"           # 같은 요청 안의 같은 값은 같은 대체값
-    assert out["messages"][3]["content"] == "RAG 담당자 rag@example.com"
-    assert verdict.meta["pii"] == {"phone": 2}
+    assert "rag@example.com" not in out["messages"][3]["content"]
+    assert verdict.meta["pii"] == {"phone": 2, "email": 2}
 
 
 def test_trusted_system_attack_does_not_block(secured_stack):
@@ -124,8 +125,8 @@ def test_user_pii_is_masked_upstream_and_restored_in_completion(secured_stack):
     payload = r.json()
     seen = payload["gateway_test"]
     assert seen["user_masked_seen"] is True
-    assert seen["system_raw_seen"] is True
-    assert seen["tool_raw_seen"] is True
+    assert seen["system_raw_seen"] is False      # D-112: system·tool도 가린다(D-073을 뒤집음)
+    assert seen["tool_raw_seen"] is False
     assert phone in payload["choices"][0]["message"]["content"]
     assert "[PII:" not in r.text
 
@@ -188,7 +189,7 @@ async def test_restore_keeps_openai_response_json_valid(value):
     restored, meta = await _mask_then_restore(value, _completion)
     content = json.loads(restored)["choices"][0]["message"]["content"]
     assert content == f"응답: 번호 {value} 확인"
-    assert meta == {"restored": 1, "residual_tokens": 0, "issued": 1}
+    assert meta == {"restored": 1, "residual_tokens": 0, "issued": 1, "suspect": 0}
 
 
 @pytest.mark.anyio
@@ -240,10 +241,3 @@ def test_valid_roles_and_null_assistant_content_still_parse():
         {"role": "tool", "content": [{"type": "text", "text": "t"}]},
     ])).encode())
     assert len(payload["messages"]) == 5
-
-
-def test_injection_text_extraction_skips_non_string_role():
-    """/v1 밖 경로는 parse_chat_request를 거치지 않는다. 같은 TypeError가 거기서 500을 냈다."""
-    body = json.dumps({"messages": [{"role": [], "content": ATTACK},
-                                    {"role": "user", "content": "정상"}]}).encode()
-    assert user_text(body) == "정상"

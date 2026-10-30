@@ -4,20 +4,18 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+*.egg-info/
+build/
+dist/
+.ruff_cache/
 
 .DS_Store
 .idea/
 .vscode/
-
-target/storage/
-# 런타임 임시파일 (D-023 핑)
-keepalive.log
-keepalive.pid
-
-# garak 런타임 로그 (정식 결과는 results/에 별도 보관)
-garak/logs/garak.log
-garak/logs/garak_runs/
-.venv-garak/
+.claude/settings.local.json
 
 # 게이트웨이 감사 로그 (런타임 산출물)
 logs/
+
+# 연구 단계의 로컬 데이터(AnythingLLM 저장소 등). 추적하지 않는다 — 연구 기록은 research-final 태그에 있다
+target/

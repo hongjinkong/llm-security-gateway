@@ -12,6 +12,10 @@ from pathlib import Path
 import httpx
 import pytest
 
+ADMIN_KEY = "test-admin-key"   # make_stack이 띄우는 게이트웨이의 관리 키(D-109) — info·metrics를 본다
+ADMIN = {"Authorization": f"Bearer {ADMIN_KEY}"}
+SURROGATE_KEY = "test-surrogate-key-0123456789abcdef"   # make_stack의 결정적 대체값 키(D-111) — mask 모드는 이게 없으면 뜨지 않는다
+
 
 def free_port() -> int:
     with socket.socket() as s:
@@ -43,6 +47,12 @@ class Stack:
     gateway: str     # 게이트웨이 URL
     log_path: Path   # 감사 로그 경로
 
+    def info(self) -> dict:
+        """/__gateway/info — 버전·코드 지문·상류·검사기(D-109). 관리 키가 필요하다."""
+        r = httpx.get(f"{self.gateway}/__gateway/info", headers=ADMIN)
+        assert r.status_code == 200, r.text
+        return r.json()
+
     def log_lines(self) -> list[dict]:
         import json
         if not self.log_path.exists():
@@ -62,6 +72,10 @@ def make_stack(tmp_path_factory):
         # 기본은 검사기 없음(4-A)·무인증(로컬 실험). 인증을 시험하는 테스트만 GATEWAY_CLIENT_KEYS를 넘긴다(D-107 A).
         # 값이 None이면 "그 변수를 아예 주지 않는다"(제품 기본값을 시험할 때 — D-107 D).
         base = {"GATEWAY_DETECTORS": ""} if "GATEWAY_DETECTORS" not in env else {}
+        if "GATEWAY_ADMIN_KEY" not in env:
+            base["GATEWAY_ADMIN_KEY"] = ADMIN_KEY
+        if "GATEWAY_SURROGATE_KEY" not in env:
+            base["GATEWAY_SURROGATE_KEY"] = SURROGATE_KEY
         if "GATEWAY_CLIENT_KEYS" not in env and "GATEWAY_AUTH" not in env:
             base["GATEWAY_AUTH"] = "off"
         env = {k: v for k, v in env.items() if v is not None}

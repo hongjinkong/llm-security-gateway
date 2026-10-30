@@ -20,13 +20,11 @@ import re
 from collections.abc import Callable
 from typing import Protocol
 
+from gateway.vault import json_escape, map_strings
+
 Ref = tuple[str, Callable[[], str | None], Callable[[str], None]]      # (채널, 읽기, 쓰기)
 BLOCK_END = re.compile(r"\r?\n\r?\n")
 DATA_RE = re.compile(r"^data: ?", re.M)
-
-
-def json_escape(value: str) -> str:
-    return json.dumps(value, ensure_ascii=False)[1:-1]
 
 
 class Shape(Protocol):
@@ -38,6 +36,7 @@ class Shape(Protocol):
     def synthesize(self, channel: str, text: str) -> str: ...          # 꼬리만 담은 이벤트 블록 전체(event 줄·빈 줄 포함)
     def full_text(self, obj: dict) -> bool: ...                        # 전체 텍스트를 담은 이벤트인가(JSON 텍스트 전체 복원)
     def is_done(self, payload: str) -> bool: ...                       # 스트림 종료 표시(`[DONE]`)인가
+    def json_channel(self, channel: str) -> bool: ...                  # 그 채널이 JSON 텍스트(도구 인자)를 나르는가 — 복원 값을 이스케이프한다(D-113)
 
 
 class StreamRestorer:
@@ -51,8 +50,7 @@ class StreamRestorer:
         self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         self._buf = ""                          # 아직 블록이 끝나지 않은 텍스트
         self._pending: dict[str, str] = {}      # 채널 → 보류 중인 꼬리
-        self._content_in: list[str] = []        # 상류가 보낸 텍스트 조각 원문(이어 붙이면 전체 — 카나리 관측용)
-        self._out: list[str] = []
+        self._visible: list[str] = []          # 복원 대상 채널로 내보낸 텍스트(사고 과정 밖) — 감사의 잔여 대체값을 여기서 센다(D-112)
         self.restored = 0
 
     # --- 공개 --------------------------------------------------------------
@@ -78,16 +76,12 @@ class StreamRestorer:
         return self._emit(parts)
 
     @property
-    def content_in(self) -> str:
-        return "".join(self._content_in)
-
-    @property
-    def out_text(self) -> str:
-        return "".join(self._out)
+    def visible_text(self) -> str:
+        return "".join(self._visible)
 
     # --- 내부 --------------------------------------------------------------
-    def _emit(self, parts: list[str]) -> bytes:
-        self._out.extend(parts)
+    @staticmethod
+    def _emit(parts: list[str]) -> bytes:
         return "".join(parts).encode("utf-8")
 
     def _event(self, block: str) -> str:
@@ -114,13 +108,12 @@ class StreamRestorer:
             text = get()
             if text is None:
                 continue
-            self._content_in.append(text)
             # 복원을 먼저, 보류를 그 뒤에 한다. 순서를 바꾸면 조각 끝에 **완성된** 대체값이 있을 때 그 마지막 글자가
             # "다른 대체값의 앞부분"으로 보여 보류되고, 앞부분만 내보내져 복원이 깨진다(`010-8860-744` + `0`).
-            restored, n = self._restore(self._pending.pop(channel, "") + text)
-            self.restored += n
+            restored = self._restore_channel(channel, self._pending.pop(channel, "") + text)
             keep = self._hold(restored)
             emit, tail = restored[:len(restored) - keep], restored[len(restored) - keep:]
+            self._visible.append(emit)
             if tail:
                 self._pending[channel] = tail
             if emit != text:
@@ -131,26 +124,33 @@ class StreamRestorer:
         closes = self._shape.closes(obj)
         if closes is not None:
             for channel in [c for c in self._pending if closes(c)]:
-                restored, n = self._restore(self._pending.pop(channel))
-                self.restored += n
+                restored = self._restore_channel(channel, self._pending.pop(channel))
+                self._visible.append(restored)
                 if self._shape.inject(obj, channel, restored):
                     changed = True
                 else:
                     prefix += self._shape.synthesize(channel, restored)
 
-        new_payload = json.dumps(obj, ensure_ascii=False) if changed else payload
         if self._shape.full_text(obj):
-            new_payload, n = self._restore(new_payload, json_escape)
+            # 전체 텍스트를 담은 이벤트(Responses `*.done`·`response.completed`)는 문자열 값마다 복원한다 — reasoning 요약은 건너뛴다(D-112)
+            n = map_strings(obj, self._restore)
             self.restored += n
+            changed = changed or n > 0
+        new_payload = json.dumps(obj, ensure_ascii=False) if changed else payload
         if new_payload == payload and not prefix:
             return block
         return prefix + block[:m.end()] + new_payload + block[line_end:]
 
+    def _restore_channel(self, channel: str, text: str) -> str:
+        restored, n = self._restore(text, json_escape if self._shape.json_channel(channel) else None)
+        self.restored += n
+        return restored
+
     def _flush(self, which: Callable[[str], bool]) -> str:
         out = ""
         for channel in [c for c in self._pending if which(c)]:
-            restored, n = self._restore(self._pending.pop(channel))
-            self.restored += n
+            restored = self._restore_channel(channel, self._pending.pop(channel))
+            self._visible.append(restored)
             out += self._shape.synthesize(channel, restored)
         return out
 
@@ -164,6 +164,10 @@ class ChatShape:
     @staticmethod
     def is_done(payload: str) -> bool:
         return payload.strip() == "[DONE]"
+
+    @staticmethod
+    def json_channel(channel: str) -> bool:
+        return channel.startswith("t")          # 도구 인자
 
     def deltas(self, obj: dict) -> list[Ref]:
         refs: list[Ref] = []

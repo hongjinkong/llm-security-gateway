@@ -1,0 +1,20 @@
+# 빌드 문맥에서 뺀다 — 비밀(.env)과 로컬 산출물이 이미지·데몬으로 넘어가지 않게(D-108)
+.git
+.env
+.venv
+venv
+.claude
+.vscode
+.idea
+.pytest_cache
+.ruff_cache
+logs
+target
+tests
+docs
+eval
+scripts
+web
+**/__pycache__
+**/*.pyc
+**/.DS_Store

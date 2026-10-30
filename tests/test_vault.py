@@ -15,8 +15,12 @@ RRN = "900101-1234563"
 PHONE = "010-2345-6789"
 
 
+CHAT = "/v1/chat/completions"
+
+
 def body(msg: str, session: str | None = "eval-1") -> bytes:
-    payload = {"message": msg, "mode": "query"}
+    """Chat Completions 본문. mode·sessionId는 검사 대상이 아닌 다른 필드가 그대로 남는지 보려고 둔다."""
+    payload = {"model": "m", "messages": [{"role": "user", "content": msg}], "mode": "query"}
     if session:
         payload["sessionId"] = session
     return json.dumps(payload, ensure_ascii=False).encode()
@@ -140,12 +144,16 @@ def test_만료는_다른_세션의_복원을_막지_않는다(clock):
     assert v.restore("s2", t2) == (PHONE, 1)
 
 
-def test_capacity_is_bounded():
-    """세션이 무한히 쌓이면 볼트 자체가 취약점이 된다."""
+def test_capacity_is_bounded_without_evicting_live_sessions():
+    """세션이 무한히 쌓이면 볼트 자체가 취약점이 된다. 상한에서는 새 세션을 거절하고 진행 중인 세션은 밀어내지 않는다(D-110)."""
     v = TokenVault(max_sessions=3)
-    for i in range(10):
-        v.token_for(f"s{i}", "phone", PHONE)
-    assert v.session_count <= 3
+    tokens = [v.token_for(f"s{i}", "phone", PHONE) for i in range(3)]
+    with pytest.raises(vault_mod.VaultFull):
+        v.token_for("s3", "phone", PHONE)
+    assert v.session_count == 3
+    assert [v.restore(f"s{i}", t) for i, t in enumerate(tokens)] == [(PHONE, 1)] * 3   # 예전에는 가장 오래된 세션이 밀려났다
+    v.drop("s0")
+    assert v.restore("s3", v.token_for("s3", "phone", PHONE))[0] == PHONE
 
 
 # ---------- 세션 키: 요청 단위(D-107 A) ----------
@@ -154,7 +162,7 @@ def test_capacity_is_bounded():
 async def test_session_is_the_request_not_the_client_session_id():
     """클라이언트가 보낸 sessionId는 볼트 키가 아니다 — 그것을 맞추면 남의 원문을 꺼낼 수 있었다(D-107 §1 #1)."""
     det = PIIDetector("mask")
-    await det.inspect(Inspection(request_id="r1", method="POST", path="/chat", headers={},
+    await det.inspect(Inspection(request_id="r1", method="POST", path=CHAT, headers={},
                                  body=body(f"번호 {PHONE}", session="shared-sid"), session="r1"))
     assert list(det.vault._sessions) == ["r1"]
     surrogate = det.vault.token_for("r1", "phone", PHONE)
@@ -170,7 +178,7 @@ def masker():
 
 
 def insp(b: bytes, rid: str = "r1") -> Inspection:
-    return Inspection(request_id=rid, method="POST", path="/chat", headers={}, body=b)
+    return Inspection(request_id=rid, method="POST", path=CHAT, headers={}, body=b)
 
 
 @pytest.mark.anyio
@@ -185,13 +193,13 @@ async def test_original_value_is_gone_from_body(masker):
     v = await masker.inspect(insp(body(f"주민등록번호 {RRN}이고 연락처는 {PHONE}입니다")))
     out = v.body.decode()
     assert RRN not in out and PHONE not in out
-    assert [f.kind for f in find_all(json.loads(out)["message"])] == ["rrn", "phone"], "같은 모양의 대체값이 들어 있다"
+    assert [f.kind for f in find_all(json.loads(out)["messages"][0]["content"])] == ["rrn", "phone"], "같은 모양의 대체값이 들어 있다"
 
 
 @pytest.mark.anyio
 async def test_masked_body_is_still_valid_json(masker):
     """타겟이 파싱할 수 있어야 한다. 토큰이 JSON을 깨뜨리면 안 된다."""
-    v = await masker.inspect(insp(body(f"카드 4111-1111-1111-1111 결제")))
+    v = await masker.inspect(insp(body("카드 4111-1111-1111-1111 결제")))
     assert json.loads(v.body)["mode"] == "query"
 
 
@@ -222,7 +230,7 @@ async def test_meta_never_contains_the_raw_value(masker):
 @pytest.mark.anyio
 async def test_repeated_value_in_one_message_shares_a_token(masker):
     v = await masker.inspect(insp(body(f"{PHONE} 또는 {PHONE} 로 연락주세요")))
-    msg = json.loads(v.body)["message"]
+    msg = json.loads(v.body)["messages"][0]["content"]
     a, b = [msg[f.start:f.end] for f in find_all(msg)]
     assert a == b and a != PHONE
 
@@ -280,7 +288,7 @@ async def test_chain_release_drops_the_session():
     from gateway.chain import DetectorChain
 
     det = PIIDetector("mask")
-    await det.inspect(Inspection(request_id="r1", method="POST", path="/chat", headers={},
+    await det.inspect(Inspection(request_id="r1", method="POST", path=CHAT, headers={},
                                  body=body(f"번호 {PHONE}", session=None), session="r1"))
     assert det.vault.session_count == 1
     await DetectorChain([det]).release("r1")
@@ -314,12 +322,6 @@ async def test_gateway_releases_every_request_session(tmp_path):
             assert r.status_code == 200
             assert PHONE in r.json()["choices"][0]["message"]["content"], "복원이 먼저 끝나야 한다"
             assert vault.session_count == 0, "sessionId 없는 요청의 원문이 볼트에 남았다"
-
-            r = await gw.post("/api/v1/workspace/demo/chat",
-                              json={"message": f"제 번호는 {PHONE}입니다", "sessionId": "keep-me"})
-            assert r.status_code == 200
-            assert PHONE in r.json()["textResponse"]
-            assert vault.session_count == 0, "옛 경로의 sessionId 세션이 볼트에 남았다(D-107 A)"
     finally:
         await main.app.state.client.aclose()
         main.app.state.audit.close()

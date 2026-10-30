@@ -11,7 +11,7 @@ import pytest
 
 from gateway.metrics import Metrics
 from gateway.ratelimit import RateLimiter
-from tests.conftest import free_port
+from tests.conftest import ADMIN, free_port
 
 CHAT = "/v1/chat/completions"
 KEY = {"Authorization": "Bearer test-key"}
@@ -29,7 +29,8 @@ def audit(stack, r: httpx.Response) -> dict:
 
 
 def health(stack) -> dict:
-    return httpx.get(stack.gateway + "/__gateway/health").json()
+    """구성은 health가 아니라 관리 키가 필요한 info에 있다(D-109)."""
+    return stack.info()
 
 
 # ---------- D1 기본 구성 ----------
@@ -81,11 +82,6 @@ def test_d1_block_and_off_modes(make_stack_default):
 def test_d1_bad_value_does_not_boot(make_stack_default):
     with pytest.raises(RuntimeError, match="기동 실패"):
         make_stack_default(GATEWAY_INJECTION="maybe")
-
-
-def test_d1_canary_turns_on_when_all_three_values_exist(make_stack_default):
-    s = make_stack_default(GATEWAY_CANARY_A="ZZTEST-0000-a", GATEWAY_CANARY_B="ZZTEST-0000-b", GATEWAY_CANARY_DOC="ZZTEST-0000-d")
-    assert health(s)["detectors"] == ["injection_observe", "pii_mask", "canary_observe"]
 
 
 def test_d1_pii_kinds_narrows_detection(make_stack_default):
@@ -154,10 +150,10 @@ def test_e1_file_log_rotates_at_max_bytes(make_stack):
 # ---------- E2 지표 ----------
 
 def test_e2_metrics_match_the_audit_lines(default_stack):
-    before = httpx.get(default_stack.gateway + "/__gateway/metrics").text
+    before = httpx.get(default_stack.gateway + "/__gateway/metrics", headers=ADMIN).text
     httpx.post(default_stack.gateway + CHAT, json=chat(f"{ATTACK} 제 번호는 {PHONE}"), headers=KEY)
     httpx.post(default_stack.gateway + CHAT, json=chat("연차는 며칠인가요?"), headers=KEY)
-    text = httpx.get(default_stack.gateway + "/__gateway/metrics").text
+    text = httpx.get(default_stack.gateway + "/__gateway/metrics", headers=ADMIN).text
     assert text != before and text.startswith("# TYPE gateway_requests_total counter")
     values = {line.split(" ")[0]: float(line.split(" ")[1]) for line in text.splitlines() if not line.startswith("#")}
     lines = default_stack.log_lines()

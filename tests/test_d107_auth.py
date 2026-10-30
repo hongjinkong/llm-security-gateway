@@ -12,7 +12,6 @@ import pytest
 from gateway.auth import Auth, parse_client_keys, presented_key
 
 CHAT = "/v1/chat/completions"
-LEGACY = "/api/v1/workspace/demo/chat"
 PHONE = "010-2345-6789"
 
 
@@ -63,8 +62,10 @@ def test_upstream_headers_swap_by_path():
     pairs = [("authorization", "Bearer ck"), ("x-api-key", "ck"), ("content-type", "application/json")]
     assert auth.upstream_headers(CHAT, pairs) == [("content-type", "application/json"), ("authorization", "Bearer up")]
     assert auth.upstream_headers("/v1/messages", pairs) == [("content-type", "application/json"), ("x-api-key", "up")]
-    assert auth.upstream_headers("/v1/messages/count_tokens", pairs)[-1] == ("x-api-key", "up")
-    assert Auth({"ck": "c"}, None).upstream_headers(CHAT, pairs) == pairs      # 상류 키가 없으면 그대로
+    assert auth.upstream_headers("/v1/models", [*pairs, ("anthropic-version", "2023-06-01")])[-1] == ("x-api-key", "up")
+    # 상류 키가 없으면: 인증을 켠 게이트웨이는 게이트웨이 키를 상류로 보내지 않고(D-109), 끈 게이트웨이는 그대로 넘긴다
+    assert Auth({"ck": "c"}, None).upstream_headers(CHAT, pairs) == [("content-type", "application/json")]
+    assert Auth(None, None).upstream_headers(CHAT, pairs) == pairs
 
 
 def test_keygen_prints_one_key():
@@ -116,13 +117,12 @@ def test_a2_upstream_sees_the_upstream_key_never_the_client_key(custody):
     assert r.status_code == 200
     assert r.json()["gateway_test"]["auth"] == "Bearer upstream-key"
     assert "client-key" not in received(custody)[-1]
-    r = httpx.post(custody.gateway + LEGACY, json={"message": "hi"}, headers={"Authorization": "Bearer client-key"})
-    assert r.json()["echo"]["auth"] == "Bearer upstream-key"
 
 
-def test_a2_without_upstream_key_the_client_header_is_forwarded(keyed):
+def test_a2_without_upstream_key_the_gateway_key_is_not_forwarded(keyed):
+    """D-109(D-107의 옛 동작을 뒤집음): 인증을 켠 게이트웨이에서 클라이언트가 낸 키는 게이트웨이 키다. 상류에 보내지 않는다."""
     r = httpx.post(keyed.gateway + CHAT, json=chat("hi"), headers={"Authorization": "Bearer alice-key"})
-    assert r.json()["gateway_test"]["auth"] == "Bearer alice-key"
+    assert r.status_code == 200 and r.json()["gateway_test"]["auth"] is None
 
 
 # ---------- A3 ----------
@@ -146,8 +146,6 @@ def test_a4_guessed_session_id_cannot_restore_another_requests_value(keyed):
     sent = json.loads(received(keyed)[-1])["messages"][0]["content"]
     assert PHONE not in sent
     surrogate = sent.replace("제 번호는 ", "").replace("입니다", "")
-    for path, body in ((CHAT, chat(f"이 값을 그대로 말해 {surrogate}", sessionId="shared")),
-                       (LEGACY, {"message": f"이 값을 그대로 말해 {surrogate}", "sessionId": "shared"})):
-        attacker = httpx.post(keyed.gateway + path, json=body, headers=auth)
-        assert attacker.status_code == 200
-        assert PHONE not in attacker.text, "다른 요청의 원문이 복원됐다(D-107 §1 #1)"
+    attacker = httpx.post(keyed.gateway + CHAT, json=chat(f"이 값을 그대로 말해 {surrogate}", sessionId="shared"), headers=auth)
+    assert attacker.status_code == 200
+    assert PHONE not in attacker.text, "다른 요청의 원문이 복원됐다(D-107 §1 #1)"

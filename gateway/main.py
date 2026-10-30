@@ -1,63 +1,48 @@
-"""LLM Security Gateway — 패스스루 리버스 프록시 + 감사 로그.
+"""LLM Security Gateway — 세 API(Chat Completions·Responses·Messages)의 검사 프록시.
 
-4-A: 어떤 검사도 하지 않고 타겟에 그대로 중계한다.
-     "게이트웨이를 껴도 타겟 앱 동작이 변하지 않는다"가 이 단계의 전부다.
-4-B: 요청 1건마다 감사 로그 1줄. 지연을 세 갈래(종단/타겟/게이트웨이)로 분리 기록.
-4-C: 검사기 체인. 기본 구성은 검사기 0개이므로 동작은 4-A와 동일하다.
-4-D: PII 탐지기(탐지만). GATEWAY_DETECTORS=pii
-4-E: PII 마스킹 + 토큰 볼트.   GATEWAY_DETECTORS=pii_mask
-5-A: 룰 기반 인젝션 탐지.     GATEWAY_DETECTORS=injection_rule,pii_mask (순서는 D-037)
-     이력은 가리고 이번 턴만으로 막는 판: GATEWAY_DETECTORS=injection_rule_turn,pii_mask (D-095·D-099)
-5-B·5-C: 2차 유사도·3차 LLM Judge는 사전 기준으로 기각됐다(D-052·D-054).
-     코드는 `v1` 태그에만 있다(D-099). 쓰지 않는 방어 코드를 배포물에 두지 않는다.
-4-F: 응답에 남은 마스킹 토큰을 원본으로 복원.
-6-A: 카나리 관측. **응답을 바꾸지 않는다**(D-058 / docs/CANARY_DESIGN.md).
-     GATEWAY_DETECTORS=injection_rule,pii_mask,canary_observe
-     목록 맨 뒤 = 응답 경로 맨 앞 = 타겟 원본을 본다. 맨 뒤가 아니면 기동 실패한다.
-     값 3개(GATEWAY_CANARY_A/_B/_DOC)가 없어도 기동 실패한다 — 값 없이 관측하면
-     검출률이 조용히 0이 되고 그 0이 D-059의 입력이 된다.
-D-099: 본문 크기 상한(GATEWAY_MAX_BODY_BYTES, 기본 1MiB)을 넘으면 413.
-     sessionId 없는 요청의 볼트 매핑은 응답 뒤 바로 버린다(TTL까지 원문을 들고 있지 않는다).
-D-106: `stream: true`는 상류 SSE를 조각마다 흘려보낸다(gateway/streaming.py가 토큰을 복원한다).
-     감사 줄은 스트림이 끝난 뒤 한 줄, 차단은 SSE 한 조각 + [DONE]. 옛 경로(/v1 밖)는 그대로다.
-D-107 A: 클라이언트 인증(GATEWAY_CLIENT_KEYS, 없으면 기동 실패 — GATEWAY_AUTH=off로만 연다)과 상류 키 보관
-     (GATEWAY_UPSTREAM_KEY — 클라이언트의 인증 헤더를 떼고 상류 형식으로 단다). 볼트는 요청 단위다 —
-     클라이언트가 보낸 sessionId는 더 이상 볼트 키가 아니고, 응답(스트림)이 끝나면 버린다.
+요청: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 어댑터 파싱(400) → 검사기 체인(인젝션 → PII) → 상류.
+응답: 대체값 복원(스트리밍은 조각 경계·채널별, gateway/streaming.py) → 감사 한 줄(원문 없음).
+
+D-107 A: 클라이언트 키 인증(GATEWAY_CLIENT_KEYS, 없으면 기동 실패 — GATEWAY_AUTH=off로만 연다)과 상류 키 보관
+     (GATEWAY_UPSTREAM_KEY). 볼트는 요청 단위다 — 응답(스트림)이 끝나면 버린다.
+D-109: 경로 허용 목록 — 세 POST와 GET /v1/models만 받고 그 밖은 404(상류에 연결하지 않는다). 요청·응답 헤더도 허용 목록.
+     /__gateway/health는 status만, 상세(info)와 metrics는 GATEWAY_ADMIN_KEY가 있어야 보인다.
 """
 from __future__ import annotations
 
-import json
+import hmac
 import os
 import time
 import uuid
-from collections.abc import AsyncIterator, Callable, Iterable
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from dataclasses import replace
+from http.cookiejar import CookieJar, DefaultCookiePolicy
 from urllib.parse import unquote
 
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.exceptions import HTTPException
 
 from gateway.api import ApiError, Doc, adapter_for, error_format_for
 from gateway.audit import AuditLog, digest, utcnow
 from gateway.auth import Auth, parse_client_keys
 from gateway.chain import ChainResult, DetectorChain, Step
 from gateway.detectors.base import Detector, Inspection
-from gateway.detectors.canary import CanaryObserveDetector, validate_canary_position
 from gateway.detectors.injection import InjectionRuleDetector
-from gateway.detectors.noop import NoOpDetector
 from gateway.detectors.pii import ALL_KINDS, PIIDetector
 from gateway.metrics import Metrics
+from gateway.openai_api import PII_ROLES
 from gateway.ratelimit import RateLimiter
 from gateway.streaming import StreamRestorer
-from gateway.version import canary_fingerprint, code_fingerprint
+from gateway.vault import TokenVault, VaultFull
+from gateway.version import VERSION, code_fingerprint
 
 load_dotenv()  # .env를 읽되, 이미 설정된 환경변수는 덮어쓰지 않는다
 
-# 타겟 주소는 .env의 TARGET_URL 단일 출처를 그대로 쓴다(eval/ 스크립트와 동일 키).
-# 기본값 8000은 D-002의 포트 계약(게이트웨이 8080 / 타겟 8000).
+# 상류 주소. 기본값 8000은 로컬 스텁·OpenAI 호환 서버용이다.
 TARGET_URL = os.environ.get("TARGET_URL", "http://localhost:8000").rstrip("/")
 TARGET_TIMEOUT = float(os.environ.get("GATEWAY_TIMEOUT", "600"))  # D-023: 긴 생성 대비
 # D-086: TARGET_URL은 origin이다. chat completions만 상류 경로를 바꿀 수 있다 — Gemini의 OpenAI 호환
@@ -69,13 +54,12 @@ AUDIT_LOG_MAX_BYTES = int(os.environ.get("GATEWAY_LOG_MAX_BYTES", str(100 * 1024
 AUDIT_LOG_BACKUPS = int(os.environ.get("GATEWAY_LOG_BACKUPS", "5"))
 RATE_PER_MINUTE = int(os.environ.get("GATEWAY_RATE_PER_MINUTE", "0"))        # 0 = 끔(D-107 E)
 
-# 게이트웨이 자체 경로. 감사 로그에서 제외한다.
-# preflight.sh 같은 헬스체크가 초당 여러 번 때리면 지연 통계가 오염된다.
+# 게이트웨이 자체 경로. 감사 로그에서 제외한다 — 헬스체크가 초당 여러 번 때리면 지연 통계가 오염된다.
 INTERNAL_PREFIX = "/__gateway/"
+# D-109: info·metrics를 여는 관리 키(Bearer). 없으면 둘 다 404다.
+ADMIN_KEY = os.environ.get("GATEWAY_ADMIN_KEY", "")
 
-# 차단 시 사용자에게 돌려줄 문구. 타겟(AnythingLLM)과 같은 스키마로 200을 반환한다.
-# 403+오류 JSON을 주면 garak이 이를 '오류'로 처리해 total_evaluated에서 빠질 수 있고,
-# 그러면 베이스라인(n=4000)과 방어 적용(n=?)을 비교하는 EVAL 5.2가 무효가 된다.
+# 차단 시 사용자에게 돌려줄 문구. 어댑터가 그 API의 정상 응답 모양(HTTP 200)에 싣는다 — 클라이언트 SDK가 오류로 다루지 않는다.
 # 차단 여부는 HTTP 코드가 아니라 gateway_blocked 필드와 감사 로그로 판별한다.
 BLOCKED_MESSAGE = os.environ.get(
     "GATEWAY_BLOCKED_MESSAGE", "요청이 보안 정책에 의해 차단되었습니다.")
@@ -84,6 +68,14 @@ BLOCKED_MESSAGE = os.environ.get(
 # 워커가 1개라 그동안 다른 요청이 전부 멈춘다. 이미지 첨부처럼 큰 요청을 받으려면 값을 올린다
 # (OpenAI 경로의 검사기는 text 파트만 보므로 이미지 크기는 검사 시간에 들어가지 않는다).
 MAX_BODY_BYTES = int(os.environ.get("GATEWAY_MAX_BODY_BYTES", str(1024 * 1024)))
+# D-110: 가용성 상한. 탐지 건수(mask 모드, 넘으면 413), 상류 연결 풀(넘쳐 5초 기다리면 503), 비스트리밍 상류 응답(넘으면 502).
+MAX_FINDINGS = int(os.environ.get("GATEWAY_MAX_FINDINGS", "5000"))
+# D-111: 결정적 대체값의 키. mask 모드면 필수(32자 이상) — `python -m gateway keygen` 출력을 그대로 써도 된다.
+# 이 키와 대체값이 있으면 원문을 되짚을 수 있으므로(전화번호 공간은 작다) 클라이언트 키·공급자 키와 같은 등급으로 보관한다.
+SURROGATE_KEY = os.environ.get("GATEWAY_SURROGATE_KEY", "")
+MAX_CONNECTIONS = int(os.environ.get("GATEWAY_MAX_CONNECTIONS", "100"))
+MAX_RESPONSE_BYTES = 32 * 1024 * 1024
+UPSTREAM_TIMEOUT = httpx.Timeout(connect=5, read=TARGET_TIMEOUT, write=30, pool=5)
 
 # D-107 A: 인증. 키 목록이 없으면 lifespan에서 기동을 실패시킨다 — 보안 제품은 닫힌 채로 시작한다.
 # 무인증은 GATEWAY_AUTH=off로 명시한 로컬 실험에서만. 상류 키가 있으면 클라이언트의 인증 헤더를 떼고 상류 형식으로 단다.
@@ -92,20 +84,21 @@ CLIENT_KEYS_SPEC = os.environ.get("GATEWAY_CLIENT_KEYS", "")
 AUTH = Auth(None if AUTH_OFF else parse_client_keys(CLIENT_KEYS_SPEC) or None,
             os.environ.get("GATEWAY_UPSTREAM_KEY", ""))
 
-# 6단계 카나리 관측(D-058 / CANARY_DESIGN 3-2). 값의 단일 출처는 .env이고 compose가
-# 세 줄로 넘긴다(R1). **값을 읽는 곳은 여기 하나뿐이고 검사기는 환경변수를 모른다** —
-# 출처가 한 군데여야 health의 지문과 대조가 성립한다(R5).
-#
-# 기본값을 두지 않는다. 값이 없으면 빈 문자열이 되고 prepare()가 기동을 실패시킨다(R3).
-# "적당한 기본값"을 주면 검출률이 조용히 0인 채로 측정이 돌고, 그 0이 D-059의 입력이 된다.
-CANARY_A = os.environ.get("GATEWAY_CANARY_A", "")
-CANARY_B = os.environ.get("GATEWAY_CANARY_B", "")
-CANARY_DOC = os.environ.get("GATEWAY_CANARY_DOC", "")
-
 # D-107 D: 제품 설정 세 개 — GATEWAY_INJECTION(observe 기본|block|off), GATEWAY_INJECTION_SCOPE(turn 기본|all), GATEWAY_PII(mask 기본|detect|off).
-# 카나리는 값 셋이 다 있으면 켜진다. 체인 순서는 고정이다: injection → pii → canary.
+# 체인 순서는 고정이다: injection → pii.
 # 저수준 목록 GATEWAY_DETECTORS(쉼표 구분)는 측정·테스트용으로 남긴다 — **설정돼 있으면 그것이 우선**이고, 빈 문자열은 검사기 없음(4-A)이다.
 PII_KINDS = tuple(x.strip() for x in os.environ.get("GATEWAY_PII_KINDS", ",".join(ALL_KINDS)).split(",") if x.strip())
+
+
+def pii_roles() -> frozenset[str]:
+    """GATEWAY_PII_ROLES(쉼표) — 가리는 역할을 좁힌다(D-112). 기본은 전부. developer는 system의 별칭. 모르는 이름은 기동 실패."""
+    spec = os.environ.get("GATEWAY_PII_ROLES")
+    if spec is None:
+        return PII_ROLES
+    roles = frozenset({"developer": "system"}.get(x, x) for x in (y.strip().lower() for y in spec.split(",")) if x)
+    if not roles or roles - PII_ROLES:
+        raise ValueError(f"GATEWAY_PII_ROLES는 {sorted(PII_ROLES)}(developer = system) 중에서 고른다: {spec!r}")
+    return roles
 
 
 def detector_names_from_env() -> list[str]:
@@ -128,20 +121,18 @@ def detector_names_from_env() -> list[str]:
         names.append("pii_mask" if pii == "mask" else "pii")
     elif pii != "off":
         raise ValueError(f"GATEWAY_PII는 mask|detect|off 중 하나여야 한다: {pii!r}")
-    if CANARY_A and CANARY_B and CANARY_DOC:
-        names.append("canary_observe")
     return names
 
 
-# 이름 → 생성자. 4-D부터 여기에 실제 검사기가 등록된다.
+# 이름 → 생성자. 테스트는 tests/chain_app.py에서 시험용 검사기를 더한다.
 DETECTOR_REGISTRY: dict[str, Callable[[], Detector]] = {
-    "noop": lambda: NoOpDetector("noop"),
-    "pii": lambda: PIIDetector("detect", kinds=PII_KINDS),
-    "pii_mask": lambda: PIIDetector("mask", kinds=PII_KINDS),
+    "pii": lambda: PIIDetector("detect", kinds=PII_KINDS, roles=pii_roles()),
+    # 볼트 TTL은 상류 타임아웃보다 길다 — 긴 스트림 도중 매핑이 만료되면 복원이 깨진다(D-110).
+    "pii_mask": lambda: PIIDetector("mask", kinds=PII_KINDS, max_findings=MAX_FINDINGS, roles=pii_roles(),
+                                    vault=TokenVault(ttl=TARGET_TIMEOUT + 60, key=SURROGATE_KEY.encode() or None)),
     "injection_observe": lambda: InjectionRuleDetector(mode="observe"),
     "injection_rule": lambda: InjectionRuleDetector(),
     "injection_rule_turn": lambda: InjectionRuleDetector(scope="turn"),
-    "canary_observe": lambda: CanaryObserveDetector(CANARY_A, CANARY_B, CANARY_DOC),
 }
 
 
@@ -150,16 +141,11 @@ def build_chain(names: list[str] | None = None) -> DetectorChain:
     unknown = [n for n in names if n not in DETECTOR_REGISTRY]
     if unknown:
         raise ValueError(f"알 수 없는 검사기: {unknown}. 등록된 것: {sorted(DETECTOR_REGISTRY)}")
-    # 카나리 관측은 목록 맨 뒤 = 응답 경로 맨 앞이어야 타겟 원본을 본다(D-058 / 설계 4-1).
-    # lifespan에서 불리므로 여기서 던지면 **게이트웨이가 기동하지 못한다**(D-048 패턴).
-    validate_canary_position(names)
     return DetectorChain([DETECTOR_REGISTRY[n]() for n in names])
 
-# 홉 단위(hop-by-hop) 헤더 — "이 구간에서만 유효"한 라벨. 다음 구간으로 옮기면 안 된다.
-HOP_BY_HOP = frozenset({
-    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-    "te", "trailers", "transfer-encoding", "upgrade",
-})
+# D-109: 클라이언트에 넘기는 상류 응답 헤더. 그 밖(set-cookie·openai-organization·레이트리밋·요청 ID·hop-by-hop·
+# content-encoding·content-length·date·server)은 전부 뗀다. 요청 헤더의 허용 목록은 gateway/auth.py에 있다.
+PASS_RESPONSE_HEADERS = frozenset({"content-type", "cache-control", "retry-after", "retry-after-ms", "x-should-retry"})
 
 
 @asynccontextmanager
@@ -171,14 +157,22 @@ async def lifespan(app: FastAPI):
     if not AUTH.enabled and not AUTH_OFF:
         raise RuntimeError("GATEWAY_CLIENT_KEYS가 없다 — 클라이언트 키 없이는 기동하지 않는다(D-107 A). "
                            "`python -m gateway keygen`으로 키를 만들어 넣거나, 로컬 실험이면 GATEWAY_AUTH=off를 명시한다")
+    if AUTH_OFF and AUTH.upstream_key:
+        raise RuntimeError("GATEWAY_AUTH=off와 GATEWAY_UPSTREAM_KEY를 함께 쓸 수 없다 — 누구나 상류 키로 중계하게 된다(D-109)")
     app.state.auth = AUTH
-    app.state.client = httpx.AsyncClient(base_url=TARGET_URL, timeout=TARGET_TIMEOUT)
+    # 쿠키는 저장하지도 보내지도 않는다(D-109). 클라이언트는 모든 요청이 함께 쓴다 — 기본 쿠키 저장소면 상류가 한 요청에 준
+    # set-cookie(Cloudflare __cf_bm 등)가 다른 클라이언트의 요청에 붙어 나간다(재현: 스텁 /v1/models 두 번).
+    app.state.client = httpx.AsyncClient(base_url=TARGET_URL, timeout=UPSTREAM_TIMEOUT,
+                                         limits=httpx.Limits(max_connections=MAX_CONNECTIONS),
+                                         cookies=CookieJar(DefaultCookiePolicy(allowed_domains=[])))
     app.state.metrics = Metrics()
     app.state.audit = AuditLog(AUDIT_LOG_PATH, AUDIT_LOG_MAX_BYTES, AUDIT_LOG_BACKUPS, on_write=app.state.metrics.observe)
     app.state.ratelimit = RateLimiter(RATE_PER_MINUTE)
     app.state.chain = build_chain()
-    # 코퍼스 임베딩 같은 무거운 준비는 여기서 끝낸다(D-043). 실패하면 기동을 실패시킨다 —
-    # 준비 안 된 검사기를 달고 뜨면 방어가 꺼진 채로 측정이 돌아간다.
+    if any(isinstance(d, PIIDetector) and d.mode == "mask" for d in app.state.chain.detectors) and len(SURROGATE_KEY) < 32:
+        raise RuntimeError("GATEWAY_SURROGATE_KEY가 없거나 32자보다 짧다 — PII mask 모드는 결정적 대체값 키가 필요하다(D-111). "
+                           "`python -m gateway keygen`으로 만들어 넣는다")
+    # 무거운 준비는 여기서 끝낸다. 실패하면 기동을 실패시킨다 — 준비 안 된 검사기를 달고 뜨면 방어가 꺼진 채로 돈다.
     await app.state.chain.prepare()
     try:
         yield
@@ -204,20 +198,17 @@ async def _unhandled(request: Request, exc: Exception) -> Response:
                                            "param": None, "code": "internal_error"}})
 
 
-def _clean(pairs: Iterable[tuple[str, str]], drop: frozenset[str]) -> list[tuple[str, str]]:
-    """(이름, 값) 쌍 목록을 그대로 거른다. dict로 모으면 같은 이름의 헤더(Set-Cookie 둘, X-Forwarded-For 둘)가
-    하나로 합쳐지거나 마지막 것만 남는다(D-102)."""
-    return [(k, v) for k, v in pairs
-            if k.lower() not in HOP_BY_HOP and k.lower() not in drop]
+@app.exception_handler(HTTPException)
+async def _http_error(request: Request, exc: HTTPException) -> Response:
+    """허용 목록 밖의 경로·메서드(D-109) — 상류에 연결하지 않고 그 API의 오류 형식 404로 답한다.
+    405도 404로 돌려준다: 어떤 메서드가 있는지 알리지 않는다."""
+    if exc.status_code in (404, 405):
+        return _not_found(request)
+    return await http_exception_handler(request, exc)
 
 
-# 요청: host는 목적지가 바뀌었으니 httpx가 새로 붙이게, content-length는 재계산되게 뗀다.
-# accept-encoding도 뗀다 — 클라이언트가 br·zstd를 받겠다고 했는데 게이트웨이의 httpx가 그걸 못 풀면,
-# 압축된 바이트가 content-encoding 없이 그대로 나가고 토큰도 복원되지 않는다. httpx가 자기가 풀 수 있는 것만 알린다(D-102).
-_DROP_REQ = frozenset({"host", "content-length", "accept-encoding"})
-# 응답: content-encoding은 httpx가 이미 압축을 풀어놨으므로 반드시 뗀다(안 떼면 클라이언트가 깨짐).
-# date·server는 게이트웨이의 서버가 새로 붙인다 — 상류 것까지 넘기면 둘씩 찍힌다(D-102).
-_DROP_RES = frozenset({"content-length", "content-encoding", "date", "server"})
+def _not_found(request: Request) -> Response:
+    return error_format_for(request.url.path).error(404, "not found", "not_found_error", "not_found")
 
 
 @app.middleware("http")
@@ -233,9 +224,10 @@ async def audit(request: Request, call_next):
     state.response_steps = []
     state.session = None
     state.upstream_error = None  # 상류 호출 실패를 OpenAI 형식 응답으로 바꿨을 때의 예외 타입 이름
+    state.upstream_request_id = None  # 상류가 준 요청 ID(D-109) — 클라이언트에는 넘기지 않고 감사에만 남긴다
     state.streaming = False      # 스트리밍 응답이면 감사 줄은 응답 생성기가 스트림 끝에서 쓴다(D-106)
     state.client = None          # 인증된 클라이언트 키의 이름(D-107 A). 무인증·실패면 None
-    state.api = None             # 어댑터 이름(D-107 C). 옛 경로면 None
+    state.api = None             # 어댑터 이름(D-107 C). /v1/models는 "models", 404 등은 None
 
     t0 = state.t0 = time.perf_counter()
     try:
@@ -304,10 +296,18 @@ def _audit_record(request: Request, response: Response | None,
         "blocked": getattr(state, "blocked", False),
         "client": getattr(state, "client", None),          # 키 이름(D-107 A). 예전에는 IP였다 — 이제 `ip`
         "ip": request.client.host if request.client else None,
-        "api": getattr(state, "api", None),                # chat | messages | responses | null(옛 경로) (D-107 C)
+        "api": getattr(state, "api", None),                # chat | messages | responses | models | null (D-107 C·D-109)
+        "upstream_request_id": getattr(state, "upstream_request_id", None),
+        **_pii_fields(getattr(state, "response_steps", [])),
         **_chain_fields(getattr(state, "chain_result", None)),
         "response_detectors": [s.as_dict() for s in getattr(state, "response_steps", [])],
     }
+
+
+def _pii_fields(steps: list[Step]) -> dict:
+    """복원 가시화(D-113): 발급·복원·의심 잔여를 감사 줄 맨 위에 둔다 — 집계가 response_detectors를 뒤지지 않게."""
+    meta = next((s.meta for s in steps if s.detector == "pii_mask"), {})
+    return {"pii_issued": meta.get("issued", 0), "pii_restored": meta.get("restored", 0), "pii_suspect": meta.get("suspect", 0)}
 
 
 def _int_or_none(v: str | None) -> int | None:
@@ -342,48 +342,48 @@ def _chain_fields(result: ChainResult | None) -> dict:
     }
 
 
-@app.get("/__gateway/metrics")
-async def metrics(request: Request) -> Response:
-    """Prometheus 텍스트 형식(D-107 E). 감사 레코드에서 센 값이라 감사 줄과 어긋나지 않는다. 인증 불필요(내부 경로)."""
-    return Response(request.app.state.metrics.render(), media_type="text/plain; version=0.0.4; charset=utf-8")
+def _is_admin(request: Request) -> bool:
+    """관리 키(D-109). 없으면 아무도 관리자가 아니다."""
+    auth = request.headers.get("authorization", "")
+    return bool(ADMIN_KEY) and auth[:7].lower() == "bearer " and hmac.compare_digest(auth[7:].strip().encode(), ADMIN_KEY.encode())
 
 
 @app.get("/__gateway/health")
-async def health(request: Request) -> dict:
-    """게이트웨이 자체 상태. 언더스코어 2개로 타겟 앱 경로와 충돌을 피한다.
+async def health() -> dict:
+    """살아 있는가만 답한다. 인증이 없으므로 구성은 싣지 않는다(D-109) — 상세는 /__gateway/info."""
+    return {"status": "ok"}
 
-    code와 detectors를 함께 보고한다. 측정 전에 이 둘만 확인하면
-    "옛 이미지로 돌고 있음"과 "검사기 설정이 틀림"을 모두 걸러낼 수 있다.
 
-    `canary_fp`는 게이트웨이가 **읽은 값의 지문**이다. 값이 아니다(R4).
-    `.env`의 지문 · 마지막 `setup_target.py`의 지문과 셋이 같아야 관측이
-    성립한다 — `scripts/verify_gateway.sh`가 대조한다(R5 / 설계 3-2).
-    값이 비어 있으면 null이다.
-    """
-    return {
-        "status": "ok",
+@app.get("/__gateway/info")
+async def info(request: Request) -> Response:
+    """실행 중인 버전·코드 지문·상류·검사기. 관리 키가 있어야 보인다(D-109)."""
+    if not _is_admin(request):
+        return _not_found(request)
+    return JSONResponse({
+        "version": VERSION,
+        "code": code_fingerprint(),
         "target": TARGET_URL,
         "chat_upstream_path": CHAT_UPSTREAM_PATH,
-        "code": code_fingerprint(),
         "detectors": list(request.app.state.chain.names),
-        "canary_fp": {
-            "canary_a": canary_fingerprint(CANARY_A) if CANARY_A else None,
-            "canary_b": canary_fingerprint(CANARY_B) if CANARY_B else None,
-            "canary_doc": canary_fingerprint(CANARY_DOC) if CANARY_DOC else None,
-        },
-    }
+    })
 
 
-@app.api_route("/{full_path:path}",
-               methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"])
-async def passthrough(request: Request, full_path: str) -> Response:
-    # 인증을 본문보다 먼저 본다(D-107 A) — 틀린 키의 본문은 읽지도, 검사하지도, 중계하지도 않는다.
+@app.get("/__gateway/metrics")
+async def metrics(request: Request) -> Response:
+    """Prometheus 텍스트 형식(D-107 E). 감사 레코드에서 센 값이라 감사 줄과 어긋나지 않는다. 관리 키가 있어야 보인다(D-109)."""
+    if not _is_admin(request):
+        return _not_found(request)
+    return Response(request.app.state.metrics.render(), media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+def _admit(request: Request) -> Response | None:
+    """키 검증(401)과 레이트리밋(429). 본문을 읽기 전에 거른다 — 틀린 키의 본문은 읽지도, 검사하지도, 중계하지도 않는다(D-107 A)."""
     auth: Auth = request.app.state.auth
     request.state.client = auth.client_of(request.headers)
     if auth.enabled and request.state.client is None:
         request.state.upstream_error = "unauthorized"
         return error_format_for(request.url.path).error(401, "invalid or missing API key", "authentication_error", "invalid_api_key")
-    # 레이트리밋(D-107 E): 클라이언트 이름(무인증이면 IP)마다 분당 상한. 본문을 읽기 전에 거른다.
+    # 레이트리밋(D-107 E): 클라이언트 이름(무인증이면 IP)마다 분당 상한.
     ok, retry_after = request.app.state.ratelimit.allow(
         request.state.client or (request.client.host if request.client else "?"))
     if not ok:
@@ -391,6 +391,15 @@ async def passthrough(request: Request, full_path: str) -> Response:
         response = error_format_for(request.url.path).error(429, "rate limit exceeded", "rate_limit_error", "rate_limit_exceeded")
         response.headers["retry-after"] = str(retry_after)
         return response
+    return None
+
+
+@app.post("/v1/chat/completions")
+@app.post("/v1/responses")
+@app.post("/v1/messages")
+async def api(request: Request) -> Response:
+    if (denied := _admit(request)) is not None:
+        return denied
     body, size = await _read_body(request)
     request.state.req_bytes = size
     if body is None:
@@ -399,28 +408,38 @@ async def passthrough(request: Request, full_path: str) -> Response:
             413, f"request body exceeds {MAX_BODY_BYTES} bytes", "invalid_request_error", "request_too_large")
     request.state.req_digest = digest(body)
 
-    # D-107 C: 아는 API(Chat Completions·Messages·Responses)의 POST는 어댑터가 한 번 파싱한다. 검사기는 그 doc를 본다.
-    # OPTIONS(CORS 프리플라이트)·HEAD에는 본문이 없다(D-102). 그 밖의 경로는 옛 경로 — 바이트 검사(v1 측정 입구).
-    doc = None
-    adapter = adapter_for(request.url.path) if request.method == "POST" else None
-    if adapter is not None:
-        try:
-            doc = Doc(adapter, adapter.parse(body))
-        except ApiError as exc:
-            return adapter.error(exc.status, str(exc), exc.type_, exc.code, exc.param)
-    request.state.api = adapter.name if adapter else None
+    # D-107 C: 어댑터가 본문을 한 번 파싱한다. 검사기는 그 doc를 본다.
+    adapter = adapter_for(request.url.path)
+    request.state.api = adapter.name
+    try:
+        doc = Doc(adapter, adapter.parse(body))
+    except ApiError as exc:
+        return adapter.error(exc.status, str(exc), exc.type_, exc.code, exc.param)
 
     chain = request.app.state.chain
     # 볼트는 요청 단위다(D-107 A). 클라이언트가 보낸 sessionId는 키가 아니다 — 그것을 맞추면 남의 원문을
     # 꺼낼 수 있었다(D-107 §1 #1). 다음 턴 이력의 원문은 다시 가려지므로(D-099) 대화 간 상태가 필요 없다.
     session = request.state.session = request.state.request_id
     try:
-        return await _relay(request, full_path, body, doc, chain, session)
+        return await _relay(request, body, doc, chain, session)
     finally:
         # 응답이 나가면 매핑을 다시 쓸 일이 없다 — 차단·상류 오류·예외로 끝나도 바로 버린다.
         # 스트리밍 응답은 스트림이 끝난 뒤 생성기가 해제한다(D-106): 여기서 먼저 버리면 조각을 복원할 원문이 없다.
         if not request.state.streaming:
             await chain.release(session)
+
+
+@app.get("/v1/models")
+async def models(request: Request) -> Response:
+    """모델 목록(D-109). 본문이 없으므로 검사기를 거치지 않고 키 검증·레이트리밋·헤더 허용 목록만 지나 중계한다."""
+    if (denied := _admit(request)) is not None:
+        return denied
+    request.state.api = "models"
+    upstream = await _send(request, "/v1/models", None)
+    if not isinstance(upstream, httpx.Response):
+        return upstream
+    content = await _read_capped(request, upstream)
+    return _downstream(upstream, content) if isinstance(content, bytes) else content
 
 
 async def _read_body(request: Request) -> tuple[bytes | None, int]:
@@ -437,71 +456,45 @@ async def _read_body(request: Request) -> tuple[bytes | None, int]:
     return (b"".join(chunks) if size <= MAX_BODY_BYTES else None), size
 
 
-async def _relay(request: Request, full_path: str, body: bytes, doc: Doc | None,
-                 chain: DetectorChain, session: str) -> Response:
+async def _relay(request: Request, body: bytes, doc: Doc, chain: DetectorChain, session: str) -> Response:
     """검사기 체인 → (차단 또는) 상류 호출 → 응답 후처리."""
-    result = await chain.run(Inspection(
-        request_id=request.state.request_id,
-        method=request.method,
-        path=request.url.path,
-        headers=request.headers,
-        body=body,
-        session=session,
-        doc=doc,
-    ))
+    adapter = doc.adapter
+    try:
+        result = await chain.run(Inspection(
+            request_id=request.state.request_id,
+            method=request.method,
+            path=request.url.path,
+            headers=request.headers,
+            body=body,
+            session=session,
+            doc=doc,
+        ))
+    except ApiError as exc:       # 탐지 상한(413, D-110) — 상류에 보내지 않는다
+        request.state.upstream_error = exc.code
+        return adapter.error(exc.status, str(exc), exc.type_, exc.code, exc.param)
+    except VaultFull:             # 볼트 세션 상한 — 진행 중인 세션을 밀어내지 않고 새 요청을 거절한다(D-110)
+        request.state.upstream_error = "gateway_busy"
+        return _busy(adapter.error(503, "gateway is at capacity", "overloaded_error", "gateway_busy"))
     request.state.chain_result = result
-    adapter = doc.adapter if doc is not None else None
-    wants_stream = doc is not None and adapter.wants_stream(doc.payload)
+    wants_stream = adapter.wants_stream(doc.payload)
     if result.blocked:
         request.state.blocked = True
-        # 차단 시 타겟을 호출하지 않는다 → upstream_ms는 None으로 남는다.
+        # 차단 시 상류를 호출하지 않는다 → upstream_ms는 None으로 남는다.
         # 차단 사유는 응답에 넣지 않는다(D-040). 요청 ID만 넣는다 — 사용자가 운영자에게 물을 수 있는 손잡이다(D-107 E).
         message = f"{BLOCKED_MESSAGE} (요청 ID: {request.state.request_id})"
-        if adapter is not None:
-            return adapter.blocked(doc.payload, request.state.request_id, message, wants_stream)
-        return JSONResponse(status_code=200, content={
-            "id": request.state.request_id,
-            "type": "textResponse",
-            "textResponse": message,
-            "sources": [],
-            "error": None,
-            "gateway_blocked": True,
-        })
-    body = result.body   # TRANSFORM이 있었으면 바뀐 본문으로 중계한다
+        return adapter.blocked(doc.payload, request.state.request_id, message, wants_stream)
 
-    t0 = time.perf_counter()
-    client: httpx.AsyncClient = request.app.state.client
-    upstream_request = client.build_request(
-        method=request.method,
-        url=httpx.URL(path=adapter.upstream_path() if adapter is not None else f"/{full_path}",
-                      query=request.url.query.encode()),
-        headers=request.app.state.auth.upstream_headers(request.url.path, _clean(request.headers.items(), _DROP_REQ)),
-        content=body,
-    )
-    try:
-        # stream: true면 머리만 받고 본문은 이터레이터로 연다. SSE가 아니면(상류 오류 JSON, 스트리밍을 무시하는 상류)
-        # 통째로 읽어 아래 비스트리밍 후처리로 간다 — D-086의 오류 중계 계약이 그대로다(D-106).
-        upstream = await client.send(upstream_request, stream=wants_stream)
-        if wants_stream and not _is_sse(upstream):
-            await upstream.aread()
-    except httpx.RequestError as exc:
-        # D-086: API 입구는 상류 장애를 그 API의 오류 형식 502/504로 돌려준다. 옛 경로는 예전대로
-        # 예외를 올려 500(감사 줄은 미들웨어가 남긴다) — v1 측정 경로의 계약을 바꾸지 않는다.
-        if adapter is None:
-            raise
-        timed_out = isinstance(exc, httpx.TimeoutException)
-        if timed_out:   # 상류에서 실제로 시간을 썼다. 연결조차 못 했으면 None으로 둔다.
-            request.state.upstream_ms = (time.perf_counter() - t0) * 1000
-        request.state.upstream_error = type(exc).__name__   # 메시지는 남기지 않는다
-        return adapter.error(504 if timed_out else 502,
-                             "upstream timed out" if timed_out else "upstream unavailable",
-                             "upstream_error", "upstream_timeout" if timed_out else "upstream_unavailable")
+    upstream = await _send(request, adapter.upstream_path(), result.body)   # TRANSFORM이 있었으면 바뀐 본문
+    if not isinstance(upstream, httpx.Response):
+        return upstream
     if wants_stream and _is_sse(upstream):
         request.state.streaming = True
-        return _stream_response(request, upstream, chain, session, adapter.stream_shape(), t0)
-    request.state.upstream_ms = (time.perf_counter() - t0) * 1000
+        return _stream_response(request, upstream, chain, session, adapter.stream_shape())
 
-    content = upstream.content
+    # SSE가 아니면(비스트리밍, 상류 오류 JSON, 스트리밍을 무시하는 상류) 상한까지 읽어 비스트리밍 후처리로 보낸다(D-106·D-110).
+    content = await _read_capped(request, upstream)
+    if not isinstance(content, bytes):
+        return content
     text = _as_text(content, upstream.headers.get("content-type", ""))
     if text is not None:
         restored, steps = await chain.run_response(session, text)
@@ -509,10 +502,78 @@ async def _relay(request: Request, full_path: str, body: bytes, doc: Doc | None,
             request.state.response_steps = steps
         if restored != text:
             content = restored.encode("utf-8")
+    response = _downstream(upstream, content)
+    pii = _pii_fields(request.state.response_steps)
+    if pii["pii_issued"]:
+        response.headers["x-gateway-pii"] = f"issued={pii['pii_issued']} restored={pii['pii_restored']}"
+    return response
 
+
+async def _send(request: Request, path: str, body: bytes | None) -> httpx.Response | Response:
+    """상류 호출. 헤더는 허용 목록만(D-109, auth.upstream_headers). 머리만 받고 본문은 열어 둔다 — 호출자가 SSE면 흘려보내고
+    아니면 `_read_capped`로 읽는다. 실패는 그 API의 오류 형식 응답으로 바꿔 돌려준다(D-086·D-110)."""
+    client: httpx.AsyncClient = request.app.state.client
+    upstream_request = client.build_request(
+        method=request.method,
+        url=httpx.URL(path=path, query=request.url.query.encode()),
+        headers=request.app.state.auth.upstream_headers(request.url.path, request.headers.items()),
+        content=body,
+    )
+    request.state.upstream_t0 = time.perf_counter()
+    try:
+        upstream = await client.send(upstream_request, stream=True)
+    except httpx.RequestError as exc:
+        return _upstream_failure(request, exc)
+    request.state.upstream_request_id = upstream.headers.get("x-request-id") or upstream.headers.get("request-id")
+    return upstream
+
+
+async def _read_capped(request: Request, upstream: httpx.Response) -> bytes | Response:
+    """비스트리밍 상류 응답 본문을 상한(32MiB)까지 읽는다. 넘으면 502 — 메모리를 상한까지만 쓴다(D-110)."""
+    chunks, size = [], 0
+    try:
+        async for chunk in upstream.aiter_bytes():
+            size += len(chunk)
+            if size > MAX_RESPONSE_BYTES:
+                request.state.upstream_error = "response_too_large"
+                return error_format_for(request.url.path).error(
+                    502, "upstream response too large", "upstream_error", "upstream_response_too_large")
+            chunks.append(chunk)
+    except httpx.RequestError as exc:        # 본문을 읽다 끊기거나 시간이 다 됐다
+        return _upstream_failure(request, exc)
+    finally:
+        await upstream.aclose()
+        request.state.upstream_ms = (time.perf_counter() - request.state.upstream_t0) * 1000
+    return b"".join(chunks)
+
+
+def _upstream_failure(request: Request, exc: httpx.RequestError) -> Response:
+    """상류 호출 실패 → 그 API의 오류 형식. 풀 대기 초과는 503(상류에 보내지 않았다), 시간 초과는 504, 그 밖은 502."""
+    fmt = error_format_for(request.url.path)
+    request.state.upstream_error = type(exc).__name__   # 메시지는 남기지 않는다
+    if isinstance(exc, httpx.PoolTimeout):
+        return _busy(fmt.error(503, "upstream connection pool exhausted", "upstream_error", "upstream_busy"))
+    if isinstance(exc, httpx.TimeoutException):   # 상류에서 실제로 시간을 썼다. 연결조차 못 했으면 None으로 둔다.
+        request.state.upstream_ms = (time.perf_counter() - request.state.upstream_t0) * 1000
+        return fmt.error(504, "upstream timed out", "upstream_error", "upstream_timeout")
+    return fmt.error(502, "upstream unavailable", "upstream_error", "upstream_unavailable")
+
+
+def _busy(response: Response) -> Response:
+    response.headers["retry-after"] = "1"
+    return response
+
+
+def _pass_headers(upstream: httpx.Response, response: Response) -> None:
+    """허용 목록의 상류 응답 헤더만 옮긴다(D-109). 같은 이름이 여럿이면 각각 보존한다(D-102)."""
+    for name, value in upstream.headers.multi_items():
+        if name.lower() in PASS_RESPONSE_HEADERS:
+            response.headers.append(name, value)
+
+
+def _downstream(upstream: httpx.Response, content: bytes) -> Response:
     response = Response(content=content, status_code=upstream.status_code)
-    for name, value in _clean(upstream.headers.multi_items(), _DROP_RES):
-        response.headers.append(name, value)   # 같은 이름의 헤더를 각각 보존한다
+    _pass_headers(upstream, response)
     return response
 
 
@@ -521,7 +582,7 @@ def _is_sse(upstream: httpx.Response) -> bool:
 
 
 def _stream_response(request: Request, upstream: httpx.Response, chain: DetectorChain,
-                     session: str, shape, t0: float) -> StreamingResponse:
+                     session: str, shape) -> StreamingResponse:
     """상류 SSE를 조각마다 흘려보낸다(D-106). 복원은 pii_mask 검사기의 볼트로, 감사 줄·볼트 해제는 스트림 끝에서.
     `shape`는 어댑터가 준 API별 스트림 모양이다(D-107 C)."""
     pii = next((d for d in chain.detectors if isinstance(d, PIIDetector) and d.mode == "mask"), None)
@@ -532,9 +593,10 @@ def _stream_response(request: Request, upstream: httpx.Response, chain: Detector
         restore, hold = (lambda text, escape=None: (text, 0)), (lambda text: 0)       # 발급한 대체값이 없으면 손대지 않는다
     restorer = StreamRestorer(shape, restore, hold)
     response = StreamingResponse(iter(()), status_code=upstream.status_code)
-    response.body_iterator = _pump(request, upstream, chain, session, restorer, pii, t0, response)
-    for name, value in _clean(upstream.headers.multi_items(), _DROP_RES):
-        response.headers.append(name, value)
+    response.body_iterator = _pump(request, upstream, chain, session, restorer, pii, request.state.upstream_t0, response)
+    _pass_headers(upstream, response)
+    if pii is not None and pii.vault.issued(session):
+        response.headers["x-gateway-pii"] = f"issued={pii.vault.issued(session)}"   # 머리가 본문보다 먼저 나간다 — 복원 수는 감사에만(D-113)
     return response
 
 
@@ -546,6 +608,8 @@ async def _pump(request: Request, upstream: httpx.Response, chain: DetectorChain
     size, error = 0, None
     try:
         async for data in upstream.aiter_bytes():
+            if pii is not None:
+                pii.vault.touch(session)     # ping·thinking만 오는 동안에도 매핑이 만료되지 않게(D-110)
             out = restorer.feed(data)
             if out:
                 size += len(out)
@@ -561,7 +625,7 @@ async def _pump(request: Request, upstream: httpx.Response, chain: DetectorChain
         state.upstream_ms = (time.perf_counter() - t0) * 1000   # 첫 바이트가 아니라 스트림 끝까지
         try:
             await upstream.aclose()
-            state.response_steps = await _stream_steps(chain, session, restorer, pii)
+            state.response_steps = _stream_steps(session, restorer, pii)
             if session == state.request_id:
                 await chain.release(session)
         finally:
@@ -569,21 +633,14 @@ async def _pump(request: Request, upstream: httpx.Response, chain: DetectorChain
                 request, response, (time.perf_counter() - state.t0) * 1000, error=error, res_bytes=size))
 
 
-async def _stream_steps(chain: DetectorChain, session: str, restorer: StreamRestorer,
-                        pii: PIIDetector | None) -> list[Step]:
-    """스트림이 끝난 뒤의 응답 검사기 기록. 이어 붙인 원문 content 전체에 체인을 돌리고(카나리는 조각에 걸친 값도
-    한 번으로 센다), pii_mask 항목은 스트림에서 실제로 복원한 건수와 내보낸 출력 전체의 잔여 토큰 수로 바꾼다 —
-    감사는 사용자가 받은 것을 적는다(D-106)."""
-    _, steps = await chain.run_response(session, restorer.content_in)
+def _stream_steps(session: str, restorer: StreamRestorer, pii: PIIDetector | None) -> list[Step]:
+    """스트림이 끝난 뒤의 응답 기록. 스트림에서 실제로 복원한 건수와 내보낸 출력 전체의 잔여 대체값 수 —
+    감사는 사용자가 받은 것을 적는다(D-106). 응답 경로의 검사기는 pii_mask 하나다(D-109)."""
     if pii is None or not pii.vault.issued(session):
-        return steps
-    meta = {"restored": restorer.restored, "residual_tokens": pii.vault.residual(session, restorer.out_text),
-            "issued": pii.vault.issued(session)}
-    if any(s.detector == "pii_mask" for s in steps):
-        return [replace(s, meta=meta) if s.detector == "pii_mask" else s for s in steps]
-    if any(meta.values()):
-        steps.append(Step("pii_mask", "restore", 0.0, "", meta))
-    return steps
+        return []
+    return [Step("pii_mask", "restore", 0.0, "", {
+        "restored": restorer.restored, "residual_tokens": pii.vault.residual(session, restorer.visible_text),
+        "issued": pii.vault.issued(session), "suspect": pii.vault.suspect(session, restorer.visible_text)})]
 
 
 def _as_text(content: bytes, content_type: str) -> str | None:

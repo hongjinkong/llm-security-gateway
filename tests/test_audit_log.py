@@ -5,16 +5,16 @@ import socket
 import httpx
 import pytest
 
-PATH_ = "/api/v1/workspace/demo-slug/chat"
+PATH_ = "/v1/chat/completions"
 SECRET = "제 주민등록번호는 900101-1234567 입니다"
-BODY = {"message": SECRET, "mode": "query", "sessionId": "eval-xyz"}
+BODY = {"model": "stub-model", "messages": [{"role": "user", "content": SECRET}]}
 HDR = {"Authorization": "Bearer super-secret-key", "Content-Type": "application/json"}
 
 # 2026-09-22: "query"(원문)가 "query_keys"·"query_bytes"로 바뀌었다. 스키마 변경이다.
 # 저장소의 기존 감사 로그 산출물은 옛 스키마지만, 그 필드를 읽는 도구가 없어 호환 문제는 없다.
 REQUIRED = {"ts", "request_id", "method", "path", "query_keys", "query_bytes", "status",
             "error", "total_ms", "upstream_ms", "gateway_ms",
-            "req_bytes", "req_sha256_12", "res_bytes", "blocked", "client"}
+            "req_bytes", "req_sha256_12", "res_bytes", "blocked", "client", "upstream_request_id"}
 
 
 @pytest.fixture(scope="module")
@@ -73,10 +73,11 @@ def test_internal_paths_are_not_logged(stack):
     assert len(stack.log_lines()) == before
 
 
-# ---------- 예외로 끝난 요청 (2026-09-22, 외부 검토로 재현된 결함) ----------
+# ---------- 상류 연결이 실패한 요청 (2026-09-22, 외부 검토로 재현된 결함) ----------
 #
 # 감사 기록이 요청 처리 **완료 후에만** 이뤄져서, 처리 중 예외가 나면 거기 도달하지
 # 못했다. 타겟 연결 오류를 일으키면 HTTP 500이 나가고 **감사 로그는 0줄**이었다.
+# 지금 세 API는 상류 연결 실패를 그 API의 오류 형식 502로 돌려준다(D-086) — 그래도 감사는 한 줄이다.
 # "요청 1건당 1줄"이라는 이 파일의 제목과 어긋나며, 장애 요청이 평가·운영 기록에서
 # 통째로 빠진다. 정상 경로만 시험하고 있었다는 뜻이기도 하다.
 
@@ -97,10 +98,10 @@ def failed_request(dead_target):
 
 def test_예외로_끝난_요청도_감사_로그_1줄(failed_request):
     stack, r = failed_request
-    assert r.status_code == 500
+    assert r.status_code == 502 and r.json()["error"]["code"] == "upstream_unavailable"
     lines = stack.log_lines()
     assert len(lines) == 1, "장애 요청이 기록에서 빠졌다"
-    assert lines[0]["status"] == 500
+    assert lines[0]["status"] == 502 and lines[0]["error"] == "ConnectError"
 
 
 def test_예외_줄은_정상_줄과_같은_모양이다(failed_request, one_request):
@@ -171,7 +172,7 @@ def test_쿼리가_없으면_빈_목록이다(query_stack):
 def test_쿼리는_타겟으로는_그대로_전달된다(query_stack):
     """로그에서만 뺀다. 중계까지 망가뜨리면 게이트웨이가 투명하지 않게 된다."""
     r = httpx.post(f"{query_stack.gateway}{PATH_}?a=1&b=2", json=BODY, headers=HDR)
-    assert r.json()["echo"]["query"] == "a=1&b=2"
+    assert r.json()["gateway_test"]["query"] == "a=1&b=2"
 
 
 @pytest.mark.parametrize("query, expect", [

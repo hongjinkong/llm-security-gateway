@@ -1,1 +1,0 @@
-{"id":"msg_011CgWBoTFyHXzZdUBfpwZpi","choices":[{"finish_reason":"stop","index":0,"message":{"role":"assistant","content":"010-2345-6789\n010\n3456\n7890\nkim.synthetic@example.com\n900101-1234563\n4111-1111-1111-1111"}}],"created":1793261327,"model":"claude-opus-5-5","object":"chat.completion","usage":{"completion_tokens":98,"prompt_tokens":101,"total_tokens":199}}

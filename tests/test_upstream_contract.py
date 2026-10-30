@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import json
-import re
 import socket
 
 import httpx
@@ -60,16 +59,13 @@ def secured(make_stack):
 def test_default_upstream_path_is_unchanged(secured):
     r = httpx.post(f"{secured.gateway}{PATH}", headers=HEADERS, json=chat("안녕하세요"))
     assert r.status_code == 200 and r.json()["gateway_test"]["path"] == PATH
-    assert httpx.get(f"{secured.gateway}/__gateway/health").json()["chat_upstream_path"] == PATH
+    assert secured.info()["chat_upstream_path"] == PATH
 
 
 def test_chat_path_mapping_changes_only_chat(make_stack):
     s = make_stack(GATEWAY_CHAT_UPSTREAM_PATH=GEMINI_PATH)
     r = httpx.post(f"{s.gateway}{PATH}", headers=HEADERS, json=chat("안녕하세요"))
     assert r.status_code == 200 and r.json()["gateway_test"]["path"] == GEMINI_PATH
-    legacy = httpx.post(f"{s.gateway}/api/v1/workspace/demo/chat", headers=HEADERS,
-                        json={"message": "hi"})
-    assert legacy.json()["echo"]["path"] == "/api/v1/workspace/demo/chat"
 
 
 def test_mapping_without_leading_slash_fails_startup(make_stack):
@@ -90,7 +86,7 @@ def test_rate_limit_is_passed_through_with_headers(secured):
     assert r.status_code == 429
     assert r.json()["error"]["code"] == "rate_limit_exceeded"
     assert r.headers["retry-after"] == "7"
-    assert r.headers["x-ratelimit-remaining-requests"] == "0"
+    assert "x-ratelimit-remaining-requests" not in r.headers   # D-109: 운영자 계정의 한도는 클라이언트에 넘기지 않는다
 
 
 def _assert_openai_error(r, status: int, code: str) -> None:
@@ -107,13 +103,6 @@ def test_connect_error_is_openai_502(make_stack):
     line = s.log_lines()[-1]
     assert line["status"] == 502 and line["error"] == "ConnectError"
     assert line["upstream_ms"] is None
-
-
-def test_legacy_path_connect_error_keeps_500(make_stack):
-    """옛 경로(v1 측정 경로)의 계약은 바꾸지 않는다 — test_audit_log의 500 계약과 같다."""
-    s = make_stack(TARGET_URL=dead_url())
-    r = httpx.post(f"{s.gateway}/api/v1/workspace/demo/chat", json={"message": "hi"}, timeout=10)
-    assert r.status_code == 500
 
 
 def test_timeout_is_openai_504(make_stack):
@@ -144,9 +133,9 @@ def test_upstream_never_receives_raw_user_pii(secured):
         assert v not in sent[0], f"{kind} 원문이 상류로 갔다"
     kinds = sorted(f.kind for f in find_all(sent[0].removeprefix(marker)))
     assert kinds == sorted(k.split("_")[0] for k in PII), "종류마다 같은 모양의 대체값"
-    # 알려진 한계(D-085): system 텍스트는 마스킹 대상이 아니다. 이 단언이 깨지면 문서도 고친다.
+    # D-112: system 텍스트도 가린다(옛 한계 D-085를 닫았다).
     raw = [b for b in httpx.get(f"{secured.target}/__stub/received").json()["bodies"] if marker in b]
-    assert "system@example.com" in raw[0]
+    assert "system@example.com" not in raw[0]
 
 
 # ---------------------------------------------------------------- 4 혼입 없음

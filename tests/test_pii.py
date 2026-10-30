@@ -3,10 +3,18 @@ from __future__ import annotations
 
 import pytest
 
-from gateway.detectors.patterns import find_all  # noqa: E402
-from gateway.detectors.pii import (Finding, PIIDetector, find_all, luhn_ok,
+from gateway.detectors.pii import (PIIDetector, find_all, luhn_ok,
                                    rrn_checksum_ok, rrn_date_ok)
 from gateway.detectors.base import Action, Inspection
+
+CHAT = "/v1/chat/completions"
+
+
+def chat_insp(text: str, ensure_ascii: bool = False, session: str | None = None) -> Inspection:
+    """Chat Completions 본문 하나를 검사기에 넘길 모양으로. 아는 API 경로라 Inspection이 doc를 만든다."""
+    import json
+    body = json.dumps({"model": "m", "messages": [{"role": "user", "content": text}]}, ensure_ascii=ensure_ascii).encode()
+    return Inspection(request_id="r", method="POST", path=CHAT, headers={}, body=body, session=session)
 
 
 def kinds(text: str) -> list[str]:
@@ -106,9 +114,7 @@ def test_multiple_pii_in_one_message():
 @pytest.mark.anyio
 async def test_detector_only_detects_never_acts():
     """4-D는 탐지 전용. 판정은 항상 ALLOW이고 본문을 바꾸지 않는다."""
-    body = "주민등록번호 900101-1234563입니다.".encode()
-    v = await PIIDetector().inspect(
-        Inspection(request_id="r", method="POST", path="/chat", headers={}, body=body))
+    v = await PIIDetector().inspect(chat_insp("주민등록번호 900101-1234563입니다."))
     assert v.action is Action.ALLOW
     assert v.body is None
     assert v.meta["pii"] == {"rrn": 1}
@@ -117,9 +123,7 @@ async def test_detector_only_detects_never_acts():
 @pytest.mark.anyio
 async def test_findings_never_contain_the_raw_value():
     """D-029: 로그로 나가는 정보에 원문이 섞이면 안 된다."""
-    body = "카드 4111-1111-1111-1111".encode()
-    v = await PIIDetector().inspect(
-        Inspection(request_id="r", method="POST", path="/chat", headers={}, body=body))
+    v = await PIIDetector().inspect(chat_insp("카드 4111-1111-1111-1111"))
     assert "4111" not in str(v.meta)
 
 
@@ -169,8 +173,6 @@ def test_korean_suffix_still_detected():
 
 import json as _json  # noqa: E402
 
-from gateway.detectors.pii import normalized_text  # noqa: E402
-
 _L005_CASES = [
     ("rrn", "번호900101-1234563"),
     ("card", "결제4111-1111-1111-1111"),
@@ -178,30 +180,27 @@ _L005_CASES = [
 ]
 
 
+@pytest.mark.anyio
 @pytest.mark.parametrize("kind,payload", _L005_CASES)
 @pytest.mark.parametrize("ensure_ascii", [False, True])
-def test_pii_detection_is_independent_of_json_escaping(kind, payload, ensure_ascii):
-    """같은 요청인데 인코딩만 다르다고 탐지가 달라지면 안 된다."""
-    body = _json.dumps({"message": payload}, ensure_ascii=ensure_ascii).encode()
-    kinds = {f.kind for f in find_all(normalized_text(body))}
-    assert kind in kinds, f"ensure_ascii={ensure_ascii}에서 {kind}를 놓쳤다"
+async def test_pii_detection_is_independent_of_json_escaping(kind, payload, ensure_ascii):
+    """같은 요청인데 인코딩만 다르다고 탐지가 달라지면 안 된다. 검사기는 어댑터가 파싱한 문자열을 본다."""
+    v = await PIIDetector().inspect(chat_insp(payload, ensure_ascii))
+    assert kind in v.meta.get("pii", {}), f"ensure_ascii={ensure_ascii}에서 {kind}를 놓쳤다"
 
 
-def test_raw_decode_would_have_missed_it():
+@pytest.mark.anyio
+async def test_raw_decode_would_have_missed_it():
     """**양성대조**: 충돌이 실재함을 고정한다.
 
     이게 통과하지 않으면 위 테스트가 아무것도 안 지키는 것이다 —
     "안 걸린다"만 검사하면 정규식이 아무것도 안 잡아도 통과한다.
     """
-    body = _json.dumps({"message": "번호900101-1234563"}, ensure_ascii=True).encode()
-    raw = body.decode("utf-8", errors="ignore")
+    insp = chat_insp("번호900101-1234563", ensure_ascii=True)
+    raw = insp.body.decode("utf-8", errors="ignore")
     assert "rrn" not in {f.kind for f in find_all(raw)}, (
         "원문 바이트 그대로도 탐지된다 — L-005가 재현되지 않으므로 위 테스트 재검토")
-    assert "rrn" in {f.kind for f in find_all(normalized_text(body))}
-
-
-def test_normalized_text_falls_back_when_body_is_not_json():
-    assert normalized_text(b"not json 010-2345-6789") == "not json 010-2345-6789"
+    assert (await PIIDetector().inspect(insp)).meta["pii"] == {"rrn": 1}
 
 
 @pytest.mark.anyio
@@ -210,12 +209,9 @@ async def test_masking_works_on_escaped_json_end_to_end():
     det = PIIDetector("mask")
     # **한글에 붙여 쓴다.** 앞에 공백이 있으면 이스케이프돼도 경계 조건에 안 걸려
     # L-005가 재현되지 않는다 — 2026-08-18에 변이 검사로 이 함정을 실제로 밟았다.
-    body = _json.dumps({"message": "번호900101-1234563입니다"},
-                       ensure_ascii=True).encode()
-    v = await det.inspect(Inspection(request_id="r1", method="POST", path="/chat",
-                                     headers={}, body=body, session="s1"))
+    v = await det.inspect(chat_insp("번호900101-1234563입니다", ensure_ascii=True, session="s1"))
     assert v.action is Action.TRANSFORM, "이스케이프된 본문에서 마스킹이 안 돌았다 (L-005)"
-    out = _json.loads(v.body)["message"]
+    out = _json.loads(v.body)["messages"][0]["content"]
     assert "900101-1234563" not in out and [f.kind for f in find_all(out)] == ["rrn"]
     restored = await det.on_response("s1", out)
     assert restored is not None and "900101-1234563" in restored[0]
@@ -306,4 +302,4 @@ async def test_credential_is_masked_and_restored_in_openai_path():
     surrogate = sent[f.start:f.end]
     assert secret not in sent and f.kind == "secret" and surrogate.startswith("sk-")
     restored, meta = await det.on_response("s1", f"키 {surrogate}를 확인하세요")
-    assert secret in restored and meta == {"restored": 1, "residual_tokens": 0, "issued": 1}
+    assert secret in restored and meta == {"restored": 1, "residual_tokens": 0, "issued": 1, "suspect": 0}

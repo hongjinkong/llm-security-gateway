@@ -46,7 +46,8 @@ def test_b1_surrogate_keeps_the_shape_and_redetects_as_its_own_kind(kind, value)
                 assert digits(s)[:2] == digits(value)[:2]  # 국내 접두사 유지
             assert "\n" not in s and "\t" not in s        # 줄바꿈·탭 구분자는 빈칸으로(JSON 응답에서 다시 걸리게)
         if kind == "email":
-            assert s.rsplit(".", 1)[1] == value.rsplit(".", 1)[1] and s.count("@") == 1 and s.rsplit(".", 1)[0].islower()
+            assert s.count("@") == 1 and s.split("@")[1] in ("example.com", "example.net", "example.org")   # 예약 도메인(D-113)
+            assert s.split("@")[0].islower() or not any(c.isalpha() for c in s.split("@")[0])
         if kind == "secret":
             for prefix in ("sk-proj-", "sk-", "AKIA", "ghp_", "github_pat_", "AIza", "xoxb-", "eyJ", "-----BEGIN"):
                 if value.startswith(prefix):

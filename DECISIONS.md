@@ -10007,6 +10007,13 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
 - 데모 웹: `/api/chat?stream=1`(NDJSON)을 더했고 브라우저 화면이 그것을 쓴다 — 없음 결과 한 줄, 있음 delta 줄들, 있음 결과 한 줄. S10 통과.
   Chrome에서 장면 1을 직접 눌러 확인했다: 사용자가 받은 답에 원래 번호·메일, 상류는 `[PII:phone:1]`·`[PII:email:2]`만, 감사 `pii_mask restored=2 residual=0`, 콘솔 오류 없음
   (스텁 응답이 26ms라 "스트리밍 중…" 중간 상태는 눈에 보이지 않는다 — 실제 공급자에서만 보인다).
-- §6 실제 공급자 확인은 **실행하지 않았다**(선택 항목, 비용 0). `scripts/check_claude_b3.py`의 C5(stream 거부)는 새 코드에서 성립하지 않는다 — D-103 §7의 결과는
-  `27a16fa1c35b`의 값으로 그대로 둔다(§3).
+- §6 실제 공급자 확인 — **합격**(2026-10-30, 사용자가 실행: `python3 scripts/check_claude_d106.py`, 키는 `.env`에서만). 데모 웹을 실제 공급자 모드
+  (`WEB_ON_TARGET=https://api.anthropic.com`, `claude-opus-5-5`, Anthropic의 OpenAI 호환 입구, 코드 `c9a8b6fce43e`)로 띄우고 장면 1을 `/api/chat?stream=1`로 **1회** 보냈다.
+  결과: status 200, **delta 38개**로 도착, 감사 `pii_mask masked=2`(요청) → `restored=2`·`residual_tokens=0`(응답), `upstream_ms` 4,867(스트림 끝까지), `gateway_ms` 1.12,
+  이어 붙인 답에 `010-2345-6789`·`j.hong@hanbit-tech.example` 있음·`[PII:` 없음. 모델은 토큰을 받고 "가려진 형태로 보인다"고 답했고 사용자는 원래 값으로 돌려받았다 —
+  상류는 토큰만 본다는 것이 실제 공급자에서도 성립한다(상류가 받은 본문은 실제 공급자라 볼 수 없으므로 감사 `masked=2`와 모델의 답으로만 말한다).
+  비용은 스트리밍이라 usage가 없어 상한으로 적는다: ≤ $0.0064(입력 ≤100·출력 ≤300 토큰 × $4/$20 per 1M) / 상한 $0.01. 공격 문장 없음.
+  사본 `results/d106_claude_20261030.jsonl`(NDJSON 행 40줄 — 없음 결과 1, delta 38, 있음 결과 1; 키·Bearer 없음, 합성 값만).
+  스크립트는 D-103 C2처럼 복원 0이면 "받은 값을 그대로 적어 달라"로 한 번 더 보내게 했으나 첫 번에 복원됐으므로 쓰지 않았다.
+- `scripts/check_claude_b3.py`의 C5(stream 거부)는 새 코드에서 성립하지 않는다 — D-103 §7의 결과는 `27a16fa1c35b`의 값으로 그대로 둔다(§3).
 - 문서: README 상태·2절·5절·6절·문서 지도, SCOPE 4.3 체크 항목·5절 취소선, RESULTS 5.4 문구. `docs/project_summary_2026-10-29.pdf`(10-29 요약 보고서, 11쪽)를 이 커밋에 넣는다.

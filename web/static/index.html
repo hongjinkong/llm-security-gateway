@@ -55,7 +55,10 @@
 const $ = s => document.querySelector(s);
 let history = [];          // 이어지는 대화. 보낼 때마다 user·assistant 턴이 쌓인다.
 const esc = s => String(s).replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-const hi = s => esc(s).replace(/\[PII:[a-z]+:\d+\]/g, m => `<mark>${m}</mark>`).replace(/\[보안 정책에 의해 가려진 이전 메시지\]/g, m => `<mark>${m}</mark>`);
+// D-107 B: 상류가 받는 것은 토큰이 아니라 같은 모양의 가짜 값이다 — 보낸 요청에 없는 전화·이메일·키·카드·주민번호 모양을 표시한다
+const PII_RE = /\+?\(?\d{1,3}\)?[-.\s]?\d{2,4}[-.\s]?\d{3,4}[-.\s]?\d{3,4}|\d{6}[-\s]?[1-8]\d{6}|[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}|sk-[A-Za-z0-9_-]{20,}|(?:AKIA|ASIA)[0-9A-Z]{16}/g;
+let sentText = "";
+const hi = s => esc(s).replace(PII_RE, m => sentText.includes(m) ? m : `<mark title="게이트웨이가 바꾼 가짜 값">${m}</mark>`).replace(/\[보안 정책에 의해 가려진 이전 메시지\]/g, m => `<mark>${m}</mark>`);
 const short = s => s.length > 400 ? s.slice(0, 400) + ` … (${s.length}자)` : s;
 
 async function load() {
@@ -82,6 +85,7 @@ function render(id, r) {
   $("#" + id).innerHTML = html;
 }
 async function send(messages) {
+  sentText = messages.map(m => m.content).join("\n");
   $("#sent").innerHTML = `<h3 style="margin:0 0 4px;font-size:13px;color:var(--mute)">보낸 요청</h3>` + msgs(messages);
   $("#off").innerHTML = $("#on").innerHTML = "<div class='audit'>보내는 중…</div>";
   const r = await fetch("/api/chat?stream=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages }) });

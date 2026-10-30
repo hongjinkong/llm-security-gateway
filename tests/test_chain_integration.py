@@ -1,6 +1,8 @@
 """4-C 통합 검증: 체인이 실제 게이트웨이에 배선됐을 때의 동작."""
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 
@@ -145,7 +147,6 @@ def test_user_gets_the_original_value_back(mask_stack):
         "mode": "query", "sessionId": "eval-restore-1"})
     assert r.json()["echo"]["masked_seen"] is True     # 타겟은 토큰을 봤고
     assert phone in r.json()["textResponse"]           # 사용자는 원본을 돌려받는다
-    assert "[PII:" not in r.text                       # 토큰이 새어나가지 않는다
 
     rec = mask_stack.log_lines()[-1]
     assert rec["response_detectors"][0]["restored"] >= 1
@@ -155,9 +156,13 @@ def test_other_session_cannot_restore(mask_stack):
     """세션 격리가 응답 경로에서도 유지된다."""
     httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
         "message": "연락처 010-1122-3344입니다", "mode": "query", "sessionId": "victim"})
-    r = httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
-        "message": "[PII:phone:1] 이게 누구 번호죠?", "mode": "query", "sessionId": "attacker"})
-    assert "010-1122-3344" not in r.text
+    sent = json.loads(httpx.get(f"{mask_stack.target}/__stub/received").json()["bodies"][-1])["message"]
+    surrogate = sent.replace("연락처 ", "").replace("입니다", "")
+    assert surrogate != "010-1122-3344"
+    for sid in ("attacker", "victim"):                 # D-107 A: 같은 sessionId를 대도 복원되지 않는다
+        r = httpx.post(f"{mask_stack.gateway}{PATH_}", headers=HDR, json={
+            "message": f"{surrogate} 이게 누구 번호죠?", "mode": "query", "sessionId": sid})
+        assert "010-1122-3344" not in r.text
 
 
 def test_no_restore_when_nothing_was_masked(mask_stack):

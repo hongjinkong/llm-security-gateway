@@ -1,6 +1,7 @@
-"""D-106: 스트리밍 응답 통과 — `stream: true`를 받아 상류 SSE를 조각마다 흘려보내되 토큰 복원·감사·차단을 지킨다.
+"""D-106: 스트리밍 응답 통과 — `stream: true`를 받아 상류 SSE를 조각마다 흘려보내되 복원·감사·차단을 지킨다.
 
-번호 S1~S9는 D-106 §3의 표와 같다(S10은 tests/test_web.py). 결함이 되살아나면 실패한다(scripts/mutate_d106.py가 그것을 센다).
+번호 S1~S9는 D-106 §3의 표와 같다(S10은 tests/test_web.py). D-107 B에서 토큰 대신 모양 보존 대체값으로 다시 썼고
+B4(도구 호출 인자 채널)를 더했다. 결함이 되살아나면 실패한다(scripts/mutate_d107.py가 그것을 센다).
 """
 from __future__ import annotations
 
@@ -10,7 +11,8 @@ import random
 import httpx
 import pytest
 
-from gateway.streaming import StreamRestorer
+from gateway.detectors.patterns import find_all
+from gateway.streaming import ChatShape, StreamRestorer
 from gateway.vault import TokenVault
 
 PATH = "/v1/chat/completions"
@@ -81,33 +83,44 @@ def received(stack) -> list[str]:
 
 # ---------- S1·S2 복원기 단위 ----------
 
-def _vault() -> TokenVault:
-    vault = TokenVault()
-    for kind, value in (("phone", PHONE), ("email", EMAIL), ("secret", "sk-" + "A1b2C3d4" * 6)):
-        vault.token_for("s", kind, value)
-    return vault
+SECRET = "sk-" + "A1b2C3d4" * 6
 
 
-TEXTS = [
-    "제 번호는 [PII:phone:1]이고 메일은 [PII:email:2]입니다. 키 [PII:secret:3] 확인.",
-    "[PII:phone:1]",                              # 토큰이 처음이자 끝
-    "안녕하세요. 등급은 P",                           # 토큰이 아닌 꼬리(P)가 finish 조각까지 보류된다
-    "링크 [PII:email:2] 참고 [",                     # 여는 대괄호로 끝난다
-    "PII:phone:1 처럼 대괄호를 떨어뜨린 토큰도 [PII:phone:1 처럼 반만 온 것도 그대로",
-    "한글 다중 바이트 — 가나다라마바사 [PII:phone:1] 아자차카타파하 ★ 끝",
-]
+def _vault() -> tuple[TokenVault, dict[str, str]]:
+    """대체값을 발급한 볼트와 {원문: 대체값}."""
+    vault, sur = TokenVault(), {}
+    for kind, value in (("phone", PHONE), ("email", EMAIL), ("secret", SECRET)):
+        sur[value] = vault.token_for("s", kind, value)
+    return vault, sur
+
+
+def _restorer(vault: TokenVault) -> StreamRestorer:
+    return StreamRestorer(ChatShape(), lambda t, escape=None: vault.restore("s", t, escape), lambda t: vault.hold("s", t))
+
+
+def _texts(sur: dict[str, str]) -> list[tuple[str, str]]:
+    """(상류가 보내는 텍스트, 사용자가 받아야 하는 텍스트)."""
+    p, e, k = sur[PHONE], sur[EMAIL], sur[SECRET]
+    spaced = p.replace("-", " ")                 # 모델이 구분자를 바꿔 써도 복원된다(B2)
+    return [
+        (f"제 번호는 {p}이고 메일은 {e}입니다. 키 {k} 확인.", f"제 번호는 {PHONE}이고 메일은 {EMAIL}입니다. 키 {SECRET} 확인."),
+        (p, PHONE),                                                  # 대체값이 처음이자 끝
+        ("안녕하세요. 등급은 010", "안녕하세요. 등급은 010"),              # 대체값의 앞부분처럼 보이는 꼬리가 finish 조각까지 보류된다
+        (f"링크 {e.upper()} 참고 +", f"링크 {EMAIL} 참고 +"),              # 대소문자가 바뀐 이메일, `+`로 끝난다
+        (f"전화 {spaced} 와 {p.replace('-', '')} 둘 다", f"전화 {PHONE} 와 {PHONE} 둘 다"),
+        (f"한글 다중 바이트 — 가나다라마바사 {p} 아자차카타파하 ★ 끝", f"한글 다중 바이트 — 가나다라마바사 {PHONE} 아자차카타파하 ★ 끝"),
+    ]
 
 
 def test_s1_restores_across_any_chunk_and_byte_boundary():
-    vault = _vault()
+    vault, sur = _vault()
     rng = random.Random(20261030)
-    for text in TEXTS:
-        expected, _ = vault.restore("s", text)
+    for text, expected in _texts(sur):
         for size in list(range(1, 8)) + [13, 40]:
             pieces = [text[i:i + size] for i in range(0, len(text), size)]
             raw = sse(pieces)
             for trial in range(6):
-                restorer = StreamRestorer(lambda t: vault.restore("s", t))
+                restorer = _restorer(vault)
                 out, i = b"", 0
                 while i < len(raw):
                     n = rng.randint(1, 9) if trial else len(raw)      # 첫 번은 한 덩어리, 나머지는 무작위 바이트 길이
@@ -122,17 +135,18 @@ def test_s1_restores_across_any_chunk_and_byte_boundary():
 
 
 def test_s2_pending_tail_without_finish_chunk_becomes_one_synthesized_chunk():
-    vault = _vault()
-    pieces = ["안녕 ", "[PII:pho", "ne:1] 끝 ["]
+    vault, sur = _vault()
+    p = sur[PHONE]
+    pieces = ["안녕 ", p[:6], p[6:] + " 끝 ", p[:4]]          # 마지막 조각이 대체값의 앞부분으로 끝난다
     for done in (True, False):
         raw = sse(pieces, finish=False, done=done)
-        restorer = StreamRestorer(lambda t: vault.restore("s", t))
+        restorer = _restorer(vault)
         out = restorer.feed(raw) + restorer.finish()
         got = chunks(out)
-        assert content_of(out) == f"안녕 {PHONE} 끝 ["
+        assert content_of(out) == f"안녕 {PHONE} 끝 {p[:4]}"
         assert len(got) == len(chunks(raw)) + 1
         synthesized = got[-2] if done else got[-1]
-        assert synthesized["choices"] == [{"index": 0, "delta": {"content": "["}, "finish_reason": None}]
+        assert synthesized["choices"] == [{"index": 0, "delta": {"content": p[:4]}, "finish_reason": None}]
         assert synthesized["id"] == "chatcmpl-x" and synthesized["model"] == "m"
         assert synthesized["object"] == "chat.completion.chunk"
         assert (got[-1] == "[DONE]") is done
@@ -146,9 +160,9 @@ def test_s3_tokens_split_across_chunks_are_restored_and_upstream_sees_only_token
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
     content = content_of(body)
     assert content == f"[stub] 제 번호는 {PHONE}이고 메일은 {EMAIL}입니다"
-    assert "[PII:" not in content
-    sent = received(secured)[-1]
-    assert PHONE not in sent and EMAIL not in sent and "[PII:phone:1]" in sent and "[PII:email:2]" in sent
+    sent = json.loads(received(secured)[-1])["messages"][0]["content"]
+    assert PHONE not in sent and EMAIL not in sent
+    assert [f.kind for f in find_all(sent)] == ["phone", "email"], "상류는 같은 모양의 대체값을 받는다"
 
 
 def test_s4_blocked_stream_is_one_content_filter_chunk_and_done(secured):
@@ -186,7 +200,7 @@ def test_s6_exactly_one_audit_line_written_after_the_stream_ends(secured):
     assert line["res_bytes"] == len(body)
     assert line["transformed"] is True
     (pii,) = [d for d in line["response_detectors"] if d["detector"] == "pii_mask"]
-    assert pii["restored"] == 2 and pii["residual_tokens"] == 0
+    assert pii["restored"] == 2 and pii["residual_tokens"] == 0 and pii["issued"] == 2
 
 
 @pytest.mark.parametrize("body, status, code", [
@@ -219,3 +233,42 @@ def test_s9_every_chunk_has_the_fields_the_sdk_requires(secured):
         for c in got[:-1]:
             assert {"id", "object", "created", "model", "choices"} <= set(c), c
             assert c["object"] == "chat.completion.chunk" and c["choices"][0]["index"] == 0
+
+
+# ---------- B4 (D-107): 도구 호출 인자 채널 ----------
+
+def test_b4_tool_call_arguments_split_across_chunks_are_restored_per_channel(secured):
+    r, body = post_stream(secured.gateway, chat(f"제 번호는 {PHONE}이고 메일은 {EMAIL}입니다", "stub-stream-tool"))
+    assert r.status_code == 200
+    got = [c for c in chunks(body) if isinstance(c, dict)]
+    content = "".join(c["choices"][0]["delta"].get("content") or "" for c in got)
+    args = "".join(call["function"].get("arguments") or "" for c in got
+                   for call in c["choices"][0]["delta"].get("tool_calls") or [])
+    assert content == f"[stub] 제 번호는 {PHONE}이고 메일은 {EMAIL}입니다"
+    parsed = json.loads(args)                                     # 인자는 끝까지 유효한 JSON이다
+    assert parsed == {"to": f"제 번호는 {PHONE}이고 메일은 {EMAIL}입니다", "note": f"메모 제 번호는 {PHONE}이고 메일은 {EMAIL}입니다"}
+    assert got[-1]["choices"][0]["finish_reason"] == "tool_calls"
+    (line,) = audit_lines(secured, r.headers["X-Gateway-Request-Id"])
+    (pii,) = [d for d in line["response_detectors"] if d["detector"] == "pii_mask"]
+    assert pii["restored"] == 6 and pii["residual_tokens"] == 0
+    sent = received(secured)[-1]
+    assert PHONE not in sent and EMAIL not in sent
+
+
+def test_b4_channels_hold_independently():
+    """content 조각과 도구 인자 조각이 번갈아 오고 둘 다 대체값이 경계에 걸려도 각각 복원된다."""
+    vault, sur = _vault()
+    p = sur[PHONE]
+    def chunk(delta: dict) -> str:
+        return "data: " + json.dumps({"id": "x", "object": "chat.completion.chunk", "created": 0, "model": "m",
+                                      "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}) + "\n\n"
+    raw = (chunk({"content": "A " + p[:5]}) + chunk({"tool_calls": [{"index": 0, "function": {"arguments": '{"to": "' + p[:7]}}]})
+           + chunk({"content": p[5:] + " B"}) + chunk({"tool_calls": [{"index": 0, "function": {"arguments": p[7:] + '"}'}}]})
+           + chunk({"content": "C " + p[:3]}) + "data: [DONE]\n\n")
+    restorer = _restorer(vault)
+    out = restorer.feed(raw.encode()) + restorer.finish()
+    got = [c for c in chunks(out) if isinstance(c, dict)]
+    content = "".join(c["choices"][0]["delta"].get("content") or "" for c in got)
+    args = "".join(call["function"]["arguments"] for c in got for call in c["choices"][0]["delta"].get("tool_calls") or [])
+    assert content == f"A {PHONE} BC {p[:3]}" and json.loads(args) == {"to": PHONE}
+    assert restorer.restored == 2

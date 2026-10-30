@@ -59,9 +59,16 @@ def make_stack(tmp_path_factory):
         log_path = tmp_path_factory.mktemp("logs") / "gateway.jsonl"
         tp, gp = free_port(), free_port()
         procs.append(serve("tests.stub_target:app", tp))
+        # 기본은 검사기 없음(4-A)·무인증(로컬 실험). 인증을 시험하는 테스트만 GATEWAY_CLIENT_KEYS를 넘긴다(D-107 A).
+        # 값이 None이면 "그 변수를 아예 주지 않는다"(제품 기본값을 시험할 때 — D-107 D).
+        base = {"GATEWAY_DETECTORS": ""} if "GATEWAY_DETECTORS" not in env else {}
+        if "GATEWAY_CLIENT_KEYS" not in env and "GATEWAY_AUTH" not in env:
+            base["GATEWAY_AUTH"] = "off"
+        env = {k: v for k, v in env.items() if v is not None}
         procs.append(serve(gateway_app, gp, {
             "TARGET_URL": f"http://127.0.0.1:{tp}",
             "GATEWAY_LOG_PATH": str(log_path),
+            **base,
             **env,
         }, probe="/__gateway/health"))
         return Stack(f"http://127.0.0.1:{tp}", f"http://127.0.0.1:{gp}", log_path)

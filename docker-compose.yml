@@ -50,6 +50,11 @@ services:
       # 기본값(빈 값 = 검사기 없음)은 바꾸지 않는다 — 측정 절차의 OFF 팔이 빈 값으로 띄운다(D-101 §4).
       - GATEWAY_DETECTORS=${GATEWAY_DETECTORS:-}
       - GATEWAY_LOG_PATH=/logs/gateway.jsonl
+      # D-107 A: 클라이언트(AnythingLLM)의 GENERIC_OPEN_AI_API_KEY와 같은 값. 없으면 게이트웨이가 뜨지 않는다.
+      - GATEWAY_CLIENT_KEYS=${GATEWAY_CLIENT_KEYS:-anythingllm=local-only}
+      # 상류 키(Ollama는 없음). 실제 공급자를 상류로 두면 여기 한 곳에만 둔다 — 클라이언트는 게이트웨이 키만 든다.
+      - GATEWAY_UPSTREAM_KEY=${GATEWAY_UPSTREAM_KEY:-}
+      - GATEWAY_RATE_PER_MINUTE=${GATEWAY_RATE_PER_MINUTE:-0}
       # 6단계 카나리 관측(D-058 / CANARY_DESIGN 3-2). 값의 단일 출처는 .env다 —
       # eval/setup_target.py가 타겟에 심을 때 읽는 그 파일, 그 키다(R1).
       #

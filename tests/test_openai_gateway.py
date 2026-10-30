@@ -8,6 +8,7 @@ import pytest
 
 from gateway.detectors.base import Action, Inspection
 from gateway.detectors.injection import user_text
+from gateway.detectors.patterns import find_all
 from gateway.detectors.pii import PIIDetector
 from gateway.openai_api import ChatRequestError, parse_chat_request
 
@@ -78,8 +79,10 @@ async def test_pii_masking_changes_only_user_and_assistant_messages():
     assert verdict.action is Action.TRANSFORM
     out = json.loads(verdict.body)
     assert out["messages"][0]["content"] == "관리자 system@example.com"
-    assert out["messages"][1]["content"] == "제 번호는 [PII:phone:1]입니다"
-    assert out["messages"][2]["content"] == "[PII:phone:1]로 연락드리겠습니다"
+    user, assistant = out["messages"][1]["content"], out["messages"][2]["content"]
+    surrogate = user.removeprefix("제 번호는 ").removesuffix("입니다")
+    assert surrogate != "010-2345-6789" and [f.kind for f in find_all(surrogate)] == ["phone"]
+    assert assistant == f"{surrogate}로 연락드리겠습니다"           # 같은 요청 안의 같은 값은 같은 대체값
     assert out["messages"][3]["content"] == "RAG 담당자 rag@example.com"
     assert verdict.meta["pii"] == {"phone": 2}
 
@@ -143,7 +146,8 @@ def test_assistant_history_pii_does_not_reach_upstream(secured_stack):
     assert r.status_code == 200 and "gateway_blocked" not in r.json()
     sent = _last_upstream_body(secured_stack)
     assert phone not in json.dumps(sent, ensure_ascii=False), "원문이 상류로 갔다"
-    assert sent["messages"][1]["content"] == "[PII:phone:1]로 연락드리겠습니다"
+    assert sent["messages"][1]["content"].endswith("로 연락드리겠습니다")
+    assert sent["messages"][1]["content"] == sent["messages"][0]["content"].removeprefix("제 번호는 ").removesuffix("입니다") + "로 연락드리겠습니다"
 
 
 def test_credential_does_not_reach_upstream_and_returns_to_user(secured_stack):
@@ -184,7 +188,7 @@ async def test_restore_keeps_openai_response_json_valid(value):
     restored, meta = await _mask_then_restore(value, _completion)
     content = json.loads(restored)["choices"][0]["message"]["content"]
     assert content == f"응답: 번호 {value} 확인"
-    assert meta == {"restored": 1, "residual_tokens": 0}
+    assert meta == {"restored": 1, "residual_tokens": 0, "issued": 1}
 
 
 @pytest.mark.anyio

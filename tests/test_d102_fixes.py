@@ -135,7 +135,10 @@ async def test_pem_with_escaped_quote_keeps_legacy_body_valid_json():
     v = await det.inspect(Inspection(request_id="r", method="POST", path=LEGACY, headers={}, body=body, session="s1"))
     assert v.action is Action.TRANSFORM
     out = json.loads(v.body)                      # 예전에는 역슬래시만 먹어 JSON이 깨졌다
-    assert out["message"] == "[PII:secret:1]" and out["sessionId"] == "s1" and out["mode"] == "query"
+    (f,) = find_all(out["message"])
+    assert f.kind == "secret" and f.start == 0 and out["message"].startswith("-----BEGIN PRIVATE KEY-----\n")
+    assert "MIIEvQIBADANBg" not in out["message"]          # 키 본문은 같은 모양의 무작위로 바뀌었다
+    assert out["sessionId"] == "s1" and out["mode"] == "query"
 
 
 # ---------- #5 옛 경로: sessionId 값은 가리지 않는다 ----------

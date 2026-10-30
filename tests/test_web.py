@@ -6,6 +6,7 @@ import json
 import httpx
 import pytest
 
+from gateway.detectors.patterns import find_all
 from tests.conftest import free_port, serve
 from web.app import arm_target
 
@@ -37,8 +38,9 @@ def test_info_and_scenes(web):
 def test_pii_scene_masks_upstream_and_restores_answer(web):
     out = chat(web, 1)
     assert "010-2345-6789" in out["off"]["upstream"][0]["content"]            # 없음: 원문이 상류로 간다
-    assert "[PII:phone:1]" in out["on"]["upstream"][0]["content"]            # 있음: 토큰만 간다
-    assert "010-2345-6789" not in out["on"]["upstream"][0]["content"]
+    sent = out["on"]["upstream"][0]["content"]
+    assert "010-2345-6789" not in sent and "j.hong@hanbit-tech.example" not in sent   # 있음: 같은 모양의 대체값만 간다
+    assert [f.kind for f in find_all(sent)] == ["phone", "email"]
     assert "010-2345-6789" in out["on"]["answer"]                            # 사용자는 원래 값을 돌려받는다
     assert out["on"]["audit"]["transformed"] and out["on"]["audit"]["response_detectors"][0]["restored"] == 2
 
@@ -68,8 +70,8 @@ def test_s10_streaming_sends_restored_deltas_then_one_final_row(web):
     assert len(deltas) >= 2 and all(x["arm"] == "on" and "delta" in x for x in rows[1:-1])
     final = rows[-1]
     assert final["arm"] == "on" and "delta" not in final and final["status"] == 200
-    assert "".join(deltas) == final["answer"] and "010-2345-6789" in final["answer"] and "[PII:" not in final["answer"]
-    assert "[PII:phone:1]" in final["upstream"][0]["content"]
+    assert "".join(deltas) == final["answer"] and "010-2345-6789" in final["answer"]
+    assert "010-2345-6789" not in final["upstream"][0]["content"] and find_all(final["upstream"][0]["content"])
     assert final["audit"]["transformed"] and final["audit"]["response_detectors"][0]["restored"] == 2
     blocked = stream_rows(web, 4)[-1]
     assert blocked["arm"] == "on" and blocked["blocked"] and blocked["upstream"] is None and blocked["audit"]["blocked"]

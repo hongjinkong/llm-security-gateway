@@ -11,7 +11,19 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from gateway.detectors.patterns import find_all
+
 app = FastAPI(title="stub target")
+
+# D-107 B: 게이트웨이는 토큰이 아니라 같은 모양의 대체값을 보낸다. "가려진 것을 봤다"는 **PII 모양의 값이 있는데 테스트의
+# 합성 원문이 아니다**로 판정한다. 테스트가 쓰는 합성 값의 조각 목록이다 — 새 값을 테스트에 들이면 여기에도 더한다.
+RAW_MARKERS = ("2345-6789", "1234-5678", "1111-2222", "5566-7788", "9876-5432", "1122-3344", "123-4567", "1234563",
+               "1234567", "1456782", "2345671", "4111-1111", "A1b2C3d4", "ABCDEFGHIJKLMNOP", "example.com",
+               "hanbit-tech.example", "2345\n6789", "2345\t6789")
+
+
+def masked(text: object) -> bool:
+    return isinstance(text, str) and bool(find_all(text)) and not any(m in text for m in RAW_MARKERS)
 # 실제 AnythingLLM처럼 gzip 응답을 만든다 → 프록시의 content-encoding 처리 검증용
 app.add_middleware(GZipMiddleware, minimum_size=100)
 
@@ -42,6 +54,7 @@ async def multi(request: Request):
 
 @app.post("/api/v1/workspace/{slug}/chat")
 async def chat(slug: str, request: Request):
+    RECEIVED.append((await request.body()).decode("utf-8", errors="replace"))
     payload = await request.json()
     return {
         "id": "stub", "type": "textResponse",
@@ -50,8 +63,8 @@ async def chat(slug: str, request: Request):
         "echo": {
             # 타겟이 마스킹된 본문을 받았는지. 불리언이라 4-F의 복원에 영향받지 않는다.
             # (echo.body는 복원 대상이므로 그것만으로는 마스킹 여부를 확인할 수 없다)
-            "masked_seen": "[PII:" in (payload.get("message") or ""),
-            "session_id_masked": "[PII:" in str(payload.get("sessionId") or ""),   # D-102 #5
+            "masked_seen": masked(payload.get("message")),
+            "session_id_masked": masked(payload.get("sessionId")),   # D-102 #5
             "method": request.method,
             "path": request.url.path,
             "query": request.url.query,
@@ -103,9 +116,12 @@ async def openai_chat(request: Request):
                  and isinstance(call.get("function"), dict) and isinstance(call["function"].get("arguments"), str)]
     if isinstance(model, str) and model.startswith("stub-stream"):
         # D-106: 마지막 user 문장을 N자씩 SSE 조각으로 보낸다(기본 3, `stub-stream-5`처럼 바꾼다). 3자 조각이면
-        # 13자 토큰 `[PII:phone:1]`은 반드시 조각 경계에 걸린다. 실제 상류처럼 주석 줄·역할 조각·finish 조각·[DONE]을 낸다.
-        size = int(model[len("stub-stream-"):]) if model.startswith("stub-stream-") else 3
+        # 13자 대체값 `010-8419-3027`은 반드시 조각 경계에 걸린다. 실제 상류처럼 주석 줄·역할 조각·finish 조각·[DONE]을 낸다.
+        # `stub-stream-tool`(D-107 B4): content 조각과 도구 호출 인자 조각을 번갈아 보낸다 — 두 채널이 섞인 모양.
+        tool = model == "stub-stream-tool"
+        size = int(model[len("stub-stream-"):]) if model.startswith("stub-stream-") and not tool else 3
         text = f"[stub] {user}"
+        args = json.dumps({"to": user, "note": f"메모 {user}"}, ensure_ascii=False)
 
         def chunk(delta: dict, finish: str | None = None) -> str:
             return "data: " + json.dumps({
@@ -116,10 +132,16 @@ async def openai_chat(request: Request):
         async def events():
             yield ": stub stream\n\n"
             yield chunk({"role": "assistant", "content": ""})
-            for i in range(0, len(text), size):
-                yield chunk({"content": text[i:i + size]})
+            if tool:
+                yield chunk({"tool_calls": [{"index": 0, "id": "call_1", "type": "function",
+                                             "function": {"name": "send_sms", "arguments": ""}}]})
+            for i in range(0, max(len(text), len(args)), size):
+                if i < len(text):
+                    yield chunk({"content": text[i:i + size]})
+                if tool and i < len(args):
+                    yield chunk({"tool_calls": [{"index": 0, "function": {"arguments": args[i:i + size]}}]})
                 await asyncio.sleep(0)          # 조각마다 전송 기회를 준다 — 한 덩어리로 뭉치지 않게
-            yield chunk({}, "stop")
+            yield chunk({}, "tool_calls" if tool else "stop")
             yield "data: [DONE]\n\n"
         return StreamingResponse(events(), media_type="text/event-stream")
     if model == "stub-toolcall":
@@ -131,7 +153,7 @@ async def openai_chat(request: Request):
                 "tool_calls": [{"id": "call_1", "type": "function", "function": {
                     "name": "send_sms", "arguments": json.dumps({"to": user}, ensure_ascii=False)}}]}}],
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-            "gateway_test": {"tool_args_masked_seen": any("[PII:" in a for a in tool_args),
+            "gateway_test": {"tool_args_masked_seen": any(masked(a) for a in tool_args),
                              "tool_args_raw_phone_seen": any("010-2345-6789" in a for a in tool_args)},
         }
     return {
@@ -146,7 +168,7 @@ async def openai_chat(request: Request):
         }],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         "gateway_test": {
-            "user_masked_seen": any(role == "user" and "[PII:" in text for role, text in texts),
+            "user_masked_seen": any(role == "user" and masked(text) for role, text in texts),
             "system_raw_seen": any(role == "system" and "system@example.com" in text
                                    for role, text in texts),
             "tool_raw_seen": any(role == "tool" and "rag@example.com" in text
@@ -154,7 +176,188 @@ async def openai_chat(request: Request):
             "auth": request.headers.get("authorization"),
             "path": request.url.path,
             "accept_encoding": request.headers.get("accept-encoding"),
-            "tool_args_masked_seen": any("[PII:" in a for a in tool_args),
+            "tool_args_masked_seen": any(masked(a) for a in tool_args),
             "tool_args_raw_phone_seen": any("010-2345-6789" in a for a in tool_args),
         },
     }
+
+
+# ======================================================================================
+# D-107 C: Anthropic Messages API 스텁 — /v1/messages
+# ======================================================================================
+
+def _sse(event: str, obj: dict) -> str:
+    return f"event: {event}\ndata: " + json.dumps(obj, ensure_ascii=False, separators=(",", ":")) + "\n\n"
+
+
+def _anthropic_texts(messages: list) -> tuple[str, list[str], list[str], list[str]]:
+    """(마지막 user 텍스트, user 텍스트들, tool_result 텍스트들, tool_use input 문자열들)."""
+    users, tools, tool_inputs, last = [], [], [], ""
+    for m in messages if isinstance(messages, list) else []:
+        if not isinstance(m, dict):
+            continue
+        content = m.get("content")
+        texts = []
+        if isinstance(content, str):
+            texts.append(content)
+        elif isinstance(content, list):
+            for b in content:
+                if not isinstance(b, dict):
+                    continue
+                if b.get("type") == "text" and isinstance(b.get("text"), str):
+                    texts.append(b["text"])
+                elif b.get("type") == "tool_result":
+                    inner = b.get("content")
+                    if isinstance(inner, str):
+                        tools.append(inner)
+                    elif isinstance(inner, list):
+                        tools.extend(ib["text"] for ib in inner if isinstance(ib, dict) and isinstance(ib.get("text"), str))
+                elif b.get("type") == "tool_use":
+                    tool_inputs.append(json.dumps(b.get("input"), ensure_ascii=False))
+        if m.get("role") == "user":
+            users.extend(texts)
+            if texts:
+                last = texts[-1]
+    return last, users, tools, tool_inputs
+
+
+@app.post("/v1/messages")
+async def anthropic_messages(request: Request):
+    RECEIVED.append((await request.body()).decode("utf-8", errors="replace"))
+    payload = await request.json()
+    model = payload.get("model") if isinstance(payload, dict) else None
+    if model == "stub-401":
+        return JSONResponse(status_code=401, content={"type": "error", "error": {
+            "type": "authentication_error", "message": "invalid x-api-key"}})
+    last, users, tools, tool_inputs = _anthropic_texts(payload.get("messages"))
+    system = payload.get("system")
+    system_text = system if isinstance(system, str) else " ".join(
+        b.get("text", "") for b in system if isinstance(b, dict)) if isinstance(system, list) else ""
+    text = f"[stub] {last}"
+    gateway_test = {
+        "user_masked_seen": any(masked(t) for t in users),
+        "system_raw_seen": "system@example.com" in system_text,
+        "tool_result_raw_seen": any("rag@example.com" in t for t in tools),
+        "tool_result_masked_seen": any(masked(t) for t in tools),
+        "tool_input_masked_seen": any(masked(t) for t in tool_inputs),
+        "auth": request.headers.get("x-api-key"),
+        "bearer": request.headers.get("authorization"),
+        "version": request.headers.get("anthropic-version"),
+    }
+    tool = model == "stub-tool" or model == "stub-stream-tool"
+    args = {"to": last, "note": f"메모 {last}"}
+    if isinstance(model, str) and model.startswith("stub-stream"):
+        size = 3
+
+        async def events():
+            yield _sse("message_start", {"type": "message_start", "message": {
+                "id": "msg_stub", "type": "message", "role": "assistant", "model": model, "content": [],
+                "stop_reason": None, "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 0}}})
+            yield _sse("content_block_start", {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}})
+            yield _sse("ping", {"type": "ping"})
+            for i in range(0, len(text), size):
+                yield _sse("content_block_delta", {"type": "content_block_delta", "index": 0,
+                                                   "delta": {"type": "text_delta", "text": text[i:i + size]}})
+                await asyncio.sleep(0)
+            yield _sse("content_block_stop", {"type": "content_block_stop", "index": 0})
+            if tool:
+                yield _sse("content_block_start", {"type": "content_block_start", "index": 1, "content_block": {
+                    "type": "tool_use", "id": "toolu_1", "name": "send_sms", "input": {}}})
+                partial = json.dumps(args, ensure_ascii=False)
+                for i in range(0, len(partial), size):
+                    yield _sse("content_block_delta", {"type": "content_block_delta", "index": 1,
+                                                       "delta": {"type": "input_json_delta", "partial_json": partial[i:i + size]}})
+                    await asyncio.sleep(0)
+                yield _sse("content_block_stop", {"type": "content_block_stop", "index": 1})
+            yield _sse("message_delta", {"type": "message_delta", "delta": {
+                "stop_reason": "tool_use" if tool else "end_turn", "stop_sequence": None}, "usage": {"output_tokens": 9}})
+            yield _sse("message_stop", {"type": "message_stop"})
+        return StreamingResponse(events(), media_type="text/event-stream")
+    content = [{"type": "text", "text": text}]
+    if tool:
+        content.append({"type": "tool_use", "id": "toolu_1", "name": "send_sms", "input": args})
+    return {"id": "msg_stub", "type": "message", "role": "assistant", "model": model, "content": content,
+            "stop_reason": "tool_use" if tool else "end_turn", "stop_sequence": None,
+            "usage": {"input_tokens": 1, "output_tokens": 9}, "gateway_test": gateway_test}
+
+
+# ======================================================================================
+# D-107 C: OpenAI Responses API 스텁 — /v1/responses
+# ======================================================================================
+
+def _responses_texts(inp: object) -> tuple[str, list[str], list[str]]:
+    """(마지막 user 텍스트, user 텍스트들, function_call_output 텍스트들)."""
+    if isinstance(inp, str):
+        return inp, [inp], []
+    users, outputs, last = [], [], ""
+    for item in inp if isinstance(inp, list) else []:
+        if not isinstance(item, dict):
+            continue
+        if item.get("type") == "function_call_output":
+            out = item.get("output")
+            if isinstance(out, str):
+                outputs.append(out)
+            continue
+        content = item.get("content")
+        texts = [content] if isinstance(content, str) else [
+            p["text"] for p in content if isinstance(p, dict) and isinstance(p.get("text"), str)] if isinstance(content, list) else []
+        if item.get("role") == "user":
+            users.extend(texts)
+            if texts:
+                last = texts[-1]
+    return last, users, outputs
+
+
+@app.post("/v1/responses")
+async def openai_responses(request: Request):
+    RECEIVED.append((await request.body()).decode("utf-8", errors="replace"))
+    payload = await request.json()
+    model = payload.get("model") if isinstance(payload, dict) else None
+    if model == "stub-401":
+        return JSONResponse(status_code=401, content={"error": {
+            "message": "Incorrect API key provided", "type": "invalid_request_error", "param": None, "code": "invalid_api_key"}})
+    last, users, outputs = _responses_texts(payload.get("input"))
+    text = f"[stub] {last}"
+    tool = model in ("stub-tool", "stub-stream-tool")
+    args = json.dumps({"to": last, "note": f"메모 {last}"}, ensure_ascii=False)
+    gateway_test = {
+        "user_masked_seen": any(masked(t) for t in users),
+        "instructions_raw_seen": "system@example.com" in str(payload.get("instructions") or ""),
+        "output_raw_seen": any("rag@example.com" in t for t in outputs),
+        "output_masked_seen": any(masked(t) for t in outputs),
+        "auth": request.headers.get("authorization"),
+    }
+    message = {"type": "message", "id": "msg_stub", "status": "completed", "role": "assistant",
+               "content": [{"type": "output_text", "text": text, "annotations": []}]}
+    call = {"type": "function_call", "id": "fc_stub", "call_id": "call_1", "name": "send_sms", "arguments": args, "status": "completed"}
+    output = [message] + ([call] if tool else [])
+    response = {"id": "resp_stub", "object": "response", "created_at": 0, "status": "completed", "error": None,
+                "incomplete_details": None, "model": model, "output": output,
+                "usage": {"input_tokens": 1, "output_tokens": 9, "total_tokens": 10}, "gateway_test": gateway_test}
+    if isinstance(model, str) and model.startswith("stub-stream"):
+        size, seq = 3, iter(range(1000))
+
+        def ev(kind: str, **fields: object) -> str:
+            return _sse(kind, {"type": kind, "sequence_number": next(seq), **fields})
+
+        async def events():
+            yield ev("response.created", response={**response, "status": "in_progress", "output": []})
+            yield ev("response.output_item.added", output_index=0, item={**message, "status": "in_progress", "content": []})
+            yield ev("response.content_part.added", item_id="msg_stub", output_index=0, content_index=0,
+                     part={"type": "output_text", "text": "", "annotations": []})
+            for i in range(0, len(text), size):
+                yield ev("response.output_text.delta", item_id="msg_stub", output_index=0, content_index=0, delta=text[i:i + size])
+                await asyncio.sleep(0)
+            yield ev("response.output_text.done", item_id="msg_stub", output_index=0, content_index=0, text=text)
+            yield ev("response.content_part.done", item_id="msg_stub", output_index=0, content_index=0, part=message["content"][0])
+            yield ev("response.output_item.done", output_index=0, item=message)
+            if tool:
+                yield ev("response.output_item.added", output_index=1, item={**call, "arguments": "", "status": "in_progress"})
+                for i in range(0, len(args), size):
+                    yield ev("response.function_call_arguments.delta", item_id="fc_stub", output_index=1, delta=args[i:i + size])
+                    await asyncio.sleep(0)
+                yield ev("response.function_call_arguments.done", item_id="fc_stub", output_index=1, arguments=args)
+                yield ev("response.output_item.done", output_index=1, item=call)
+            yield ev("response.completed", response=response)
+        return StreamingResponse(events(), media_type="text/event-stream")
+    return response

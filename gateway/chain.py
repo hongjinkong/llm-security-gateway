@@ -107,8 +107,14 @@ class DetectorChain:
                     transformed=transformed,
                 )
             if verdict.action is Action.TRANSFORM:
-                body = verdict.body            # type: ignore[assignment]
                 transformed = True
+                body = verdict.body            # type: ignore[assignment]
+                if insp.doc is not None and insp.doc.dirty:
+                    # doc를 제자리에서 바꾼 검사기는 직렬화한 바이트를 돌려주고 dirty를 내린다(D-107 C). dirty가 남아 있으면
+                    # 바이트를 직접 바꾼 검사기(테스트용)가 섞인 것이다 — doc를 그 바이트로 다시 만든다.
+                    insp.doc.payload = insp.doc.adapter.parse(body)
+                    insp.doc._refs = None
+                    insp.doc.dirty = False
 
         return ChainResult(
             body=body, steps=steps,

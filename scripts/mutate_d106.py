@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""D-106 스트리밍의 변이 검사 — 설계의 핵심 아홉 가지를 하나씩 되돌렸을 때 tests/test_streaming.py가 잡는지 센다.
+"""D-106 스트리밍의 변이 검사 — 설계의 핵심 열 가지를 하나씩 되돌렸을 때 tests/test_streaming.py가 잡는지 센다(D-107 B·C 뒤 앵커 갱신).
 
 `scripts/mutate_d102.py`와 같은 방식이고 실행 도구(run·outcome)도 거기서 가져온다. **임시 복사본만 바꾼다.**
 
@@ -26,42 +26,48 @@ S3 = f"{T}::test_s3_tokens_split_across_chunks_are_restored_and_upstream_sees_on
 
 # (id, 종류, 설명, 파일, 기존, 변이, 돌릴 테스트 노드)
 MUTATIONS = [
-    ("M1", "결함 복원", "조각 끝의 토큰 꼬리를 보류하지 않는다", STREAM,
-     '        if not tail or len(tail) > MAX_HOLD:\n            return text, ""',
-     '        if True:\n            return text, ""',
+    # D-107 B·C에서 스트리밍 복원기가 채널 단위로 다시 쓰였다. 변이의 뜻은 그대로고 앵커만 새 코드다.
+    ("M1", "결함 복원", "조각 끝의 대체값 꼬리를 보류하지 않는다", STREAM,
+     "            keep = self._hold(restored)", "            keep = 0",
      [f"{T}::test_s1_restores_across_any_chunk_and_byte_boundary", S3]),
-    ("M2", "결함 복원", "finish 조각에서 보류 꼬리를 버린다", STREAM,
-     '            emit, self._pending = text, ""', '            emit, self._pending = content, ""',
+    ("M2", "결함 복원", "채널이 끝나는 이벤트에서 보류 꼬리를 버린다", STREAM,
+     "                restored, n = self._restore(self._pending.pop(channel))\n                self.restored += n\n"
+     "                if self._shape.inject(obj, channel, restored):",
+     "                restored, n = self._restore(self._pending.pop(channel))\n                self.restored += n\n"
+     "                if True:",
      [f"{T}::test_s1_restores_across_any_chunk_and_byte_boundary"]),
     ("M3", "결함 복원", "[DONE] 앞의 합성 조각을 생략한다", STREAM,
-     '            prefix = self._synthesized(ending) if self._pending else ""', '            prefix = ""',
+     "            return self._flush(lambda ch: True) + block", "            return block",
      [f"{T}::test_s2_pending_tail_without_finish_chunk_becomes_one_synthesized_chunk"]),
     ("M4", "결함 복원", "UTF-8 증분 디코더 대신 조각마다 따로 디코딩한다", STREAM,
-     "        text = self._line + self._decoder.decode(data)",
-     '        text = self._line + data.decode("utf-8", errors="replace")',
+     "        self._buf += self._decoder.decode(data)", '        self._buf += data.decode("utf-8", errors="replace")',
      [f"{T}::test_s1_restores_across_any_chunk_and_byte_boundary"]),
     ("M5", "결함 복원", "미들웨어가 스트리밍 응답에도 바로 감사 줄을 쓴다(두 줄)", MAIN,
      "    if request.url.path.startswith(INTERNAL_PREFIX) or state.streaming:",
      "    if request.url.path.startswith(INTERNAL_PREFIX):",
      [f"{T}::test_s6_exactly_one_audit_line_written_after_the_stream_ends"]),
     ("M6", "결함 복원", "요청 단위 세션의 볼트를 스트림이 끝나기 전에 버린다", MAIN,
-     "        if session == request.state.request_id and not request.state.streaming:",
-     "        if session == request.state.request_id:",
+     "        if not request.state.streaming:\n            await chain.release(session)",
+     "        if True:\n            await chain.release(session)",
      [S3, f"{T}::test_s6_exactly_one_audit_line_written_after_the_stream_ends"]),
-    ("M7", "결함 복원", "스트리밍 요청의 차단을 JSON completion으로 돌려준다", MAIN,
-     '        if wants_stream:\n            return _blocked_stream(request.state.request_id, chat_request.get("model", "gateway"))\n',
-     "",
+    ("M7", "결함 복원", "스트리밍 요청의 차단을 비스트리밍 JSON으로 돌려준다", MAIN,
+     "            return adapter.blocked(doc.payload, request.state.request_id, message, wants_stream)",
+     "            return adapter.blocked(doc.payload, request.state.request_id, message, False)",
      [f"{T}::test_s4_blocked_stream_is_one_content_filter_chunk_and_done"]),
     ("M8", "결함 복원", "카나리를 이어 붙인 content가 아니라 내보낸 조각 바이트에서 센다(조각에 걸친 값을 놓친다)", MAIN,
      "    _, steps = await chain.run_response(session, restorer.content_in)",
      "    _, steps = await chain.run_response(session, restorer.out_text)",
      [f"{T}::test_s8_canary_split_across_chunks_is_counted_once"]),
     ("M9", "결함 복원", "내용이 바뀌지 않은 조각도 재직렬화한다", STREAM,
-     "        if not isinstance(obj, dict) or not self._restore_chunk(obj):\n            return line + newline",
-     "        if not isinstance(obj, dict):\n            return line + newline\n        self._restore_chunk(obj)",
+     "        new_payload = json.dumps(obj, ensure_ascii=False) if changed else payload",
+     "        new_payload = json.dumps(obj, ensure_ascii=False)",
      [f"{T}::test_s5_untouched_chunks_are_byte_identical_to_the_upstream"]),
+    ("M10", "결함 복원", "채널을 구분하지 않고 꼬리를 하나로 보류한다(content와 도구 인자가 섞인다)", STREAM,
+     '            restored, n = self._restore(self._pending.pop(channel, "") + text)',
+     '            channel = "all"; restored, n = self._restore(self._pending.pop(channel, "") + text)',
+     [f"{T}::test_b4_channels_hold_independently"]),
     ("P1", "무해 변경", "data: 접두사 정규식을 뜻이 같은 꼴로 바꾼다", STREAM,
-     'DATA_RE = re.compile(r"data: ?")', 'DATA_RE = re.compile(r"data:[ ]?")', [T]),
+     'DATA_RE = re.compile(r"^data: ?", re.M)', 'DATA_RE = re.compile(r"^data:[ ]?", re.M)', [T]),
 ]
 
 

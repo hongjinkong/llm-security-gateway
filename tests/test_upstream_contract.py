@@ -13,6 +13,8 @@ import re
 import socket
 
 import httpx
+
+from gateway.detectors.patterns import find_all
 import pytest
 
 PATH = "/v1/chat/completions"
@@ -140,7 +142,8 @@ def test_upstream_never_receives_raw_user_pii(secured):
     assert len(sent) == 1
     for kind, v in PII.items():
         assert v not in sent[0], f"{kind} 원문이 상류로 갔다"
-    assert sent[0].count("[PII:") == len(PII)
+    kinds = sorted(f.kind for f in find_all(sent[0].removeprefix(marker)))
+    assert kinds == sorted(k.split("_")[0] for k in PII), "종류마다 같은 모양의 대체값"
     # 알려진 한계(D-085): system 텍스트는 마스킹 대상이 아니다. 이 단언이 깨지면 문서도 고친다.
     raw = [b for b in httpx.get(f"{secured.target}/__stub/received").json()["bodies"] if marker in b]
     assert "system@example.com" in raw[0]
@@ -155,7 +158,10 @@ def test_other_session_cannot_restore_my_value(secured, sid_b):
     a = httpx.post(f"{secured.gateway}{PATH}", headers=HEADERS,
                    json=chat(f"{marker} 제 번호 {phone}", sessionId="session-A"))
     assert phone in a.json()["choices"][0]["message"]["content"]
-    token = re.search(r"\[PII:phone:\d+\]", upstream_user_texts(secured, marker)[0]).group(0)
+    text = upstream_user_texts(secured, marker)[0]
+    (f,) = find_all(text.removeprefix(marker))
+    token = text.removeprefix(marker)[f.start:f.end]            # 상류가 받은 대체값
+    assert token != phone
 
     extra = {"sessionId": sid_b} if sid_b else {}
     b = httpx.post(f"{secured.gateway}{PATH}", headers=HEADERS,

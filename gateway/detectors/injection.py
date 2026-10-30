@@ -40,8 +40,7 @@ import re
 from dataclasses import dataclass
 
 from gateway.detectors.base import Action, Detector, Inspection, Verdict
-from gateway.openai_api import (CHAT_COMPLETIONS_PATH, INJECTION_ROLES, chat_texts,
-                                message_texts, parse_chat_request)
+from gateway.openai_api import INJECTION_ROLES, chat_texts
 
 # --- 룰이 볼 텍스트 -----------------------------------------------------------
 # 사용자 입력이 들어 있는 필드. 타겟을 바꿔도 여기만 고치면 된다(SCOPE 7절 이식성).
@@ -167,6 +166,7 @@ def match_rules(text: str) -> list[RuleHit]:
 # D-095 (C): 이력에서 룰에 걸린 메시지를 이 문구로 바꿔 상류에 보낸다.
 REDACTED_TURN = "[보안 정책에 의해 가려진 이전 메시지]"
 SCOPES = ("all", "turn")
+MODES = ("block", "observe")
 
 
 class InjectionRuleDetector(Detector):
@@ -191,15 +191,24 @@ class InjectionRuleDetector(Detector):
                     그대로 가는 것도 이것으로 막는다. OpenAI 형식 입구에만 해당하고 옛 경로는 둘이 같다.
     """
 
-    def __init__(self, scope: str = "all") -> None:
+    def __init__(self, scope: str = "all", mode: str = "block") -> None:
         if scope not in SCOPES:
             raise ValueError(f"scope는 {SCOPES} 중 하나여야 한다: {scope!r}")
-        self.scope = scope
-        self.name = "injection_rule" if scope == "all" else "injection_rule_turn"
+        if mode not in MODES:
+            raise ValueError(f"mode는 {MODES} 중 하나여야 한다: {mode!r}")
+        self.scope, self.mode = scope, mode
+        # observe(D-107 D, 기본값): 룰 적중을 감사에만 남기고 막지도 가리지도 않는다 — 오차단이 실사용 UX를 망치는 손해가
+        # 뻔한 문구를 놓치는 손해보다 크다. 운영자가 관측 로그를 보고 block으로 켠다. 검사 범위는 observe에서 전체다.
+        self.name = "injection_observe" if mode == "observe" else ("injection_rule" if scope == "all" else "injection_rule_turn")
 
     async def inspect(self, insp: Inspection) -> Verdict:
-        if self.scope == "turn" and insp.path == CHAT_COMPLETIONS_PATH:
-            return self._inspect_turn(insp)
+        if self.mode == "observe":
+            text = "\n".join(r.get() for r in insp.doc.texts() if r.role in INJECTION_ROLES) \
+                if insp.doc is not None else user_text(insp.body)
+            hits = _dedupe(match_rules(text))
+            return Verdict.allow(self.name, **({"rules": [h.as_dict() for h in hits], "would_block": True} if hits else {}))
+        if insp.doc is not None:
+            return self._inspect_doc(insp)
         return self._verdict(_dedupe(match_rules(user_text(insp.body))))
 
     def _verdict(self, hits: list[RuleHit]) -> Verdict:
@@ -212,42 +221,33 @@ class InjectionRuleDetector(Detector):
             rules=[h.as_dict() for h in hits],
         )
 
-    def _inspect_turn(self, insp: Inspection) -> Verdict:
-        payload = parse_chat_request(insp.body)   # main.py가 이미 검증한 본문이다
-        messages = payload["messages"]
-        users = [i for i, m in enumerate(messages) if m["role"] == "user"]
-        start = users[-1] if users else 0          # user가 없으면 전부 이번 턴이다
+    def _inspect_doc(self, insp: Inspection) -> Verdict:
+        """어댑터 경로(D-107 C). user·tool 텍스트만 본다 — API가 무엇이든 어댑터가 역할·이번 턴·메시지 번호를 붙여 준다."""
+        doc = insp.doc
+        refs = [r for r in doc.texts() if r.role in INJECTION_ROLES]
+        if self.scope == "all":
+            return self._verdict(_dedupe(match_rules("\n".join(r.get() for r in refs))))
         # 이번 턴은 scope="all"과 같은 방식(이어 붙여 한 번)으로 본다 — 두 범위의 차이를 이력 처리 하나로 좁힌다.
-        current = [t for m in messages[start:] if m["role"] in INJECTION_ROLES for t in message_texts(m)]
-        verdict = self._verdict(_dedupe(match_rules("\n".join(current))))
+        verdict = self._verdict(_dedupe(match_rules("\n".join(r.get() for r in refs if r.turn))))
         if verdict.action is Action.BLOCK:
             return verdict
 
+        by_msg: dict[int, list] = {}
+        for r in refs:
+            if not r.turn:
+                by_msg.setdefault(r.msg, []).append(r)
         masked, hits = 0, []
-        for m in messages[:start]:
-            if m["role"] not in INJECTION_ROLES:
-                continue
-            found = match_rules("\n".join(message_texts(m)))
+        for parts in by_msg.values():                     # 이력은 메시지마다 판정해 걸린 메시지만 가린다(D-095 (C))
+            found = match_rules("\n".join(r.get() for r in parts))
             if found:
-                _redact(m)
+                for r in parts:
+                    doc.put(r, REDACTED_TURN)             # 텍스트만 자리표시로 — 이미지 같은 다른 파트는 그대로
                 masked += 1
                 hits.extend(found)
         if not masked:
             return verdict
-        return Verdict.transform(
-            self.name, json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-            f"이력 {masked}턴 가림", masked_turns=masked, rules=[h.as_dict() for h in _dedupe(hits)])
-
-
-def _redact(message: dict) -> None:
-    """메시지의 텍스트만 자리표시로 바꾼다. 이미지 같은 다른 파트는 그대로 둔다."""
-    content = message.get("content")
-    if isinstance(content, str):
-        message["content"] = REDACTED_TURN
-    elif isinstance(content, list):
-        for part in content:
-            if isinstance(part, dict) and part.get("type") == "text":
-                part["text"] = REDACTED_TURN
+        return Verdict.transform(self.name, doc.serialize(), f"이력 {masked}턴 가림",
+                                 masked_turns=masked, rules=[h.as_dict() for h in _dedupe(hits)])
 
 
 def _dedupe(hits: list[RuleHit]) -> list[RuleHit]:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import pytest
 
+from gateway.detectors.patterns import find_all  # noqa: E402
 from gateway.detectors.pii import (Finding, PIIDetector, find_all, luhn_ok,
                                    rrn_checksum_ok, rrn_date_ok)
 from gateway.detectors.base import Action, Inspection
@@ -215,7 +216,7 @@ async def test_masking_works_on_escaped_json_end_to_end():
                                      headers={}, body=body, session="s1"))
     assert v.action is Action.TRANSFORM, "이스케이프된 본문에서 마스킹이 안 돌았다 (L-005)"
     out = _json.loads(v.body)["message"]
-    assert "900101-1234563" not in out and "[PII:rrn:" in out
+    assert "900101-1234563" not in out and [f.kind for f in find_all(out)] == ["rrn"]
     restored = await det.on_response("s1", out)
     assert restored is not None and "900101-1234563" in restored[0]
 
@@ -301,6 +302,8 @@ async def test_credential_is_masked_and_restored_in_openai_path():
                                      headers={}, body=body, session="s1"))
     assert v.action is Action.TRANSFORM
     sent = _json.loads(v.body)["messages"][0]["content"]
-    assert secret not in sent and "[PII:secret:1]" in sent
-    restored, meta = await det.on_response("s1", f"키 [PII:secret:1]를 확인하세요")
-    assert secret in restored and meta == {"restored": 1, "residual_tokens": 0}
+    (f,) = find_all(sent)
+    surrogate = sent[f.start:f.end]
+    assert secret not in sent and f.kind == "secret" and surrogate.startswith("sk-")
+    restored, meta = await det.on_response("s1", f"키 {surrogate}를 확인하세요")
+    assert secret in restored and meta == {"restored": 1, "residual_tokens": 0, "issued": 1}

@@ -1,36 +1,40 @@
 # LLM Security Gateway
 
-LLM 앱과 AI 공급자 사이에 끼워 넣어, **밖으로 나가는 개인정보·자격 증명을 가리고 프롬프트 인젝션을 막는**
-OpenAI 호환 API 게이트웨이다. 앱과 모델 코드는 고치지 않는다 — 클라이언트의 `base_url`만 게이트웨이로 바꾼다.
+LLM 앱과 AI 공급자 사이에 끼워 넣어, **밖으로 나가는 개인정보·자격 증명을 같은 모양의 가짜 값으로 바꿔 보내고 응답에서 되돌리며,
+프롬프트 인젝션을 관측(선택하면 차단)하고, 요청마다 감사 한 줄을 남기는** API 게이트웨이다. OpenAI Chat Completions·Responses, Anthropic Messages
+세 API를 스트리밍·도구 호출까지 그대로 통과시킨다. 앱과 모델 코드는 고치지 않는다 — 클라이언트의 `base_url`과 API 키(게이트웨이 키)만 바꾼다.
+공급자 키는 게이트웨이 한 곳에만 둔다.
 
-> **상태(2026-10-30)**: 구현과 최종 코드(`6d81265136b0`)의 기준값 측정이 끝났고(D-100 — `dan`·`promptinject` 세 팔 모두 유효),
-> 독립 리뷰로 찾은 결함 10건을 고쳤고(D-102), Claude 기능 검증까지 마쳐 종결했다(D-103·D-105). 종결 뒤 스트리밍 응답을 지원했다
-> (D-106, 현재 코드 `c9a8b6fce43e` — 측정 입력 전부에서 판정이 같다).
-> 3절 수치는 `6d81265136b0`으로 잰 값이다. 주장은 증거만큼만 쓰고, 숫자마다 한계를 함께 적는다.
+> **상태(2026-10-30)**: 연구 단계(D-001~D-105 — 측정·종결)를 마친 뒤 **서비스로 전환했다(D-107)**: 인증과 키 보관, 요청 단위 볼트, 모양 보존 대체값,
+> Messages·Responses API, 인젝션 기본 관측, 로그 회전·지표·레이트리밋. 현재 코드 `ac56e263ddc6`는 측정 입력 전부(13,023회)에서 차단 구성의 판정이
+> 옛 코드와 같다(`results/d107_equivalence.md`). 3절 수치는 `6d81265136b0`·차단 모드·토큰 방식으로 잰 값이다. 주장은 증거만큼만 쓰고, 숫자마다 한계를 함께 적는다.
 
 ---
 
 ## 1. 무엇을 하나
 
 ```
-클라이언트 (AnythingLLM · OpenAI SDK — base_url만 바꾼다)
-    │  POST /v1/chat/completions   (OpenAI Chat Completions 형식)
+클라이언트 (OpenAI SDK · Anthropic SDK · AnythingLLM — base_url과 api_key(게이트웨이 키)만 바꾼다)
+    │  POST /v1/chat/completions · /v1/responses · /v1/messages   (스트리밍·도구 호출 포함)
     ▼
-게이트웨이 :8080
-    요청  인젝션 룰 검사(걸리면 상류를 부르지 않고 차단) → 개인정보·자격 증명을 토큰으로 마스킹
-    응답  토큰을 원래 값으로 복원 · 요청마다 감사 로그 한 줄(본문 원문은 남기지 않는다)
+게이트웨이 :8080   클라이언트 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 파싱(400)
+    요청  인젝션 룰 관측(또는 차단) → user·assistant 텍스트와 도구 인자의 개인정보·자격 증명을 같은 모양의 가짜 값으로 교체
+    상류  클라이언트의 인증 헤더를 떼고 공급자 키를 단다
+    응답  가짜 값을 원래 값으로 복원(스트리밍은 조각 경계·채널별) · 요청마다 감사 로그 한 줄(원문 없음) · /__gateway/metrics
     │
     ▼
-상류  로컬 Ollama(gemma3:4b — 공격 평가) / 외부 공급자(정상 요청·합성 데이터로 기능 검증만)
+상류  OpenAI · Anthropic · 로컬 Ollama(gemma3:4b — 공격 평가는 여기서만) / 외부 공급자에는 정상 요청·합성 데이터만
 ```
 
-- **방어를 앱 바깥에 둔다.** 검사기 구성은 환경변수 `GATEWAY_DETECTORS` 하나로 바뀐다. 같은 공격을 방어 없음·있음으로 돌려 차이를 잰다.
-- **밖으로 나가는 정보가 보호의 중심이다**(D-073). `user`·`assistant` 메시지의 개인정보와 형식이 고정된 키를 상류에 보내기 전에 가리고, 응답에서 되돌린다.
+- **방어를 앱 바깥에 둔다.** 설정은 환경변수 몇 개다(6절). 측정은 같은 공격을 방어 없음·있음으로 돌려 차이를 잰다.
+- **밖으로 나가는 정보가 보호의 중심이다**(D-073). 상류는 `010-8419-3027` 같은 가짜 값을 보고 보통의 값으로 다룬다 — 모델이 "가려졌다"고 눈치채지 않고,
+  도구 인자에도 그대로 쓰며, 사용자는 원래 값을 돌려받는다(D-107 B). 상류 로그에는 가짜 값이 남는다(상류 운영자는 그것이 대체값인지 알 수 없다 — 의도된 선택).
+- **인젝션은 기본으로 막지 않는다.** 룰은 정규식 둘이고 정상 문장("ignore the instructions in the PDF and summarize")도 걸린다. 적중은 감사에 남고
+  (`would_block`), 운영자가 `GATEWAY_INJECTION=block`으로 켠다. 3절의 수치는 차단 모드의 값이다.
 - **공격 평가는 로컬에 직접 배포한 구성에서만 한다.** 외부 공급자에는 공격 프롬프트를 보내지 않는다(9절).
 
 바로 보기: `python3 web/app.py`(브라우저 비교 화면) 또는 `python3 scripts/demo.py`(터미널) — Docker·Ollama 없이 여섯 장면을 보여 준다(6절).
-아래는 웹 화면에서 장면 1·3·4·5·6을 누른 기록이다. 왼쪽이 게이트웨이 없음, 오른쪽이 있음(`injection_rule_turn,pii_mask`)이고,
-"상류가 실제로 받은 것"에 토큰과 가린 턴이 보인다.
+아래는 웹 화면에서 장면 1·3·4·5·6을 누른 기록이다(토큰 방식이던 D-104 때의 GIF — 지금은 "상류가 실제로 받은 것"에 토큰 대신 가짜 값이 보인다).
 
 ![데모 — 게이트웨이 없음 vs 있음](docs/demo.gif)
 
@@ -41,12 +45,12 @@ OpenAI 호환 API 게이트웨이다. 앱과 모델 코드는 고치지 않는�
 | 구분 | 상태 |
 |---|---|
 | 타겟 배포 · 평가 기준 동결 · 베이스라인 | ✅ AnythingLLM(이미지 digest 고정) · 2026-07-27 동결(`EVAL_CRITERIA.md`) · `dan`·`promptinject`·`encoding` |
-| 게이트웨이 · PII 마스킹 · 인젝션 1차 룰 | ✅ 구현·테스트 완료, 리뷰 결함 10건 수정(D-102), 스트리밍 응답 통과(D-106). 2차 유사도·3차 LLM Judge는 사전 기준으로 기각(D-052·D-054), 코드는 `v1` 태그 |
+| 게이트웨이 · PII 마스킹 · 인젝션 1차 룰 | ✅ 구현·테스트 완료, 리뷰 결함 10건 수정(D-102), 스트리밍(D-106), **서비스 전환(D-107: 인증·키 보관·대체값·세 API·관측 기본·운영)**. 2차 유사도·3차 LLM Judge는 사전 기준으로 기각(D-052·D-054), 코드는 `v1` 태그 |
 | 출력 방어 · 카나리 | ⏹ 관측형으로 종결(D-059) — 세기만 하고 응답을 바꾸지 않는다 |
 | 새 구조 공격 측정 | ✅ 최종 코드 `6d81265136b0` 기준값(D-100) — `dan`·`promptinject`, 팔 `none`·`rule`·`turn` 모두 유효 · 옛 코드 세 밤(D-081) |
 | 외부 공급자 기능 검증 | ✅ OpenAI `gpt-4o-mini` 합격(D-087) · Claude `claude-opus-5-5` 합격(D-103, OpenAI 호환 입구, 호출 3회; 스트리밍 복원 1회 합격 D-106 §8) · Gemini는 정상 대화까지(D-088) |
 | 데모 | ✅ 터미널 `scripts/demo.py` · 웹 `web/app.py` · GIF(D-104) |
-| 남은 일 | 2026-10-29 종결(D-105) 뒤 보강 중 — 스트리밍(D-106 ✅) → 진입 정리(D-107) → CI lint·타입(D-108) → 웹 공개 배포(D-109) |
+| 남은 일 | 2026-10-29 종결(D-105) 뒤 보강 중 — 스트리밍(D-106 ✅) → 서비스 전환(D-107 ✅) → 진입 정리·CI lint·타입(D-108) → 웹 공개 배포(D-109) |
 
 ### 성공 기준(SCOPE 7절) 대비
 
@@ -65,7 +69,9 @@ OpenAI 호환 API 게이트웨이다. 앱과 모델 코드는 고치지 않는�
 최종 코드(`6d81265136b0`)로 새 구조(AnythingLLM → 게이트웨이 → Ollama)에서 잰 값이다(D-100). 측정 전에 등록한 무효 조건 기준으로
 두 프로브의 세 팔이 모두 유효하다. 팔은 `none`(게이트웨이 경유, 검사기 없음)·`rule`(`injection_rule,pii_mask` — 검사 범위 (A))·
 `turn`(`injection_rule_turn,pii_mask` — 검사 범위 (C), 권장 기본값)이고, 괄호는 Wilson 95% 신뢰구간이다.
-현재 코드(`c9a8b6fce43e`, D-106)는 이 측정의 입력 1,447문장 × 9가지 재생 13,023회에서 `6d81265136b0`과 판정·상류 본문이 전부 같다(`results/d106_equivalence.md`; D-102 때도 0, `results/d102_equivalence.md`).
+현재 코드(`ac56e263ddc6`, D-107)는 이 측정의 입력 1,447문장 × 9가지 재생 13,023회에서 차단 구성(`rule`·`turn`·`pii`)의 판정·검사기 기록이 D-106 코드와 전부 같다
+(`results/d107_equivalence.md`; D-106·D-102 때는 상류 본문까지 같았다 — `results/d106_equivalence.md`·`results/d102_equivalence.md`). D-107부터 상류 본문은 대체값이라 비교하지 않는다.
+**현재 기본 구성은 인젝션 관측(`observe`)이다** — 아래 표의 `rule`·`turn` 수치는 `GATEWAY_INJECTION=block`에서만 성립한다.
 
 | 지표 | `none` | `rule` (A) | `turn` (C, 권장) | 읽을 때의 한계 |
 |---|---|---|---|---|
@@ -102,18 +108,21 @@ OpenAI 호환 API 게이트웨이다. 앱과 모델 코드는 고치지 않는�
 
 ## 5. 막지 못하는 것
 
-- **형식이 없는 개인정보·기밀.** 탐지는 주민등록번호·카드번호·전화번호·이메일, 그리고 접두사가 고정된 키
-  (OpenAI·Anthropic·AWS·GitHub·Google·Slack)·JWT·PEM 개인 키뿐이다. 이름·주소·계좌번호·서술형 민감정보는 그대로 나간다.
-- **`system`·`developer`·`tool` 메시지(RAG 문서 포함)의 개인정보**는 가리지 않는다(D-073). 이미지 같은 비텍스트도 보지 않는다.
+- **형식이 없는 개인정보·기밀.** 탐지는 주민등록번호·카드번호·전화번호(국내·국제 `+국가번호`·괄호 지역번호)·이메일, 그리고 접두사가 고정된 키
+  (OpenAI·Anthropic·AWS·GitHub·Google·Slack)·JWT·PEM 개인 키뿐이다. 이름·주소·계좌번호·여권·IBAN·서술형 민감정보는 그대로 나간다.
+- **`system`·`developer`·`instructions`·`tool`(도구 결과) 텍스트(RAG 문서 포함)의 개인정보**는 가리지 않는다(D-073). 이미지 같은 비텍스트도 보지 않는다.
 - **룰이 모르는 공격.** 룰은 알려진 문구에만 듣는다. 인코딩된 공격은 한 건도 막지 못했다. `System:`으로 시작하는 역할 헤더 위조는
   정상 문항과 모양이 같아 룰에서 뺐고, 넘겨받을 2차가 기각돼 지금은 어떤 층도 잡지 않는다.
 - **검사 범위 (A)의 이력 전염과 (C)의 비용.** (A)는 이력에 룰에 걸린 턴이 하나라도 있으면 그 대화의 뒤 요청을 계속 막는다(D-094, 다중 턴 FPR 100%).
   기본값인 (C)는 걸린 이력 턴만 가려 이를 피하지만(D-101), 이번 턴은 룰에 걸리지 않는 공격을 이력에 다른 공격이 있다는 이유로 막지는 않는다 —
   `promptinject` 공격 성공률 (A) 0.2% → (C) 7.8%(D-100).
 - **출력 방향.** 시스템 프롬프트·문서 유출은 카나리로 세기만 하고(D-059) 막지 않는다. 모델이 새로 내보낸 개인정보도 사용자에게 그대로 간다.
-- **측정 범위.** 공격 측정은 `gemma3:4b` + AnythingLLM 조합뿐이다. 두 번째 클라이언트(OpenAI Python SDK)는 기능만 확인했다(D-099 §8).
-- **운영 제약.** 워커 1개(토큰 볼트가 프로세스 메모리에 있다), 사용자 인증·멀티테넌시 없음(`sessionId`는 신원이 아니다).
-  스트리밍은 `choices[0].delta.content`만 복원한다 — 도구 호출 인자 조각과 `n>1`의 토큰은 복원하지 않고 감사의 `residual_tokens`로만 남는다(D-106).
+- **측정 범위.** 공격 측정은 `gemma3:4b` + AnythingLLM 조합, 차단 모드, 토큰 방식(`6d81265136b0`)뿐이다. 현재 코드는 판정 동등성으로만 잇는다(3절).
+  OpenAI·Anthropic SDK와 Messages·Responses API는 기능만 확인했다(D-107 §8).
+- **대체값 복원 실패는 조용하다.** 모델이 가짜 값을 알아볼 수 없게 바꿔 쓰면(구분자·대소문자 변경은 복원된다) 사용자는 가짜 값을 받는다 —
+  토큰 시절처럼 `[PII:`가 보이지 않는다. 감사의 `issued`/`restored`/`residual_tokens`와 지표 `gateway_pii_residual_total`로만 보인다(D-107 B).
+- **운영 제약.** 워커 1개 고정, 레이트리밋·지표는 프로세스별이다. 멀티테넌시 없음(클라이언트 키는 이름일 뿐 권한 구분이 없다). Responses API의
+  `previous_response_id`로 상류에 쌓인 이전 턴은 게이트웨이가 볼 수 없다(이미 대체값으로 보냈다).
 
 ---
 
@@ -159,39 +168,55 @@ uvicorn tests.stub_target:app --port 8000
 ```
 
 ```bash
-GATEWAY_DETECTORS=injection_rule_turn,pii_mask TARGET_URL=http://localhost:8000 uvicorn gateway.main:app --port 8080
+GATEWAY_CLIENT_KEYS=demo=demo-key TARGET_URL=http://localhost:8000 uvicorn gateway.main:app --port 8080
 ```
 
 ```bash
 curl -s http://localhost:8080/v1/chat/completions \
-  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer demo-key' -H 'Content-Type: application/json' \
   -d '{"model":"stub-model","messages":[{"role":"user","content":"제 번호는 010-2345-6789입니다"}]}'
 ```
 
-### 검사기 구성 — `GATEWAY_DETECTORS`
+실제 공급자 앞에 두기 — 공급자 키는 게이트웨이 환경변수 한 곳에만 있고, 클라이언트는 게이트웨이 키를 쓴다(`python -m gateway keygen`으로 만든다).
 
-쉼표로 이어 쓴다. 표에 없는 이름이면 게이트웨이가 기동하지 않는다.
+```bash
+GATEWAY_CLIENT_KEYS="app=$(python3 -m gateway keygen)" GATEWAY_UPSTREAM_KEY=sk-ant-... TARGET_URL=https://api.anthropic.com \
+  uvicorn gateway.main:app --port 8080
+```
 
-| 값 | 동작 |
-|---|---|
-| (빈 값) | 검사기 없음 — 순수 프록시 |
-| `pii` | 탐지만 하고 원문 그대로 전달 |
-| `pii_mask` | `user`·`assistant` 메시지의 개인정보·자격 증명을 토큰으로 가려 전달하고 응답에서 복원 |
-| `injection_rule` | 1차 룰 인젝션 차단, 검사 범위 (A) — 이력까지 `user`·`tool` 메시지 전체를 본다. 측정 재현·비교용(D-081·D-100 `rule` 팔) |
-| `injection_rule_turn` | 같은 룰, 검사 범위 (C) — 이번 턴이 걸리면 차단하고, 이력의 걸린 턴은 가린 채 통과시킨다(D-099). **권장**(D-101) |
-| `canary_observe` | 카나리 **관측 전용** — 응답을 바꾸지 않는다. 목록 맨 뒤 고정, `GATEWAY_CANARY_A/_B/_DOC`가 없거나 겹치면 기동하지 않는다(D-058-1) |
+클라이언트는 `base_url`을 `http://localhost:8080`(Anthropic SDK) 또는 `http://localhost:8080/v1`(OpenAI SDK)로, `api_key`를 게이트웨이 키로 바꾼다.
+Docker는 `gateway/Dockerfile` 하나다 — `docker build -f gateway/Dockerfile -t llm-gateway . && docker run -p 8080:8080 -e GATEWAY_CLIENT_KEYS=... -e TARGET_URL=... llm-gateway`.
 
-- 차단은 HTTP 200의 정상 completion(`finish_reason=content_filter`)으로 돌려준다. 상류는 부르지 않는다.
-- 본문이 `GATEWAY_MAX_BODY_BYTES`(기본 1MiB)를 넘으면 검사기·상류를 부르지 않고 413을 돌려준다.
-- `stream: true`는 상류 SSE를 조각마다 흘려보낸다(D-106). 조각 경계에 걸린 토큰도 복원하고, 감사 줄은 스트림이 끝난 뒤 한 줄, 차단은 `content_filter` 조각 하나 + `[DONE]`이다.
-  413·400·상류 오류는 스트리밍 요청에도 JSON이다.
-- 실행 중인 코드의 지문과 활성 검사기는 `curl -s localhost:8080/__gateway/health`로 본다.
-- `/v1/chat/completions` 밖의 경로(AnythingLLM API)도 같은 검사기를 거쳐 중계한다 — 옛 측정 구조(v1)의 입구다.
+### 설정 — 환경변수
+
+| 변수 | 기본값 | 뜻 |
+|---|---|---|
+| `TARGET_URL` | `http://localhost:8000` | 상류(공급자) 주소. Chat Completions의 상류 경로만 `GATEWAY_CHAT_UPSTREAM_PATH`로 바꿀 수 있다(Gemini) |
+| `GATEWAY_CLIENT_KEYS` | (없음 — **기동 실패**) | 클라이언트 키 `이름=키,이름2=키2`. `Authorization: Bearer`나 `x-api-key`로 낸다. 로컬 실험만 `GATEWAY_AUTH=off` |
+| `GATEWAY_UPSTREAM_KEY` | (없음) | 공급자 키. 있으면 클라이언트의 인증 헤더를 떼고 상류 형식(`/v1/messages*`는 `x-api-key`, 그 밖은 `Bearer`)으로 단다. 없으면 클라이언트 헤더를 그대로 넘긴다(로컬 Ollama) |
+| `GATEWAY_PII` | `mask` | `mask`(대체값으로 바꾸고 응답에서 복원) · `detect`(감사에만) · `off`. 종류는 `GATEWAY_PII_KINDS`(기본 `rrn,card,phone,email,secret`) |
+| `GATEWAY_INJECTION` | `observe` | `observe`(적중을 감사에만, `would_block`) · `block`(이번 턴이 걸리면 차단, 이력의 걸린 턴은 가림 — 검사 범위 (C)) · `off`. `GATEWAY_INJECTION_SCOPE=all`이면 (A) |
+| `GATEWAY_CANARY_A/_B/_DOC` | (없음) | 셋 다 있으면 카나리 관측이 체인 맨 뒤에 붙는다(D-058) |
+| `GATEWAY_MAX_BODY_BYTES` | 1MiB | 넘으면 검사기·상류를 부르지 않고 413 |
+| `GATEWAY_RATE_PER_MINUTE` | 0(끔) | 클라이언트(무인증이면 IP)마다 분당 상한. 넘으면 429 + `retry-after`, 상류 없음 |
+| `GATEWAY_LOG_PATH` | `logs/gateway.jsonl` | 감사 로그. `-`면 stdout. 파일이면 `GATEWAY_LOG_MAX_BYTES`(100MiB)·`GATEWAY_LOG_BACKUPS`(5)로 회전 |
+| `GATEWAY_DETECTORS` | (없음) | 저수준 검사기 목록(쉼표). **설정돼 있으면 위 PII·INJECTION·CANARY 설정을 무시한다** — 측정·테스트용. 빈 값은 검사기 없음 |
+
+`GATEWAY_DETECTORS`의 이름: `pii`·`pii_mask`·`injection_observe`·`injection_rule`((A))·`injection_rule_turn`((C))·`canary_observe`(맨 뒤 고정)·`noop`.
+
+- 처리 순서: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 파싱(400) → 인젝션 → PII → 상류 → 복원 → 감사 한 줄. 401·429·413은 본문을 검사하지도 중계하지도 않는다.
+- 차단(`block` 모드)은 HTTP 200의 정상 응답으로 돌려준다 — Chat `finish_reason=content_filter`, Messages `stop_reason=refusal`, Responses `status=incomplete`(`content_filter`),
+  모두 `gateway_blocked: true`와 문구 끝의 `(요청 ID: …)`. 사유는 넣지 않는다(감사에만). 상류는 부르지 않는다.
+- 스트리밍(`stream: true`)은 상류 SSE를 조각마다 흘려보내며 채널(텍스트·도구 인자·content block)마다 조각 경계에 걸린 대체값을 복원한다(D-106·D-107 C).
+  감사 줄은 스트림이 끝난 뒤 한 줄. 오류(400·401·413·429·502·504)는 스트리밍 요청에도 JSON이고 형식은 API를 따른다(Messages는 Anthropic 오류 형식).
+- `curl -s localhost:8080/__gateway/health`로 코드 지문·활성 검사기를, `/__gateway/metrics`로 Prometheus 지표(요청·차단·마스킹·복원·잔여·지연)를 본다. 둘 다 키가 필요 없다.
+- 세 API 밖의 경로(AnythingLLM API 등)도 키 검증을 거쳐 같은 검사기(바이트 검사)로 중계한다 — 옛 측정 구조(v1)의 입구다.
 
 ### 그 밖의 실행
 
-- **다른 클라이언트** — 공식 OpenAI Python SDK를 `base_url`만 바꿔 붙여 정상 대화·마스킹과 복원·차단·`stream=True` 통과와 스트리밍 차단·상류 401 중계를 확인한다.
-  SDK는 프로젝트 의존성이 아니므로 별도 venv에 깔고 그 파이썬을 넘긴다 — `python3 scripts/check_openai_sdk.py --sdk-python <openai가 깔린 파이썬>`
+- **다른 클라이언트** — 공식 SDK를 `base_url`·`api_key`만 바꿔 붙여 확인한다. SDK는 프로젝트 의존성이 아니므로 별도 venv에 깔고 그 파이썬을 넘긴다.
+  OpenAI(`chat.completions`·`responses`, 스트리밍·차단·401): `python3 scripts/check_openai_sdk.py --sdk-python <openai가 깔린 파이썬>`,
+  Anthropic(`messages`, 스트리밍·도구 호출·401·틀린 게이트웨이 키): `python3 scripts/check_anthropic_sdk.py --sdk-python <anthropic이 깔린 파이썬>`
 - **Docker Compose**(AnythingLLM + 게이트웨이) — `cp .env.example .env`로 값을 채운 뒤 `docker compose up -d`.
   새 구조(AnythingLLM → 게이트웨이 `/v1` → 호스트 Ollama)는 `.env.example` 끝의 선택 항목을 켠다.
 - **측정 재현** — 새 구조는 `docs/next_D100_launch.md`, 옛 구조(v1)는 `docs/MEASUREMENT.md`.
@@ -201,7 +226,8 @@ curl -s http://localhost:8080/v1/chat/completions \
 ## 7. 저장소 구조
 
 ```
-gateway/    프록시 본체 · OpenAI messages 파서 · 감사 로그 · 검사기 체인 · 토큰 볼트
+gateway/    프록시 본체(main) · 인증(auth) · API 어댑터(api/: chat·anthropic·responses) · 검사기(detectors/: injection·pii·patterns·canary) ·
+            대체값(surrogate)·볼트(vault)·스트리밍 복원(streaming) · 감사 로그(audit)·지표(metrics)·레이트리밋(ratelimit)
   detectors/  base(인터페이스) noop pii injection canary
   data/       injection_corpus.jsonl (59항목, 룰 회귀 테스트·기록) · CORPUS.md
 web/        데모 웹 — 브라우저 비교 화면. 게이트웨이 밖의 또 하나의 클라이언트(base_url만 바꾼다)
@@ -226,7 +252,7 @@ results/    측정 산출물 원본 (요약만 남기고 버리지 않는다)
 |---|---|
 | `SCOPE.md` | 만드는 것 / 만들지 않는 것 / 절대 하지 않는 것 |
 | `EVAL_CRITERIA.md` | 평가 기준 — 2026-07-27 동결 |
-| `DECISIONS.md` | 모든 결정의 날짜·근거·폐기 이력 (D-001 ~ D-106, 최신이 맨 끝) |
+| `DECISIONS.md` | 모든 결정의 날짜·근거·폐기 이력 (D-001 ~ D-107, 최신이 맨 끝) |
 | `docs/RESULTS.md` | 상세 결과 — 옛 구조 3.1~3.8, 새 구조 3.9(옛 코드)·3.10(최종 코드) · 측정 장치 · 한계 |
 | `docs/SCORING_PROTOCOL.md` | 판정기가 차단을 읽지 못할 때의 채점 규약 — 결과 전에 동결(D-057) |
 | `docs/CANARY_DESIGN.md` | 카나리 관측(`canary_observe`) 설계 — 동결(D-058) |
@@ -250,6 +276,7 @@ results/    측정 산출물 원본 (요약만 남기고 버리지 않는다)
 | D-102 | 독립 리뷰 결함 10건 수정 · 판정 동등성 재생(13,023회 차이 0) · 정상셋 중복 관찰 |
 | D-103 · D-104 · D-105 | Claude 기능 검증 사전 등록 · 데모 웹과 GIF · 종결(성공 기준 대비 결과, 잔재 정리) |
 | D-106 | 스트리밍 응답 통과 — 조각 경계의 토큰 복원, 감사 한 줄, SSE 차단(판정 동등성 재생 13,023회 차이 0) |
+| D-107 | **서비스 전환** — 인증·키 보관, 요청 단위 볼트(세션 가로채기 결함 수정), 모양 보존 대체값, Messages·Responses API, 인젝션 기본 관측, 로그 회전·지표·레이트리밋 |
 
 ---
 

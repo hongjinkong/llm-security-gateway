@@ -22,6 +22,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PII = "gateway/detectors/pii.py"
+PAT = "gateway/detectors/patterns.py"          # D-107 B: 탐지 패턴은 patterns.py로 옮겨 갔다
 INJ = "gateway/detectors/injection.py"
 MAIN = "gateway/main.py"
 
@@ -33,7 +34,7 @@ T_OAI = "tests/test_openai_gateway.py"
 
 # (id, 종류, 설명, 파일, 기존, 변이, 돌릴 테스트 노드)
 MUTATIONS = [
-    ("D1", "결함 복원", "이메일 로컬 파트 길이 상한을 없앤다(제곱 시간)", PII,
+    ("D1", "결함 복원", "이메일 로컬 파트 길이 상한을 없앤다(제곱 시간)", PAT,
      "[A-Za-z0-9._%+\\-]{1,64}@", "[A-Za-z0-9._%+\\-]+@",
      [f"{T_PII}::test_scan_time_is_linear_on_long_inputs[alnum]"]),
     ("D2", "결함 복원", "자격 증명을 탐지 종류에서 뺀다", PII,
@@ -41,29 +42,26 @@ MUTATIONS = [
      'ALL_KINDS = ("rrn", "card", "phone", "email")',
      [f"{T_PII}::test_credential_is_masked_and_restored_in_openai_path",
       f"{T_OAI}::test_credential_does_not_reach_upstream_and_returns_to_user"]),
-    ("O1", "과잉 수정·부작용", "개인 키 본문이 큰따옴표를 넘어 JSON 구조까지 먹는다", PII,
+    ("O1", "과잉 수정·부작용", "개인 키 본문이 큰따옴표를 넘어 JSON 구조까지 먹는다", PAT,
      "(?:[^-\"\\\\]|\\\\[\\s\\S]|-(?!----END))", "(?:[^-\\\\]|\\\\[\\s\\S]|-(?!----END))",
      [f"{T_PII}::test_pem_without_end_marker_stops_at_quote"]),
     ("D3", "결함 복원", "(C)가 이력까지 이번 턴으로 본다(세션 오염 되살림)", INJ,
-     "for m in messages[start:] if m[\"role\"] in INJECTION_ROLES",
-     "for m in messages if m[\"role\"] in INJECTION_ROLES",
+     'match_rules("\\n".join(r.get() for r in refs if r.turn))',
+     'match_rules("\\n".join(r.get() for r in refs))',
      [f"{T_SCOPE}::test_turn_이력의_막힌_정상_질문은_가려지고_다음_질문은_상류로_간다",
       f"{T_SCOPE}::test_turn_이력_기한_없이_막던_요청도_상류로_간다"]),
     ("D4", "결함 복원", "(C)가 이력의 걸린 턴을 가리지 않는다", INJ,
-     "                _redact(m)\n", "                pass\n",
+     "                    doc.put(r, REDACTED_TURN)", "                    pass",
      [f"{T_SCOPE}::test_turn_이력의_막힌_정상_질문은_가려지고_다음_질문은_상류로_간다"]),
     ("O2", "과잉 수정·부작용", "(C)가 이번 턴의 tool을 보지 않는다(간접 인젝션 통과)", INJ,
-     "for m in messages[start:] if m[\"role\"] in INJECTION_ROLES",
-     "for m in messages[start:] if m[\"role\"] == \"user\"",
+     'match_rules("\\n".join(r.get() for r in refs if r.turn))',
+     'match_rules("\\n".join(r.get() for r in refs if r.turn and r.role == "user"))',
      [f"{T_SCOPE}::test_turn_마지막_user_뒤의_tool은_이번_턴이다"]),
     ("D5", "결함 복원", "요청 단위 세션을 응답 뒤에 버리지 않는다", MAIN,
-     "        if session == request.state.request_id and not request.state.streaming:\n            await chain.release(session)",   # D-106 뒤의 줄
+     "        if not request.state.streaming:\n            await chain.release(session)",   # D-107 A: 모든 세션이 요청 단위다
      "        if False:\n            await chain.release(session)",
-     [f"{T_VAULT}::test_gateway_releases_request_scoped_session_but_keeps_client_session"]),
-    ("O3", "과잉 수정·부작용", "클라이언트 세션까지 버린다(다음 턴 복원 실패)", MAIN,
-     "        if session == request.state.request_id and not request.state.streaming:\n            await chain.release(session)",   # D-106 뒤의 줄
-     "        if True:\n            await chain.release(session)",
-     [f"{T_VAULT}::test_gateway_releases_request_scoped_session_but_keeps_client_session"]),
+     [f"{T_VAULT}::test_gateway_releases_every_request_session"]),
+    # O3(클라이언트 세션까지 버린다)는 D-107 A에서 뺐다 — 클라이언트 세션이라는 것이 더는 없다(모든 세션이 요청 단위).
     ("D6", "결함 복원", "본문 크기 상한을 없앤다", MAIN,
      "    return (b\"\".join(chunks) if size <= MAX_BODY_BYTES else None), size",
      "    return b\"\".join(chunks), size",

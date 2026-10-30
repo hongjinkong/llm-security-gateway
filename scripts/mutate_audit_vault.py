@@ -28,15 +28,15 @@ MUTATIONS = [
     # ---- 1. 볼트 만료 (복원 경로) --------------------------------------
     (V, "M1 복원 경로의 만료 정리를 없앤다 (결함 복원)",
      "        self._purge_expired()\n        entry = self._sessions.get(session)\n"
-     "        if entry is None:\n            return text, 0",
+     "        if entry is None or not entry.by_key:\n            return text, 0",
      "        entry = self._sessions.get(session)\n"
-     "        if entry is None:\n            return text, 0",
+     "        if entry is None or not entry.by_key:\n            return text, 0",
      "tests/test_vault.py::test_만료된_세션은_복원되지_않는다"),
     (V, "M2 살아 있는 세션까지 복원을 막는다 (과잉 수정)",
      "        entry = self._sessions.get(session)\n"
-     "        if entry is None:\n            return text, 0",
+     "        if entry is None or not entry.by_key:\n            return text, 0",
      "        entry = None\n"
-     "        if entry is None:\n            return text, 0",
+     "        if entry is None or not entry.by_key:\n            return text, 0",
      "tests/test_vault.py::test_만료_전에는_복원된다"),
 
     # ---- 2. 예외 요청의 감사 로그 ---------------------------------------

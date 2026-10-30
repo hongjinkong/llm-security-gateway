@@ -20,7 +20,9 @@ import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PII = "gateway/detectors/pii.py"
+PAT = "gateway/detectors/patterns.py"          # D-107 B: 탐지 패턴·겹침 해소는 patterns.py로 옮겨 갔다
 OAI = "gateway/openai_api.py"
+CHAT = "gateway/api/chat.py"                   # D-107 C: 도구 호출 인자 참조는 어댑터가 준다
 MAIN = "gateway/main.py"
 T = "tests/test_d102_fixes.py"
 
@@ -60,7 +62,7 @@ REPLACE_COPY = '''    masked = text
 
 # (id, 종류, 설명, 파일, 기존, 변이, 돌릴 테스트 노드)
 MUTATIONS = [
-    ("D1", "결함 복원", "#1 겹침 해소를 건수의 제곱으로 되돌린다", PII, MERGE_LINEAR, MERGE_QUADRATIC,
+    ("D1", "결함 복원", "#1 겹침 해소를 건수의 제곱으로 되돌린다", PAT, MERGE_LINEAR, MERGE_QUADRATIC,
      [f"{T}::test_find_all_is_linear_in_hit_count"]),
     ("D2", "결함 복원", "#1 치환을 건마다 본문 전체 복사로 되돌린다", PII, REPLACE_JOIN, REPLACE_COPY,
      [f"{T}::test_masking_many_hits_is_fast_and_audit_meta_is_capped"]),
@@ -71,12 +73,11 @@ MUTATIONS = [
      '_DROP_REQ = frozenset({"host", "content-length", "accept-encoding"})',
      '_DROP_REQ = frozenset({"host", "content-length"})',
      [f"{T}::test_client_accept_encoding_is_not_forwarded"]),
-    ("D5", "결함 복원", "#3 tool_calls 인자를 가리지 않는다", OAI,
-     '        calls = message.get("tool_calls")\n', '        calls = None\n',
+    ("D5", "결함 복원", "#3 tool_calls 인자를 가리지 않는다", CHAT,
+     '            calls = m.get("tool_calls")\n', '            calls = None\n',
      [f"{T}::test_tool_call_arguments_are_masked_on_the_next_turn"]),
-    ("D6", "결함 복원", "#4 PEM 본문이 역슬래시를 홀로 먹는다", PII,
-     '(?:[^-"\\\\]|\\\\[\\s\\S]|-(?!----END))', '(?:[^-"]|-(?!----END))',
-     [f"{T}::test_pem_with_escaped_quote_keeps_legacy_body_valid_json"]),
+    # D6(#4 PEM 본문이 역슬래시를 홀로 먹는다)는 D-107 B에서 뺐다 — 대체값이 원문과 같은 길이로 역슬래시 짝을 보존하므로
+    # 그 변이로는 JSON이 깨지지 않는다(토큰 시절에는 역슬래시가 통째로 사라져 깨졌다). 정규식은 그대로 둔다(짝이 맞는 쪽이 옳다).
     ("D7", "결함 복원", "#5 옛 경로가 sessionId 값까지 가린다", PII,
      "        found = _outside(found, _session_spans(text, insp.body))   # 세션 키는 가리지 않는다(D-102)\n",
      "        found = found\n",
@@ -86,8 +87,8 @@ MUTATIONS = [
      "    return list({k: v for k, v in pairs\n            if k.lower() not in HOP_BY_HOP and k.lower() not in drop}.items())",
      [f"{T}::test_multi_value_headers_survive_both_ways"]),
     ("D9", "결함 복원", "#7 OPTIONS도 Chat Completions 본문으로 파싱한다", MAIN,
-     '    if request.method == "POST" and request.url.path == CHAT_COMPLETIONS_PATH:',
-     '    if request.url.path == CHAT_COMPLETIONS_PATH:',
+     '    adapter = adapter_for(request.url.path) if request.method == "POST" else None',
+     '    adapter = adapter_for(request.url.path)',
      [f"{T}::test_options_on_chat_path_is_relayed_not_rejected"]),
     ("D10", "결함 복원", '#8 "stream": null을 거부한다', OAI,
      "    if stream is None:\n        stream = False", "    if stream is None:\n        pass",

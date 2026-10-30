@@ -10017,3 +10017,170 @@ D-068 6절 E1~E7을 새 경로에 맞게 그대로 쓴다. 다른 점은 다음�
   스크립트는 D-103 C2처럼 복원 0이면 "받은 값을 그대로 적어 달라"로 한 번 더 보내게 했으나 첫 번에 복원됐으므로 쓰지 않았다.
 - `scripts/check_claude_b3.py`의 C5(stream 거부)는 새 코드에서 성립하지 않는다 — D-103 §7의 결과는 `27a16fa1c35b`의 값으로 그대로 둔다(§3).
 - 문서: README 상태·2절·5절·6절·문서 지도, SCOPE 4.3 체크 항목·5절 취소선, RESULTS 5.4 문구. `docs/project_summary_2026-10-29.pdf`(10-29 요약 보고서, 11쪽)를 이 커밋에 넣는다.
+
+## D-107. 제품 전환 — 인증과 키 보관, 요청 단위 볼트, 모양 보존 대체값 마스킹, Messages·Responses API 1급 지원, 인젝션 기본 관측, 운영 기능 (측정 없음, 지문 바뀜)
+
+- 날짜: 2026-10-30, 집 맥북. 공격 요청 없음(스텁 상류·합성 데이터). 지시: 사용자 "B로 진행하자 잘생각하고 진행해" — 2026-10-30 전체 리뷰에서
+  "실제 사용자가 쓰는 서비스"로 보면 구조 세 가지(인증·세션·API 범위)가 막고 있다고 보고했고, 사용자가 A(연구 산출물로 마감) 대신 B(서비스로 전환)를 골랐다.
+- 코드 지문: `c9a8b6fce43e`(D-106) → 코드를 바꾼 뒤 §8에 적는다. **D-100 수치와의 동등성은 여기서 끊긴다**(§5). 다시 재지 않는다 — 판정 동등성 표로 대신한다.
+- 이 절은 코드 이전에 썼다. §8 "검증 결과"만 코드 뒤에 채운다.
+
+### 1. 리뷰에서 확인한 것 (2026-10-30, 실험으로 재현)
+
+| # | 결함 | 재현 |
+|---|---|---|
+| 1 | 타인 세션의 PII를 꺼낼 수 있다 | 볼트 키가 클라이언트가 보낸 `sessionId`이고 인증이 없다. 공격자가 `sessionId`를 맞추고 본문에 `[PII:phone:1]`을 적으면(토큰은 PII도 룰도 아니다) 모델이 되풀이한 답이 피해자 값으로 복원된다. `PIIDetector.on_response("victim-1", ...)`로 재현. OpenAI 경로도 `sessionId` 키를 끼우면 30분 유지된다 |
+| 2 | 인젝션 룰이 정상 문장을 막는다 | "ignore the instructions in the PDF and summarize the table", "이전 지시는 무시하고 새 기준으로 요약", "DAN 과장님께 메일 초안" 전부 차단. FPR 1%는 HR 질문 100개의 값이다 |
+| 3 | PII가 한국 형식 5종뿐 | `+82-10-2345-6789`, `+1 415 555 2671`, `(02) 123-4567`, 이름·주소·여권·IBAN 미탐 |
+| 4 | 스트리밍 + 도구 호출에서 토큰이 그대로 나간다 | `delta.tool_calls[].function.arguments` 미복원(D-106 §7의 한계). 에이전트 클라이언트의 기본 조합이다 |
+| 5 | 모델이 마스킹을 눈치채고 언급한다 | D-106 §8의 Claude 답: "가려진 형태로 보입니다, 자동으로 마스킹된 것 같아요". D-103 C2의 "복원 0이면 재시도"도 같은 원인 |
+| 6 | 본문 JSON을 요청마다 4~5번 파싱한다 | 파서·`session_of`·인젝션·PII가 각자 `json.loads`, 응답도 `_is_json`에서 한 번 더 |
+| 7 | 감사 로그가 무한히 자란다 | 회전·상한 없음 |
+| 8 | 볼트 상한 500 세션을 넘으면 복원이 조용히 깨진다 | LRU로 활성 세션이 밀려나면 토큰이 사용자에게 그대로 나간다 |
+
+구조: 제품 경계 없음(측정 장치와 한 저장소, compose는 측정용), API 범위가 Chat Completions뿐(Responses·`/v1/messages`는 옛 경로로 흘러 본문 전체 정규식·통째 버퍼링),
+키 모델이 거꾸로(클라이언트가 공급자 키를 들고 게이트웨이는 전달만), 상태가 프로세스 메모리(워커 1), 방어 깊이가 정규식 둘, 운영 기능 없음(지표·회전·레이트리밋·정책·차단 본문의 요청 ID).
+
+### 2. 설계
+
+#### A. 인증과 키 보관 — #1, 키 모델
+
+- 클라이언트 키: `GATEWAY_CLIENT_KEYS="이름=키,이름2=키2"`(이름을 빼면 키 지문 앞 8자리). 비교는 `hmac.compare_digest`. **없으면 기동 실패** — 보안 제품은 닫힌 채로 시작한다.
+  로컬 실험만 `GATEWAY_AUTH=off`로 명시해 연다. `python -m gateway keygen`이 키 하나(`gw-` + 32자)를 찍는다. 해시 저장은 하지 않는다 — 상류 키도 같은 환경변수에 평문으로 있으므로 위협 모델이 같다.
+- 클라이언트는 `Authorization: Bearer <키>`(OpenAI SDK) 또는 `x-api-key: <키>`(Anthropic SDK)로 낸다. 틀리면 **401**(본문을 읽지 않고, 검사기·상류를 부르지 않고, 감사 한 줄 `error=unauthorized`·`client=null`).
+  경로별 오류 형식(C). 내부 경로(`/__gateway/*`)는 인증을 요구하지 않는다(헬스체크·지표).
+- 상류 키: `GATEWAY_UPSTREAM_KEY`. 있으면 클라이언트의 `authorization`·`x-api-key`를 떼고 상류 형식으로 단다 — `/v1/messages*`는 `x-api-key`, 그 밖(`/v1/chat/completions`·`/v1/responses`·나머지)은 `Authorization: Bearer`.
+  없으면 클라이언트 헤더를 그대로 넘긴다(키를 안 쓰는 로컬 Ollama·스텁·v1 구조의 AnythingLLM).
+- 세션: **클라이언트가 보낸 `sessionId`는 더 이상 볼트 키가 아니다.** 볼트는 요청 단위이고 응답이 끝나면(스트리밍은 스트림 끝에서) 버린다. 다음 턴 이력의 원문은 다시 가려지고(D-099) 같은 요청 안에서 같은 값은 같은 대체값이므로
+  대화 안의 일관성은 유지된다. TTL 10분·상한 2,000건은 해제가 누락됐을 때의 안전망일 뿐이다(#8 — 활성 요청이 밀려날 수 없다). `session_of`·옛 경로의 `sessionId` 키 공유는 지운다. `sessionId` 값을 가리지 않는 규칙(D-102 #5)은 그대로.
+- 감사: `client`는 키 이름(무인증이면 null), `ip`는 새 필드. 모양은 더하기만 한다(D-064).
+
+#### B. 모양 보존 대체값(surrogate) 마스킹 — #3·#4·#5
+
+- 토큰 `[PII:kind:n]`을 **같은 모양의 가짜 값**으로 바꾼다. 상류 모델은 그것을 보통의 값으로 다루고(눈치채지 않고, 괄호를 떨어뜨릴 일도 없고), 도구 인자에도 그대로 쓴다. 상용 제품(합성 PII)이 쓰는 방식이다.
+  - 전화(국내): 접두사(`010`·`02`·`031`)와 구분자 유지, 나머지 숫자 무작위. 국제: `+국가번호`와 구분자 유지, 나머지 무작위. 괄호 지역번호도 같다.
+  - 카드: 첫 자리와 구분자 유지, 중간 무작위, 마지막 자리는 Luhn으로 맞춘다. 주민번호: 유효한 생년월일 무작위, 성별 자리 1~4 무작위, 뒤 6자리 무작위(검증번호는 맞추지 않는다 — 2020-10 이후 발급분과 같다).
+  - 이메일: 글자→무작위 소문자, 숫자→무작위 숫자, `.`·`_`·`-`·`@`와 TLD 유지. 자격 증명: 접두사(`sk-`·`AKIA`·`ghp_`·`AIza`·`xox?-`) 유지 + 같은 길이 무작위, JWT는 세 조각 각각 같은 길이, PEM은 BEGIN/END 줄 유지 본문 무작위.
+  - 같은 요청 안의 같은 값은 같은 대체값. 대체값이 요청 안의 다른 원문·다른 대체값과 겹치면 다시 뽑는다. 난수는 `secrets`.
+- 복원은 관대하게 찾는다 — 숫자 종류는 숫자 사이에 구분자 `[-.\s]?`를 허용(모델이 `010 8419 3027`로 다시 써도 복원), 이메일은 대소문자 무시, 자격 증명은 정확히. 원문은 JSON 본문이면 이스케이프해 끼운다(D-102 #3 방식 그대로).
+  실패 양상이 바뀐다: 토큰은 실패가 눈에 보였고(`[PII:`가 남음) 대체값은 조용히 가짜 값이 남는다. 그래서 감사에 `issued`(발급 수)·`restored`(복원 건수)·`residual_tokens`(복원 뒤에도 남은 대체값 수, 0이어야 함)를 남겨 운영자가 비율을 본다.
+- 시스템 안내문("일부 값은 대체됐다")은 **넣지 않는다** — 모델이 눈치채게 만드는 바로 그 원인이다.
+- 종류 추가: 국제 전화(`+`로 시작, 국가번호 1~3자리 포함 8~15자리, 구분자 `[-.\s]`·괄호 허용), 괄호 지역번호 `(02) 123-4567`. 이름·주소·여권·IBAN은 여전히 범위 밖(형식이 없거나 나라마다 다르다 — README 한계).
+
+#### C. API 어댑터 — API 범위, #4, #6
+
+- `gateway/api/`에 어댑터 셋: `chat.py`(`/v1/chat/completions`), `anthropic.py`(`/v1/messages`), `responses.py`(`/v1/responses`). 어댑터가 **파싱(요청당 1회)**·텍스트 참조(역할·이번 턴 여부)·직렬화(바뀌었을 때 1회)·오류 형식·차단 응답·스트림 이벤트 처리를 맡는다.
+  검사기는 어댑터가 주는 텍스트만 보고 제자리에서 바꾼다. 그 밖의 경로(AnythingLLM API 등)는 지금의 바이트 검사(옛 경로) 그대로다.
+- 역할 대응: 인젝션=user·tool(Anthropic `tool_result` 블록, Responses `function_call_output`), PII=user·assistant — 도구 호출 인자 포함(Chat `tool_calls[].function.arguments`, Anthropic `tool_use.input`의 문자열 값, Responses `function_call.arguments`).
+  system·developer·`instructions`·Anthropic `system`은 그대로(D-073). "이번 턴" = 마지막 user 역할 메시지부터 끝까지(세 API 공통).
+- 스트리밍: **채널**마다 꼬리를 보류한다 — Chat은 (choice, content)·(choice, tool index), Anthropic은 content block `index`, Responses는 (output_index, content_index)·function_call item. 보류 상한 = 이 요청에서 발급한 가장 긴 대체값 길이.
+  채널이 끝나는 이벤트(`finish_reason`, `content_block_stop`, `*.done`)에서 그 채널의 꼬리를 그 이벤트 앞에 비우고, 끝 이벤트 없이 스트림이 끝나면 합성 조각(D-106 방식). 전체 텍스트를 담은 이벤트(`output_text.done`·`output_item.done`·`response.completed`·`content_part.done`)는 JSON 텍스트 전체를 복원한다.
+  Anthropic의 `event:` 줄은 데이터 줄과 짝으로 다룬다(합성 조각도 `event:` 줄을 갖는다). `ping`·주석·빈 줄은 그대로.
+- 차단 응답(200, 상류 없음, `gateway_blocked: true`, 문구 끝에 `(요청 ID: …)`): Chat은 지금대로(`finish_reason=content_filter`), Anthropic은 `stop_reason: "refusal"`, Responses는 `status: "incomplete"`·`incomplete_details.reason: "content_filter"`. 스트리밍 요청이면 각 API의 최소 이벤트 열로.
+- 오류 형식: Chat·Responses·옛 경로는 OpenAI 형식, Anthropic은 `{"type":"error","error":{"type","message"}}`. 413·400·401·429·502·504 전부.
+- 비스트리밍 응답 복원은 지금처럼 응답 JSON 텍스트 전체에 한다(도구 호출 인자 포함, D-102 #3).
+
+#### D. 인젝션 기본 관측, 설정 — #2
+
+- `GATEWAY_INJECTION=observe|block|off`, 기본 **observe**: 룰 적중을 감사에만 남긴다(`action=allow`, `rules=[…]`). `block`은 지금의 차단(기본 범위 (C) turn, `GATEWAY_INJECTION_SCOPE=all`로 (A)). 오차단이 실사용 UX를 망치는 손해가 뻔한 문구를 놓치는 손해보다 크다 — 운영자가 관측 로그를 보고 켠다.
+- `GATEWAY_PII=mask|detect|off`, 기본 **mask**. `GATEWAY_PII_KINDS` 기본 전부. 카나리는 `GATEWAY_CANARY_A/_B/_DOC`가 셋 다 있으면 켜진다(위치 규칙 D-058 그대로 맨 뒤).
+- 체인 순서 고정: injection → pii → canary. `GATEWAY_DETECTORS`(저수준 목록)는 측정·테스트용으로 남긴다 — **설정돼 있으면 그것이 우선**이고, 설정되지 않았을 때만 위 세 변수로 목록을 만든다. 빈 문자열은 "검사기 없음"(4-A).
+- README 3절의 수치는 `GATEWAY_INJECTION=block`(+ 옛 토큰 방식)에서 잰 값임을 명시한다.
+
+#### E. 운영 — #7, 지표, 레이트리밋
+
+- 감사 로그: `GATEWAY_LOG_PATH=-`면 stdout(컨테이너 관례), 파일이면 회전 — `GATEWAY_LOG_MAX_BYTES`(기본 100MiB)·`GATEWAY_LOG_BACKUPS`(기본 5), stdlib `RotatingFileHandler`. 줄마다 flush는 그대로.
+- `/__gateway/metrics`: Prometheus 텍스트 형식, 의존성 없음. 요청 수(`api`·`status`·`blocked`), 인젝션 적중 수(`mode`), 마스킹 건수(`kind`), 복원·잔여 수, 상류·종단 지연 합과 횟수. 감사 레코드 하나에서 모두 센다(한 곳).
+- `GATEWAY_RATE_PER_MINUTE`(기본 0=끔): 클라이언트 이름(무인증이면 IP)마다 분당 요청 상한, 넘으면 **429** + `retry-after`, 상류 없음, 감사 `error=rate_limited`. 워커 1개라 메모리 창으로 충분하다.
+- 차단 문구 끝에 `(요청 ID: xxxx)` — 사용자가 운영자에게 물을 수 있는 유일한 손잡이. 사유는 여전히 넣지 않는다(D-040).
+
+#### F. 정리
+
+- 데모 웹·스텁·스크립트(`check_openai_sdk`·`check_claude_*`·`demo.py`)를 키 보관 모델로 바꾼다(게이트웨이에는 클라이언트 키, 상류 키는 게이트웨이 환경변수). 스텁에 `/v1/messages`·`/v1/responses`(비스트리밍·스트리밍·도구 호출)를 더한다.
+- compose의 `gateway` 서비스에 `GATEWAY_CLIENT_KEYS`(AnythingLLM의 `GENERIC_OPEN_AI_API_KEY`와 같은 값)를 넘긴다. README를 "설치해서 쓰는 사람" 순서로 다시 쓴다(설치 절의 명령은 CI 동기화 유지).
+- 저장소 분리(`results/` 1GB·`DECISIONS.md` 750KB)는 **D-108로 넘긴다** — 경로를 옮기면 측정 스크립트·테스트 수십 개가 함께 움직여 이 결정이 너무 커진다.
+
+### 3. 테스트 (`tests/test_d107_*.py`) — 코드 전에 적는 항목
+
+| # | 항목 | 합격 |
+|---|---|---|
+| A1 | 키 없음·틀린 키·`x-api-key`로 맞는 키·`Bearer`로 맞는 키 | 401·401·200·200. 401은 상류 수신 없음, 본문을 읽지 않음(413보다 먼저), 감사 `error=unauthorized`·`upstream_ms=null`·`client=null` |
+| A2 | `GATEWAY_UPSTREAM_KEY` 있음 | 상류가 받은 헤더: `/v1/chat/completions`는 `Bearer <상류키>`, `/v1/messages`는 `x-api-key: <상류키>`, 클라이언트 키는 상류에 없음. 없으면 클라이언트 헤더 그대로 |
+| A3 | `GATEWAY_CLIENT_KEYS` 없이 기동 | 실패. `GATEWAY_AUTH=off`면 기동·무인증 통과·감사 `client=null` |
+| A4 | 리뷰 #1 재현 | 다른 요청의 `sessionId`를 맞추고 대체값을 적어 보내도 복원되지 않는다(요청 단위 볼트). 응답 뒤 볼트 항목 0 |
+| B1 | 대체값 모양 | 전화·국제 전화·카드(Luhn)·주민(날짜 유효)·이메일·키 5종·JWT·PEM 각각 같은 정규식에 다시 걸리고, 원문과 다르고, 같은 요청 안에서 같은 값은 같은 대체값, 다른 값은 다른 대체값 |
+| B2 | 관대한 복원 | `010 8419 3027`·`01084193027`·대소문자 바뀐 이메일이 원문으로 돌아온다. 원문에 줄바꿈이 있어도 응답 JSON이 유효 |
+| B3 | 국제 전화 탐지 | `+82-10-2345-6789`·`+82 10 2345 6789`·`+1 415 555 2671`·`(02) 123-4567` 탐지, `+1 2 3`·버전 번호·날짜는 비탐지 |
+| B4 | 스트리밍 도구 호출 | Chat `stub-stream-tool`: `tool_calls[].function.arguments`가 조각으로 올 때 이어 붙인 인자에 원문, 대체값 없음. content와 tool 채널이 섞여 와도 각각 복원 |
+| B5 | D-106 S1~S9 | 대체값으로 바꿔 그대로 통과(조각 길이 1~7, 무작위 바이트, finish 없는 꼬리 합성, 통과 조각 바이트 동일, 감사 한 줄, 카나리 1회) |
+| C1 | Anthropic 비스트리밍 | `/v1/messages` user 문자열·블록·`tool_result` 가림, `system` 그대로, 응답 `content[].text`·`tool_use.input` 복원, 상류는 대체값만. 오류 400·401·413이 Anthropic 형식 |
+| C2 | Anthropic 스트리밍 | `text_delta`·`input_json_delta` 채널별 복원, `content_block_stop` 앞에서 꼬리 비움, `event:` 줄 보존, `ping` 그대로, 바뀌지 않은 이벤트 바이트 동일 |
+| C3 | Anthropic 차단 | block 모드에서 `stop_reason=refusal`·`gateway_blocked`·문구에 요청 ID; 스트리밍이면 `message_start`→…→`message_stop` 열 |
+| C4 | Responses 비스트리밍 | `input` 문자열·메시지 배열·`function_call_output` 가림, `instructions` 그대로, 응답 `output_text`·`function_call.arguments` 복원 |
+| C5 | Responses 스트리밍 | `output_text.delta`·`function_call_arguments.delta` 채널별 복원, `output_text.done`·`response.completed`의 전체 텍스트 복원, 꼬리는 `.done` 앞에서 비움 |
+| C6 | Responses 차단 | `status=incomplete`·`incomplete_details.reason=content_filter`·`gateway_blocked`; 스트리밍 열 |
+| C7 | 파싱 1회 | 검사기가 `json.loads`를 부르지 않는다(어댑터 경로에서 monkeypatch로 셈) |
+| D1 | 기본 구성 | 환경변수 없이(키만) 기동하면 `injection_observe,pii_mask`; 인젝션 문구가 200 통과하고 감사에 `rules` 남음; `GATEWAY_INJECTION=block`이면 차단; `off`면 `rules` 없음 |
+| D2 | `GATEWAY_DETECTORS` 우선 | 설정돼 있으면 세 변수를 무시한다. 빈 문자열이면 검사기 0 |
+| E1 | 로그 | `-`면 stdout에 JSONL, 파일이면 `max_bytes`를 넘길 때 회전(백업 파일 생김), 줄 깨짐 없음 |
+| E2 | 지표 | `/__gateway/metrics`가 요청 수·차단 수·마스킹 수를 감사 줄과 같은 값으로 낸다, 인증 불필요 |
+| E3 | 레이트리밋 | 분당 N 넘기면 429·`retry-after`·상류 없음·감사 `error=rate_limited`; 클라이언트별로 따로 센다 |
+| F1 | 데모 웹 S10 | 키 보관 모델에서 그대로 통과(상류가 받은 것에 대체값, 답에 원문) |
+| F2 | SDK | `check_openai_sdk.py` 6/6 + Anthropic SDK(`anthropic` 패키지, 별도 venv)로 `/v1/messages` 정상·마스킹·스트리밍 |
+
+- 지우는 것: 토큰 형식(`[PII:kind:n]`)·`sessionId` 세션 공유·TTL 복원에 묶인 테스트(`test_vault.py`의 세션 TTL, `test_pii.py`의 토큰 문자열, D-102 #5 외의 `session_of`). 같은 뜻의 항목은 대체값으로 다시 쓴다.
+- `scripts/mutate_d107.py`: A(키 비교를 `==`로 — 통과해야 하는 무해 변경이 아니라 **잡혀야 하는** 타이밍 결함은 테스트로 못 잡으므로 넣지 않는다), 401을 본문 읽은 뒤로 / 상류 키 교체 생략 / 볼트 해제 생략 / 대체값을 원문과 같게 / 관대한 복원 끔 / 채널 구분 없이 하나의 꼬리 / `content_block_stop` 앞 비우기 생략 / observe가 차단 / 429 뒤 상류 호출 / 회전 끔. 무해 변경 하나.
+
+### 4. 바뀌는 계약 (사용자에게 보이는 것)
+
+- 클라이언트는 공급자 키 대신 **게이트웨이 키**를 쓴다. 공급자 키는 게이트웨이 환경변수 하나에만 있다.
+- 상류가 받는 것은 `[PII:phone:1]`이 아니라 `010-8419-3027` 같은 값이다. 상류 로그·기록에는 가짜 값이 남는다(토큰보다 눈에 안 띈다 — 상류 운영자가 "이 값은 마스킹된 것"이라고 알 수 없다. 의도된 선택이고 README에 적는다).
+- 인젝션은 기본으로 막지 않는다. 막으려면 `GATEWAY_INJECTION=block`.
+- 옛 경로(`/v1` 밖)의 `sessionId`에 묶인 대화 간 복원은 사라진다. v1 측정 구조의 재현에는 영향이 없다(그 측정은 끝났고 다시 재지 않는다).
+
+### 5. 측정 영향
+
+- 지문이 바뀐다. D-100 수치(README 3절)는 `6d81265136b0`·block 모드·토큰 방식에서 잰 값이다. 판정 동등성을 다시 잰다: `scripts/d107_equivalence.py`(d102 방식, 옛 코드 `a2a1a4e`) — 구성 rule/turn/pii에서 **판정·차단 검사기·사유·가린 턴 수·마스킹 건수·종류별 건수**를 비교한다.
+  본문 지문은 비교하지 않는다(대체값이 무작위다). 기대: 인젝션은 어휘가 같으므로 차이 0, PII는 국제 전화 추가로 transform이 늘 수 있다 — 차이가 나면 번호와 종류만 적는다.
+- 차이가 0이 아니면 README 3절은 "block 모드에서 옛 코드로 잰 값이며 현재 코드는 판정 동등성 표(차이 n건, 전부 PII 범위 확대)"로 적는다.
+
+### 6. 한계 (이 결정으로도 남는 것)
+
+- 방어 깊이는 여전히 정규식 둘이다(패러프레이즈·다국어·인코딩·`System:` 위조 통과). 관측 모드가 기본이 된 이유도 그것이다.
+- 이름·주소·여권·IBAN·사번은 범위 밖. 서술형 민감정보는 통과한다.
+- 상태는 프로세스 메모리(요청 단위라 수평 확장은 가능하지만 레이트리밋·지표는 프로세스별이다). 워커 1개 고정은 유지한다.
+- 대체값 복원 실패는 조용하다 — 감사의 `issued`/`restored`/`residual_tokens`로만 보인다.
+- Responses API의 `previous_response_id`로 상류에 쌓인 이전 턴은 게이트웨이가 볼 수 없다(이미 대체값으로 보냈으므로 원문은 없다).
+
+### 7. 순서
+
+A(인증·요청 단위 볼트) → B(대체값·채널 스트리밍) → C(어댑터 둘) → D·E(설정·운영) → F(정리·문서·동등성·변이). 단계마다 `pytest -q` 전부 통과를 확인하고 한 커밋으로 묶는다.
+
+### 8. 검증 결과 (2026-10-30)
+
+- 코드 지문 `c9a8b6fce43e`(D-106) → **`ac56e263ddc6`**. 새 파일 `gateway/auth.py`·`__main__.py`(keygen)·`surrogate.py`·`metrics.py`·`ratelimit.py`·`api/{base,chat,anthropic,responses}.py`·
+  `detectors/patterns.py`(pii.py에서 분리). 다시 쓴 파일 `vault.py`·`streaming.py`·`audit.py`. 고친 파일 `main.py`·`chain.py`·`detectors/{base,pii,injection}.py`.
+- `pytest -q` **723 passed**(D-106의 611 → 새 테스트 `test_d107_auth` 18·`test_d107_surrogate` 58·`test_d107_api` 23·`test_d107_ops` 12·스트리밍 B4 2, 지운 테스트 2
+  (`session_of`·클라이언트 세션 유지), 토큰 단언은 대체값 단언으로 다시 썼다). §3의 표 A1~A4·B1~B5·C1~C7·D1~D2·E1~E3·F1 전부 코드로 있고 통과한다.
+- `scripts/mutate_d107.py` **12/12** — A1 인증 없음·A2 상류 키 교체 생략·A3 401을 본문 뒤로·A4 볼트 해제 생략·B1 대체값=원문·B2 관대한 복원 끔·B3 채널 구분 없음·
+  C1 `content_block_stop` 앞 비우기 생략·D1 observe가 차단·E1 429 뒤 상류 호출·E2 회전 끔이 지정 테스트에 잡혔고, P1(401 문구)은 통과. §3에 적은 변이 목록과 같다
+  (B1은 처음에 "대체값 발급" 단위 테스트를 가리켰는데 변이가 토큰 충돌 재시도를 우회해 못 잡았다 — 상류 수신 본문을 보는 A4·충돌 테스트로 바꿔 잡았다.
+  C1은 스텁 문장 끝에 보류될 꼬리가 없어 관측이 안 됐다 — C2 테스트의 문장을 ` 끝 010`으로 끝내고 "블록 i의 델타는 전부 stop i 앞"을 단언해 잡았다).
+- 옛 변이 검사는 앵커를 새 코드로 옮겨 그대로 돈다 — `mutate_d106.py` **11/11**(채널 복원기에 맞춰 열 가지로, M10 채널 구분 추가), `mutate_d102.py` **12/12**
+  (D6 PEM 역슬래시 변이는 대체값이 역슬래시 짝을 보존해 더는 JSON을 깨지 않으므로 뺐다 — 정규식은 그대로), `mutate_d099.py` **9/9**(O3 "클라이언트 세션 유지"는 세션이 전부 요청
+  단위가 되어 뺐다), `mutate_openai_gateway.py` 4/4, `mutate_audit_vault.py` 8/8, `mutate_canary.py` 7/7, `mutate_openai_compose.py` 5/5, `mutate_validate_oa_arm.py` 9/9,
+  `mutate_ci.py` 28/28·6/6. `scripts/demo.py` 종료 0.
+- 동등성 재생(§5): `python3 scripts/d107_equivalence.py --old a2a1a4e --out results/d107_equivalence.md` — 1,447문장 × 9가지 = 13,023회, **다른 판정 0**
+  (판정·차단 검사기·사유·가린 턴 수·마스킹 건수·종류별 건수. 본문 지문은 비교하지 않는다). 국제 전화 추가로 transform이 늘 수 있다고 봤으나 측정 입력에는 `+`로 시작하는 번호가 없었다.
+  README 3절은 "현재 기본 구성은 observe — 표의 수치는 `GATEWAY_INJECTION=block`에서만 성립"으로 적었다.
+- SDK: OpenAI(`scripts/check_openai_sdk.py`, openai 2.48.0) **8/8** — 정상·마스킹 복원·차단·`stream=True`·**Responses API(출력·도구 인자)·Responses 스트리밍(`response.completed`)**·
+  스트리밍 차단·401. Anthropic(`scripts/check_anthropic_sdk.py`)은 스크립트만 있다 — 이 맥북 어느 파이썬에도 `anthropic` 패키지가 없어 **실행하지 못했다**(F2 절반).
+  `python3 -m venv /tmp/sdkvenv && /tmp/sdkvenv/bin/pip install anthropic && python3 scripts/check_anthropic_sdk.py --sdk-python /tmp/sdkvenv/bin/python`으로 사용자가 돌린다.
+- 코드 밖 확인: 데모 웹 S10 통과(키 보관 모델 — "있음" 게이트웨이에 `GATEWAY_UPSTREAM_KEY`, 앱은 `WEB_CLIENT_KEY`). 웹 화면은 보낸 요청에 없는 PII 모양을 가짜 값으로 표시한다.
+  compose는 `GATEWAY_CLIENT_KEYS`(기본 `anythingllm=local-only` = AnythingLLM의 `GENERIC_OPEN_AI_API_KEY`)·`GATEWAY_UPSTREAM_KEY`·`GATEWAY_RATE_PER_MINUTE`를 넘긴다.
+  `scripts/check_claude_b3.py`·`check_claude_d106.py`는 옛 키 모델(클라이언트가 공급자 키를 Bearer로)이라 새 코드에서 그대로는 돌지 않는다 — D-103·D-106 결과는 그 지문의 값으로 둔다.
+- 설계와 달라진 것: (1) `issued`를 감사 `pii_mask` 응답 항목에 더했다(복원 비율의 분모). (2) 검사기가 doc를 제자리에서 바꾼 뒤 `doc.serialize()`로 바이트를 돌려준다 —
+  Verdict의 "TRANSFORM은 body 필수" 계약을 유지하기 위해서다(체인 끝 1회 직렬화 대신 TRANSFORM마다 1회, 검사기 둘이라 같다). (3) 검사기 단위 테스트가 `Inspection`을 손으로 만들 때
+  아는 API 경로의 POST면 `Inspection.__post_init__`이 doc를 만든다. (4) 세션 키 `sessionId`를 가리지 않는 규칙(D-102 #5)은 옛 경로에 그대로 남겼다.
+- 실제 공급자(Claude·OpenAI) 앞에서의 스트리밍·대체값 확인은 **하지 않았다** — 키가 없고, 비용이 드는 호출은 사용자가 결정한다. `check_claude_d106.py`를 새 키 모델로 고쳐
+  돌리면 된다(다음 결정).

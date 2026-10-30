@@ -30,7 +30,8 @@ def show(title: str, gateway: str, target: str, messages: list[dict]) -> None:
     print(f"\n━━ {title}")
     for m in messages:
         print(f"  보낸 {m['role']:9s} {m['content'][:80]}")
-    r = httpx.post(f"{gateway}{PATH}", json={"model": "demo", "messages": messages}, timeout=10)
+    r = httpx.post(f"{gateway}{PATH}", json={"model": "demo", "messages": messages}, timeout=10,
+                   headers={"Authorization": "Bearer demo-key"})          # 게이트웨이 키(D-107 A). 공급자 키는 보내지 않는다
     body = r.json()
     if r.status_code != 200:
         print(f"  ← HTTP {r.status_code} {body['error']['code']} (검사기·상류 호출 없음)")
@@ -55,11 +56,12 @@ def main() -> int:
                 "GATEWAY_LOG_PATH": str(Path(tmp) / "gateway.jsonl"),
                 "GATEWAY_DETECTORS": "injection_rule_turn,pii_mask",
                 "GATEWAY_MAX_BODY_BYTES": "4096",
+                "GATEWAY_CLIENT_KEYS": "demo=demo-key",
             }, probe="/__gateway/health"))
             gw, up = f"http://127.0.0.1:{gp}", f"http://127.0.0.1:{tp}"
-            print("게이트웨이: injection_rule_turn,pii_mask  /  상류: 받은 문장을 되돌려주는 스텁 모델")
+            print("게이트웨이: injection_rule_turn,pii_mask(차단 모드 — 기본값은 observe)  /  상류: 받은 문장을 되돌려주는 스텁 모델")
 
-            show("1. 개인정보 — 상류는 토큰만 받고, 사용자는 원래 값을 돌려받는다", gw, up, [
+            show("1. 개인정보 — 상류는 같은 모양의 가짜 값만 받고, 사용자는 원래 값을 돌려받는다", gw, up, [
                 {"role": "user", "content": "제 번호는 010-2345-6789이고 메일은 j.hong@hanbit-tech.example입니다"}])
             show("2. API 키 — 외부 AI로 나가지 않는다", gw, up, [
                 {"role": "user", "content": f"이 키 {KEY} 가 401을 내요"}])

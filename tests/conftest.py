@@ -23,12 +23,13 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def serve(app: str, port: int, env: dict | None = None, probe: str = "/") -> subprocess.Popen:
+def serve(app: str, port: int, env: dict | None = None, probe: str = "/", cwd: Path | None = None) -> subprocess.Popen:
     """기동 확인용 probe 경로는 감사 로그를 오염시키지 않는 곳으로 고른다.
     게이트웨이는 /__gateway/health(로그 제외 경로)를 쓴다."""
     p = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", app, "--port", str(port), "--log-level", "warning"],
         env={**os.environ, **(env or {})},
+        cwd=cwd,   # 다른 작업 트리의 게이트웨이(D-114 옛 팔)
     )
     for _ in range(100):  # 최대 10초 대기
         try:

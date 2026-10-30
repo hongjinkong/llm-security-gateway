@@ -40,6 +40,7 @@ import re
 from dataclasses import dataclass
 
 from gateway.detectors.base import Action, Detector, Inspection, Verdict
+from gateway.detectors.patterns import normalize
 from gateway.openai_api import INJECTION_ROLES
 
 # 문장 경계. 동사와 목적어가 같은 문장에 있어야 "그 동사의 목적어"라고 말할 수 있다.
@@ -113,7 +114,8 @@ async def _match(text: str) -> list[RuleHit]:
 
 
 def match_rules(text: str) -> list[RuleHit]:
-    """발동한 룰을 전부 돌려준다. 비어 있으면 통과."""
+    """발동한 룰을 전부 돌려준다. 비어 있으면 통과. 정규화한 텍스트를 본다 — 전각·제로폭으로 쓴 문구도 같다(D-116)."""
+    text = normalize(text).text
     hits: list[RuleHit] = []
 
     for sent in sentences(text):

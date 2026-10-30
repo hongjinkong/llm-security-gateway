@@ -35,7 +35,7 @@ from typing import Any
 from dataclasses import dataclass, field
 
 from gateway import surrogate
-from gateway.detectors.patterns import Finding, digits, find_all
+from gateway.detectors.patterns import Finding, digits, find_all, normalize
 
 # 스트림 보류(D-110): 상한은 그 세션이 발급한 가장 긴 대체값 길이, 그 상한의 상한이 HOLD_CAP이다. 그보다 긴 대체값은 조각에 걸리면
 # 복원하지 못한다 — 감사의 residual로 보인다. SHORT 이하의 비자격 증명은 진접두사 집합으로, 자격 증명과 더 긴 것은 KMP로 꼬리를 본다.
@@ -50,7 +50,9 @@ ESCAPED_WS_RE = re.compile(r"\\[nrt]|\s")
 
 def norm_key(kind: str, text: str) -> str:
     """복원 조회 키. 숫자 종류는 숫자열(구분자 무시), 이메일은 소문자, 자격 증명은 공백·이스케이프된 공백(`\n`)을 뺀 그대로
-    (PEM은 JSON 응답 텍스트에서 줄바꿈이 `\n` 두 글자가 된다)."""
+    (PEM은 JSON 응답 텍스트에서 줄바꿈이 `\n` 두 글자가 된다). 정규화(D-116)한 뒤에 본다 — 전각으로 쓴 값도 같은 키다."""
+    if not text.isascii():
+        text = normalize(text).text
     if kind in DIGIT_KINDS:
         return digits(text)
     if kind == "email":
@@ -239,18 +241,20 @@ class TokenVault:
 
     # --- 공개 API -----------------------------------------------------------
     def token_for(self, session: str, kind: str, value: str) -> str:
-        """원본 값의 대체값. 같은 세션·같은 값은 같은 대체값."""
+        """원본 값의 대체값. 같은 세션·같은 값은 같은 대체값. 대체값은 정규화한 값의 모양으로 만들고(상류는 ASCII 모양을 본다),
+        복원은 원문 그대로(전각·제로폭 포함)를 돌려준다(D-116)."""
         entry = self._get(session)
         key = (kind, value)
         if key not in entry.by_value:
-            own = norm_key(kind, value)
+            plain = value if value.isascii() else normalize(value).text
+            own = norm_key(kind, plain)
             entry.taken.add(own)
             # ponytail: 같은 요청 안에서 다른 원문과 대체값이 겹치면 카운터를 붙여 다시 만든다 — 그 값만 다른 턴과 바이트가 달라질 수 있다
             # (턴마다 겹치는 상대가 다를 때). 같은 종류·같은 모양 안의 겹침은 드물다. 늘 같게 하려면 겹침을 원문 쌍의 순서로 정해야 한다.
             for attempt in range(20):
-                token = surrogate.make(kind, value, self._rng(kind, own, attempt))
+                token = surrogate.make(kind, plain, self._rng(kind, own, attempt))
                 nk = norm_key(kind, token)
-                if token != value and nk not in entry.taken:
+                if token != plain and nk not in entry.taken:
                     break
             else:   # pragma: no cover — 20번 연속 충돌은 생성 규칙이 고장 난 것이다
                 raise RuntimeError("대체값을 만들지 못했다")

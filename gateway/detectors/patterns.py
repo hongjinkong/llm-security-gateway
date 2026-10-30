@@ -1,12 +1,18 @@
 """정형 식별자·자격 증명의 **탐지 패턴** — 검사기(pii.py)와 볼트(vault.py)가 함께 쓴다(D-107 B).
 
-여기 있는 것은 정규식과 검증식, 겹침 해소(`find_all`)뿐이다. 마스킹·복원·세션은 모르는 순수 함수들이다.
-pii.py에서 옮겨 왔다(D-031~D-102의 근거는 그대로) — 볼트가 대체값을 되찾을 때 같은 패턴으로 응답을 훑어야
-하므로(대체값은 같은 모양이라 같은 정규식에 걸린다) 두 모듈이 공유하는 자리가 필요했다.
+여기 있는 것은 정규화, 정규식과 검증식, 겹침 해소(`find_all`)뿐이다. 마스킹·복원·세션은 모르는 순수 함수들이다.
+pii.py에서 옮겨 왔다(D-031~D-102의 근거는 그대로) — 볼트가 대체값을 되찾을 때 같은 패턴으로 응답을
+훑어야 하므로(대체값은 같은 모양이라 같은 정규식에 걸린다) 두 모듈이 공유하는 자리가 필요했다.
+
+탐지는 정규화한 텍스트(전각·제로폭·대시 변형, D-116)에서 하고 결과 위치는 원문으로 되돌린다. 가릴지는 `Finding.mask`가
+말한다 — 문맥 없는 약한 주민번호·발급사 범위 밖 카드 꼴은 탐지는 하되(감사·복원) 가리지 않는다.
 """
 from __future__ import annotations
 
+import bisect
+import functools
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 
@@ -59,6 +65,12 @@ SECRET_RE = re.compile(
     r'|-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[^-"\\]|\\[\s\S]|-(?!----END)){0,8192}'
     r"(?:-----END [A-Z ]{0,40}PRIVATE KEY-----)?")
 
+# 가릴지를 정하는 문맥어(D-116). 값의 앞뒤 CONTEXT_CHARS자(정규화 텍스트) 안에 있으면 그 종류로 본다.
+CONTEXT_CHARS = 20
+RRN_CONTEXT_RE = re.compile(r"주민|생년|등록\s*번호|외국인|RRN|resident", re.IGNORECASE)
+# '결제'·'승인'은 넣지 않는다 — 주문·정산 문장에 흔해 범위 밖 주문번호를 가리게 된다.
+CARD_CONTEXT_RE = re.compile(r"카드|신용|비자|마스터|은련|card|credit|visa|master|amex|jcb|unionpay", re.IGNORECASE)
+
 # 겹치는 후보가 생겼을 때의 우선순위(작을수록 우선). 주민번호 13자리는 카드 패턴에도 걸린다.
 # 자격 증명이 맨 앞이다 — 키 안의 숫자 덩어리가 따로 잡혀 키가 조각으로 남으면 안 된다.
 PRIORITY = {"secret": 0, "rrn": 1, "card": 2, "phone": 3, "email": 4}
@@ -70,16 +82,84 @@ _CENTURY = {"1": 1900, "2": 1900, "3": 2000, "4": 2000,
 
 @dataclass(frozen=True)
 class Finding:
-    """탐지 결과. **원본 값을 담지 않는다**(D-029: 로그에 평문 금지)."""
+    """탐지 결과. **원본 값을 담지 않는다**(D-029: 로그에 평문 금지). 위치는 원문 기준이다."""
 
     kind: str          # rrn | card | phone | email | secret
     start: int
     end: int
     confidence: str    # strong | weak
+    mask: bool = True  # False = 감사에만 남기고 가리지 않는다(D-116). 볼트는 이것과 무관하게 복원에 쓴다
 
     def as_dict(self) -> dict:
-        return {"kind": self.kind, "start": self.start, "end": self.end,
-                "len": self.end - self.start, "confidence": self.confidence}
+        d = {"kind": self.kind, "start": self.start, "end": self.end,
+             "len": self.end - self.start, "confidence": self.confidence}
+        if not self.mask:
+            d["mask"] = False
+        return d
+
+
+# --- 정규화(D-116) --------------------------------------------------------------
+# 글자마다 NFKC(전각 숫자·문자·＠·NBSP), 서식 문자(Cf: 제로폭·방향 제어·태그 문자) 제거, 대시 변형은 `-`, 가운뎃점은 `.`.
+_DASHES = frozenset("\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe58\ufe63")   # ‐ ‑ ‒ – — ― − ﹘ ﹣ (전각 －는 NFKC가 -로)
+_DOTS = frozenset("\u00b7\u30fb\u318d")                                         # · ・ ㆍ
+_SPECIAL_RE = re.compile(r"[^\x00-\x7f\uac00-\ud7a3]")                           # 바뀔 수 있는 글자 — ASCII·한글 음절 밖
+
+
+@functools.lru_cache(maxsize=4096)
+def _norm_char(c: str) -> str:
+    if c in _DASHES:
+        return "-"
+    if c in _DOTS:
+        return "."
+    if unicodedata.category(c) == "Cf":
+        return ""
+    if "\u3131" <= c <= "\u318e":       # 한글 호환 자모는 그대로 — NFKC가 조합형 자모로 바꿔 인젝션 어휘를 흔든다
+        return c
+    return unicodedata.normalize("NFKC", c)
+
+
+class Normalized:
+    """정규화한 텍스트. cuts = 바뀐 원문 글자마다 (정규화 위치, 바뀐 뒤 길이, 원문 위치) — 그 사이는 원문과 1:1이다."""
+
+    __slots__ = ("text", "cuts", "_at")
+
+    def __init__(self, text: str, cuts: list[tuple[int, int, int]]) -> None:
+        self.text, self.cuts, self._at = text, cuts, [c[0] for c in cuts]
+
+    def _char(self, i: int) -> int:
+        """정규화 위치 i의 글자를 낸 원문 글자 위치."""
+        k = bisect.bisect_right(self._at, i) - 1
+        if k < 0:
+            return i
+        at, n, orig = self.cuts[k]
+        return orig if i < at + n else orig + 1 + (i - at - n)
+
+    def span(self, start: int, end: int) -> tuple[int, int]:
+        """정규화 구간 [start, end) → 그 글자들을 낸 원문 구간(사이에 지운 글자도 덮는다)."""
+        return (start, end) if not self.cuts else (self._char(start), self._char(end - 1) + 1)
+
+
+def normalize(text: str) -> Normalized:
+    if text.isascii():
+        return Normalized(text, [])
+    parts: list[str] = []
+    cuts: list[tuple[int, int, int]] = []
+    pos = at = 0
+    for m in _SPECIAL_RE.finditer(text):
+        i, c = m.start(), m.group()
+        rep = _norm_char(c)
+        if rep == c:
+            continue
+        parts.append(text[pos:i])
+        at += i - pos
+        cuts.append((at, len(rep), i))
+        parts.append(rep)
+        at += len(rep)
+        pos = i + 1
+    if not cuts:
+        return Normalized(text, [])
+    parts.append(text[pos:])
+    return Normalized("".join(parts), cuts)
 
 
 def digits(s: str) -> str:
@@ -105,6 +185,22 @@ def rrn_date_ok(yy: str, mm: str, dd: str, gender: str) -> bool:
     return True
 
 
+def card_brand_ok(d: str) -> bool:
+    """발급사 범위(IIN)와 길이(D-116). 국내 전용 카드는 첫 자리 9(MII 9 = 국가 지정)다."""
+    n, p2, p3, p4 = len(d), int(d[:2]), int(d[:3]), int(d[:4])
+    return ((d[0] == "4" and n in (13, 16, 19))                                       # Visa
+            or ((51 <= p2 <= 55 or 2221 <= p4 <= 2720) and n == 16)                    # Mastercard
+            or (p2 in (34, 37) and n == 15)                                            # Amex
+            or (3528 <= p4 <= 3589 and 16 <= n <= 19)                                  # JCB
+            or ((p2 in (62, 65) or p4 == 6011 or 644 <= p3 <= 649) and 16 <= n <= 19)  # UnionPay·Discover
+            or ((300 <= p3 <= 305 or p2 in (36, 38, 39)) and 14 <= n <= 19)            # Diners
+            or (d[0] == "9" and n == 16))                                              # 국내 전용
+
+
+def _near(context: re.Pattern, text: str, start: int, end: int) -> bool:
+    return context.search(text, max(0, start - CONTEXT_CHARS), end + CONTEXT_CHARS) is not None
+
+
 def luhn_ok(d: str) -> bool:
     total, parity = 0, len(d) % 2
     for i, ch in enumerate(d):
@@ -118,7 +214,7 @@ def luhn_ok(d: str) -> bool:
 
 
 def find_all(text: str) -> list[Finding]:
-    """겹치지 않는 탐지 결과를 위치 순으로 돌려준다.
+    """겹치지 않는 탐지 결과를 원문 위치 순으로 돌려준다. 찾기는 정규화한 텍스트에서 한다(D-116).
 
     종류마다 우선순위가 다르고(PRIORITY), 한 종류의 매치는 finditer가 왼쪽부터 겹치지 않게 내놓는다.
     그래서 우선순위 순으로 종류를 돌며 이미 자리 잡은 구간(위치 순)과 두 포인터로 한 번만 비교한다 —
@@ -126,6 +222,8 @@ def find_all(text: str) -> list[Finding]:
     2026-10-29 이전에는 후보마다 자리 잡은 구간 전체를 훑어 건수의 제곱으로 느려졌다 — 전화번호 2만 개(273KB)에
     4초, 1MiB에 60초. 워커 1개라 그동안 게이트웨이 전체가 멈춘다(D-102).
     """
+    norm = normalize(text)
+    text = norm.text
     by_kind: dict[str, list[Finding]] = {k: [] for k in PRIORITY}
 
     for m in SECRET_RE.finditer(text):
@@ -135,13 +233,17 @@ def find_all(text: str) -> list[Finding]:
         yy, mm, dd, gender, tail = m.groups()
         if not rrn_date_ok(yy, mm, dd, gender):
             continue
-        conf = "strong" if rrn_checksum_ok(digits(m.group(0))) else "weak"
-        by_kind["rrn"].append(Finding("rrn", m.start(), m.end(), conf))
+        strong = rrn_checksum_ok(digits(m.group(0)))
+        # 검증식 실패(2020-10 이후 번호)는 구분자가 있거나 문맥어가 가까울 때만 가린다 — 구분자 없는 13자리는 바코드·송장과 겹친다
+        mask = strong or not m.group(0).isdigit() or _near(RRN_CONTEXT_RE, text, m.start(), m.end())
+        by_kind["rrn"].append(Finding("rrn", m.start(), m.end(), "strong" if strong else "weak", mask))
 
     for m in CARD_RE.finditer(text):
         d = digits(m.group(0))
         if 13 <= len(d) <= 19 and luhn_ok(d):
-            by_kind["card"].append(Finding("card", m.start(), m.end(), "strong"))
+            # 발급사 범위 밖(IMEI·Snowflake·주문번호가 Luhn을 우연히 통과)은 카드 문맥어가 가까울 때만 가린다
+            mask = card_brand_ok(d) or _near(CARD_CONTEXT_RE, text, m.start(), m.end())
+            by_kind["card"].append(Finding("card", m.start(), m.end(), "strong", mask))
 
     for m in PHONE_RE.finditer(text):
         by_kind["phone"].append(Finding("phone", m.start(), m.end(), "strong"))
@@ -158,7 +260,9 @@ def find_all(text: str) -> list[Finding]:
     taken: list[Finding] = []
     for kind in sorted(PRIORITY, key=PRIORITY.__getitem__):
         taken = _merge_free(taken, _disjoint(by_kind[kind]))
-    return taken
+    if not norm.cuts:
+        return taken
+    return [Finding(f.kind, *norm.span(f.start, f.end), f.confidence, f.mask) for f in taken]
 
 
 def _disjoint(found: list[Finding]) -> list[Finding]:

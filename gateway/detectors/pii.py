@@ -35,7 +35,7 @@ from gateway.vault import TokenVault, map_strings, strings
 # 탐지 패턴·검증식·겹침 해소는 patterns.py에 있다(D-107 B). 이름은 여기서도 그대로 쓴다(테스트·변이 검사 호환).
 from gateway.detectors.patterns import (  # noqa: E402,F401
     CARD_RE, EMAIL_RE, INTL_PHONE_RE, PAREN_PHONE_RE, PHONE_RE, PRIORITY, RRN_RE, SECRET_RE,
-    Finding, digits, find_all, luhn_ok, rrn_checksum_ok, rrn_date_ok)
+    Finding, card_brand_ok, digits, find_all, luhn_ok, normalize, rrn_checksum_ok, rrn_date_ok)
 
 
 def _replace(text: str, found: list[Finding], tokens: list[str]) -> str:
@@ -56,11 +56,20 @@ def _replace(text: str, found: list[Finding], tokens: list[str]) -> str:
 FINDINGS_LIMIT = 100
 
 
-def _meta(found: list[Finding]) -> dict:
+def _counts(found: list[Finding]) -> dict[str, int]:
     counts: dict[str, int] = {}
     for f in found:
         counts[f.kind] = counts.get(f.kind, 0) + 1
-    meta = {"pii": counts, "findings": [f.as_dict() for f in found[:FINDINGS_LIMIT]]}
+    return counts
+
+
+def _meta(found: list[Finding], masking: bool) -> dict:
+    """mask 모드의 `pii`는 가린 것만 센다(지표 gateway_pii_masked_total). 가리지 않은 탐지(D-116)는 `unmasked`에 따로."""
+    meta = {"pii": _counts([f for f in found if f.mask or not masking]),
+            "findings": [f.as_dict() for f in found[:FINDINGS_LIMIT]]}
+    left = [f for f in found if not f.mask]
+    if masking and left:
+        meta["unmasked"] = _counts(left)
     if len(found) > FINDINGS_LIMIT:
         meta["findings_omitted"] = len(found) - FINDINGS_LIMIT
     return meta
@@ -98,18 +107,20 @@ class PIIDetector(Detector):
         found = [f for local in per_ref for f in local]
         if not found:
             return Verdict.allow(self.name)
-        meta = _meta(found)
-        if self.mode == "detect":
+        meta = _meta(found, self.mode == "mask")
+        masking = sum(f.mask for f in found)       # 가리지 않는 탐지(문맥 없는 약한 주민번호·범위 밖 카드 꼴)는 감사에만(D-116)
+        if self.mode == "detect" or not masking:
             return Verdict.allow(self.name, **meta)
-        if len(found) > self.max_findings:
+        if masking > self.max_findings:
             # 대체값을 하나도 발급하기 전에 거절한다 — 가리지 못한 값을 내보내지 않는다(D-110). 413은 main이 그 API의 오류 형식으로 낸다.
-            raise ApiError(f"too many sensitive values in request ({len(found)} > {self.max_findings})",
+            raise ApiError(f"too many sensitive values in request ({masking} > {self.max_findings})",
                            None, "too_many_findings", 413)
         for ref, text, local in zip(refs, texts, per_ref):
+            local = [f for f in local if f.mask]
             if local:
                 tokens = [self.vault.token_for(session, f.kind, text[f.start:f.end]) for f in local]
                 doc.put(ref, _replace(text, local, tokens))
-        return Verdict.transform(self.name, doc.serialize(), f"PII {len(found)}건 마스킹", masked=len(found), **meta)
+        return Verdict.transform(self.name, doc.serialize(), f"PII {masking}건 마스킹", masked=masking, **meta)
 
     async def on_response(self, session: str, text: str) -> tuple[str, dict] | None:
         """응답에 남은 토큰을 원본으로 되돌린다(4-F).

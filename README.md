@@ -29,7 +29,8 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
   사용자는 원래 값을 돌려받는다. 상류 로그에는 가짜 값이 남는다(상류 운영자는 그것이 대체값인지 알 수 없다 — 의도된 선택).
 - **원문은 저장하지 않는다.** 가짜 값과 원래 값의 대응은 요청 하나의 메모리에만 있고 응답이 끝나면 버린다. 감사 로그에는 크기와 지문만 남는다.
 - **같은 원문은 언제나 같은 가짜 값이 된다.** 가짜 값은 대체값 키(`GATEWAY_SURROGATE_KEY`)로 정해지므로 다음 턴 이력에 다시 와도 바이트가 같다 —
-  프롬프트 캐시와 Anthropic thinking 서명이 깨지지 않는다.
+  프롬프트 캐시와 Anthropic thinking 서명이 깨지지 않는다. 실제 Claude API(`claude-haiku-5-5`, 2턴 대화 5개)에서 둘째 턴이 서명 검사 400 없이 캐시를 읽었고,
+  요청마다 난수였던 옛 코드는 5개 모두 400이었다([`docs/verification/multiturn_claude.md`](docs/verification/multiturn_claude.md)).
 - **인젝션은 기본으로 막지 않는다.** 룰은 정규식 둘이고 정상 문장("ignore the instructions in the PDF and summarize")도 걸린다.
   적중은 감사에 남고(`would_block`), 운영자가 `GATEWAY_INJECTION=block`으로 켠다.
 
@@ -44,6 +45,11 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
 
 - **형식이 없는 개인정보·기밀.** 탐지는 주민등록번호·카드번호·전화번호(국내·국제 `+국가번호`·괄호 지역번호)·이메일, 그리고 접두사가 고정된 키
   (OpenAI·Anthropic·AWS·GitHub·Google·Slack)·JWT·PEM 개인 키뿐이다. 이름·주소·계좌번호·여권·운전면허·IBAN·서술형 민감정보는 그대로 나간다.
+  인터넷 전화(070), 영문자에 붙은 번호(`TEL010-…`), 하이픈 앞뒤에 빈칸을 둔 주민번호, 점으로 구분한 카드 번호도 잡지 못한다.
+  전각 숫자·제로폭 문자·대시 변형(–)은 정규화해서 잡고, 가짜 값은 원문 자리에 넣고 원문 그대로 돌려준다.
+- **애매한 숫자열은 가리지 않는다.** 구분자 없이 붙여 쓴 13자리 주민번호 꼴이 검증식에 맞지 않고(2020-10 이후 번호는 검증식이 없다) 앞뒤 20자 안에 '주민·생년·등록번호'
+  같은 말이 없으면, 또 Luhn은 맞지만 카드 발급사 범위 밖인 숫자열(IMEI·주문번호 등)에 '카드' 같은 말이 없으면 감사(`unmasked`)에만 남기고 그대로 보낸다 —
+  업무 번호를 지키는 대가로 그 꼴의 진짜 값은 상류로 간다. 합성 평가(`eval/pii/`, 숫자가 빽빽한 업무 문장 1,000건)의 오탐은 0.3%, 양성 500건의 재현율은 98.8%다.
 - **비텍스트**(이미지·PDF 원본)와 텍스트가 아닌 블록은 보지 않는다.
 - **사고 과정에는 가짜 값이 보인다.** Anthropic thinking과 Responses reasoning 요약은 상류가 서명한 그대로 돌려주므로(바꾸면 다음 턴이 거절되고, 복원하면 원래 값이
   다음 턴에 thinking에 담겨 상류로 간다) 그 안에서는 가짜 값이 보인다.
@@ -178,8 +184,10 @@ gateway/    프록시 본체(main) · 인증(auth) · API 어댑터(api/: chat·
             대체값(surrogate)·볼트(vault)·스트리밍 복원(streaming) · 감사 로그(audit)·지표(metrics)·레이트리밋(ratelimit)
   data/       injection_corpus.jsonl — 인젝션 룰 회귀 테스트 입력
 web/        데모 웹 — 브라우저 비교 화면
-scripts/    터미널 데모 · OpenAI·Anthropic SDK 점검
+scripts/    터미널 데모 · OpenAI·Anthropic SDK 점검 · 실 공급자 2턴 확인(check_multiturn_claude.py)
+docs/verification/   실 공급자 확인 기록(요약 md + 원자료 jsonl, 키·원문 없음)
 tests/      단위·통합 테스트 + 스텁 상류(tests/stub_target.py)
+eval/pii/   PII 평가 코퍼스(합성, 양성 500·음성 1,000·어려운 사례)·점수(score.py)·CI 게이트(tests/test_pii_corpus.py)
 eval/benign/all100.jsonl   정상 질문 100문항 — 인젝션 룰 오탐 회귀 테스트 입력
 ```
 

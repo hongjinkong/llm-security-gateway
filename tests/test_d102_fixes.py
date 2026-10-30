@@ -73,7 +73,9 @@ def test_find_all_matches_the_previous_algorithm_on_random_mixes():
     for _ in range(400):
         text = "".join(rng.choice(SAMPLES) + rng.choice([" ", "", ", ", "\n", "으로 ", "-"])
                        for _ in range(rng.randint(1, 12)))
-        assert find_all(text) == _reference_find_all(text), text
+        # 겹침 해소만 비교한다 — 가릴지(mask)는 예전 방식에 없던 판단이다(D-116)
+        assert [(f.kind, f.start, f.end, f.confidence) for f in find_all(text)] == \
+               [(f.kind, f.start, f.end, f.confidence) for f in _reference_find_all(text)], text
 
 
 def test_find_all_is_linear_in_hit_count():

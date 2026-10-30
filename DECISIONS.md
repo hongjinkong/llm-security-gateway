@@ -75,10 +75,10 @@
 | 3 | 추적 용량 | 3.2MB(새 파일 포함, `docs/demo.gif` 2.6MB). 정리 전 1.0GB |
 | 4 | `git show research-final:DECISIONS.md \| head -3` | 옛 머리말 `# DECISIONS.md — 의사결정 기록` 확인. 태그는 로컬에만 있다 — 푸시는 사용자 몫 |
 | 5 | 설치 | `pip install -e ".[dev]"`(3.14·3.12) 성공, health `version` = `0.1.0`. 휠에 `gateway/data/*.jsonl`과 `LICENSE`가 들어간다 |
-| 6 | 이미지 | Docker 데몬이 꺼져 있어 로컬에서는 못 했다 — CI `docker` 잡이 확인한다 |
+| 6 | 이미지 | 처음에는 Docker 데몬이 꺼져 있어 못 했다. 같은 날 데몬을 켠 뒤 `docker build -f gateway/Dockerfile .` 성공(24초, 244MB, arm64) — D-109 결과 절의 컨테이너 확인 참고 |
 
 - 트리에서 뺀 추적 파일 458개. 무시된 로컬 데이터(`target/storage/` 등)는 그대로 있다. `scripts/demo.py`는 정리 뒤에도 그대로 돈다.
-- 못 한 것: 로컬 이미지 빌드, CI 실행 확인(푸시 뒤).
+- 못 한 것: CI 실행 확인(푸시 뒤). 로컬 이미지 빌드는 같은 날 뒤에 했다.
 
 ---
 
@@ -134,6 +134,7 @@
 | B6 | 통과 모드(인증 끔·상류 키 없음)에서 `OpenAI-Organization`과 클라이언트 키가 상류에 간다. 인증 켬·상류 키 없음이면 게이트웨이 키가 상류에 가지 않는다 |
 | B7 | `GATEWAY_AUTH=off` + 상류 키 → 기동 실패(종료 코드가 0이 아님) |
 | B8 | 무인증 health는 `{"status": "ok"}`뿐. 관리 키 없는 게이트웨이의 metrics·info는 404, 관리 키가 있으면 틀린 키 404·맞는 키 200 |
+| B9 | 이미지 기본 명령이 uvicorn 접근 로그를 끈다 — 쿼리 값 누출(같은 날 컨테이너 확인에서 찾아 더함) |
 | — | 전체 `pytest -q`·`ruff check .` 통과 |
 
 옛 경로·카나리를 쓰던 테스트는 같은 뜻을 세 API 경로로 옮기거나(본문·헤더·쿼리 보존, 413, 감사 한 줄, 차단 응답) 대상이 없어졌으면 지운다(옛 경로 sessionId·PEM 바이트 검사, 카나리).
@@ -158,7 +159,13 @@
   `x-ratelimit-*` 응답 헤더는 이제 넘기지 않는다(운영자 계정의 한도) — 해당 단언을 뒤집었다.
 - 카나리를 지우며 스트림 끝의 응답 검사기 재실행(`_stream_steps`의 `run_response`)과 `StreamRestorer.content_in`도 지웠다 — 카나리만 쓰던 것이다.
 - 계획과 다른 점: §2-4(인증을 켠 게이트웨이는 상류 키가 없어도 클라이언트 인증 헤더를 넘기지 않는다). 404의 오류 type은 Anthropic 실제 값 `not_found_error`.
-- 못 한 것: 로컬 이미지 빌드·HEALTHCHECK 실동작 확인(CI `docker` 잡은 빌드만 한다).
+- **컨테이너 확인(같은 날 뒤에, Docker Desktop 29.9.2, arm64)**: 빌드 성공(베이스 다이제스트 그대로), uid 10001, `/src` 없음, `gateway`는 site-packages, `LICENSE`·데이터 파일 포함.
+  호스트 스텁에 붙여 기동 → HEALTHCHECK `healthy`(6초), health `{"status":"ok"}`, 관리 키 없는 info·metrics 404, 마스킹(상류 수신에 원래 전화·system 이메일 없음)·복원·스트리밍 복원,
+  키 없음 401, `DELETE /v1/files/x` 404·스텁 수신 0, `docker stop` 0.38초·종료 코드 0(lifespan 정리), 대체값 키 없이 기동하면 종료 코드 3.
+- **컨테이너 확인에서 찾아 고친 결함**: uvicorn **접근 로그가 쿼리 문자열을 값까지 컨테이너 로그에 남겼다**(`GET /v1/models?phone=010-…` 재현) — 감사 로그가 2026-09-22부터
+  일부러 빼는 값의 뒷문이고, stdout이 감사 JSONL과 섞였다(비JSON 줄 15개). 이미지 기본 명령에 `--no-access-log`를 넣었다 → 로그 속 원래 값 0건, stdout은 감사 JSONL만,
+  기동·오류 로그는 stderr. B9(`test_b9_container_command_turns_off_the_access_log`)가 기본 명령을 지킨다. README의 운영 예시에도 넣었다.
+- 못 한 것: CI `docker` 잡은 빌드만 한다(컨테이너 기동 확인은 위의 수동 확인뿐).
 
 ---
 

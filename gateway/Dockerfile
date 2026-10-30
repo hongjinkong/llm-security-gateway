@@ -23,4 +23,6 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
 # 워커 수는 uvicorn이 읽는 WEB_CONCURRENCY로 정한다(기본 1). 볼트가 요청 단위라 워커를 늘려도 복원은 깨지지 않는다 — 레이트리밋·지표는 워커별이다.
 # 프록시 뒤에 두면 신뢰할 프록시 주소를 FORWARDED_ALLOW_IPS로 준다(기본 127.0.0.1 — 그 밖에서 온 X-Forwarded-For는 무시된다).
 # 스트림은 오래 열려 있으므로 동시 연결 상한을 넉넉히 둔다. 넘으면 uvicorn이 503을 준다.
-CMD ["uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-graceful-shutdown", "25", "--limit-concurrency", "1000"]
+# 접근 로그는 끈다: uvicorn 접근 로그는 쿼리 문자열을 값까지 찍어(`?phone=010-…`) 감사 로그가 일부러 빼는 값을 남기고, stdout을
+# 감사 JSONL과 섞는다(2026-10-30 컨테이너 확인에서 재현). 요청 기록은 감사 로그가 남긴다. 기동·오류 로그는 stderr로 간다.
+CMD ["uvicorn", "gateway.main:app", "--host", "0.0.0.0", "--port", "8080", "--timeout-graceful-shutdown", "25", "--limit-concurrency", "1000", "--no-access-log"]

@@ -116,14 +116,17 @@ curl -s http://localhost:8080/v1/chat/completions \
 
 ```bash
 GATEWAY_CLIENT_KEYS="app=$(python3 -m gateway keygen)" GATEWAY_SURROGATE_KEY="$(python3 -m gateway keygen)" \
-  GATEWAY_UPSTREAM_KEY=sk-ant-... TARGET_URL=https://api.anthropic.com uvicorn gateway.main:app --port 8080
+  GATEWAY_UPSTREAM_KEY=sk-ant-... TARGET_URL=https://api.anthropic.com uvicorn gateway.main:app --port 8080 --no-access-log
 ```
 
 클라이언트는 `base_url`을 `http://localhost:8080`(Anthropic SDK) 또는 `http://localhost:8080/v1`(OpenAI SDK)로, `api_key`를 게이트웨이 키로 바꾼다.
 공식 SDK로 확인하려면 SDK를 별도 venv에 깔고 그 파이썬을 넘긴다: `python3 scripts/check_openai_sdk.py --sdk-python <openai가 깔린 파이썬>`,
 `python3 scripts/check_anthropic_sdk.py --sdk-python <anthropic이 깔린 파이썬>`.
 
-Docker — 비root(uid 10001)로 돌고, 감사 로그는 stdout으로 나간다. 워커 수는 `WEB_CONCURRENCY`(기본 1), 프록시 뒤에 두면
+운영에서는 uvicorn 접근 로그를 끈다(`--no-access-log`) — 접근 로그는 쿼리 문자열을 값까지 찍어 감사 로그가 일부러 빼는 값을 남긴다.
+요청 기록은 감사 로그가 남긴다.
+
+Docker — 비root(uid 10001)로 돌고, 감사 로그만 stdout(JSONL)으로, 기동·오류 로그는 stderr로 나간다(접근 로그는 꺼져 있다). 워커 수는 `WEB_CONCURRENCY`(기본 1), 프록시 뒤에 두면
 신뢰할 프록시 주소를 `FORWARDED_ALLOW_IPS`로 준다(기본 127.0.0.1 — 그 밖에서 온 `X-Forwarded-For`는 무시된다).
 
 ```bash

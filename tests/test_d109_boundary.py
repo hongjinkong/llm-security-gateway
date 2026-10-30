@@ -147,3 +147,15 @@ def test_b8_admin_endpoints_need_the_admin_key(no_admin, stack, path):
     assert httpx.get(stack.gateway + path).status_code == 404
     assert httpx.get(stack.gateway + path, headers={"Authorization": "Bearer wrong"}).status_code == 404
     assert httpx.get(stack.gateway + path, headers=ADMIN).status_code == 200
+
+
+# ---------- B9 컨테이너 로그 ----------
+
+def test_b9_container_command_turns_off_the_access_log():
+    """uvicorn 접근 로그는 쿼리 문자열을 값까지 찍는다(`?phone=010-…`) — 감사 로그가 일부러 빼는 값이 컨테이너 로그에 남고
+    stdout이 감사 JSONL과 섞인다(2026-10-30 컨테이너 확인에서 재현). 이미지의 기본 명령은 접근 로그를 끈다."""
+    import json as _json
+    from pathlib import Path
+    dockerfile = (Path(__file__).resolve().parents[1] / "gateway" / "Dockerfile").read_text(encoding="utf-8")
+    (cmd,) = [line for line in dockerfile.splitlines() if line.startswith("CMD ")]
+    assert "--no-access-log" in _json.loads(cmd[4:])

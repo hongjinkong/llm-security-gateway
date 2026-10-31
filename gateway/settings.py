@@ -104,7 +104,7 @@ class Settings:
     @classmethod
     def _from_env(cls, env: Mapping[str, str], lang: str) -> Settings:
         def get(name: str, default: str) -> str:
-            return env.get(name, default).strip()
+            return env.get(name, default).strip()     # 키 값도 — secret.env·`$(cat 파일)`의 줄 끝 공백이 키에 붙지 않게(D-122)
 
         auth_off = get("GATEWAY_AUTH", "").lower() == "off"
         plain = {} if auth_off else parse_client_keys(env.get("GATEWAY_CLIENT_KEYS", ""))
@@ -115,16 +115,16 @@ class Settings:
             log_max_bytes=int(get("GATEWAY_LOG_MAX_BYTES", str(cls.log_max_bytes))),
             log_backups=int(get("GATEWAY_LOG_BACKUPS", str(cls.log_backups))),
             rate_per_minute=int(get("GATEWAY_RATE_PER_MINUTE", "0")),
-            admin_key=env.get("GATEWAY_ADMIN_KEY", ""),
+            admin_key=get("GATEWAY_ADMIN_KEY", ""),
             blocked_message=env.get("GATEWAY_BLOCKED_MESSAGE", ""),
             lang=lang,
             max_body_bytes=int(get("GATEWAY_MAX_BODY_BYTES", str(cls.max_body_bytes))),
             max_findings=int(get("GATEWAY_MAX_FINDINGS", str(cls.max_findings))),
-            surrogate_key=env.get("GATEWAY_SURROGATE_KEY", ""),
+            surrogate_key=get("GATEWAY_SURROGATE_KEY", ""),
             max_connections=int(get("GATEWAY_MAX_CONNECTIONS", str(cls.max_connections))),
             auth_off=auth_off,
             clients={key_hash(key): Client(name) for key, name in plain.items()},
-            upstream_key=env.get("GATEWAY_UPSTREAM_KEY", ""),
+            upstream_key=get("GATEWAY_UPSTREAM_KEY", ""),
             injection=_choice("GATEWAY_INJECTION", get("GATEWAY_INJECTION", "observe").lower(), INJECTION_MODES),
             pii=_choice("GATEWAY_PII", get("GATEWAY_PII", "mask").lower(), PII_MODES),
             pii_kinds=_kinds(env, "GATEWAY_PII_KINDS", ALL_KINDS),
@@ -136,7 +136,10 @@ class Settings:
 
 
 # --- 설정 파일(D-119) ---------------------------------------------------------------
+# 표마다 쓸 수 있는 키 — 문서의 설정 키 표가 이것과 같은지 테스트가 본다(D-121)
+CLIENT_KEYS = {"name", "key_sha256", "policy"}
 POLICY_KEYS = {"injection", "pii_mode", "pii_kinds", "pii_detect_kinds", "pii_roles", "allowed_models"}
+UPSTREAM_KEYS = {"base_url", "key_env", "timeout"}
 
 
 def _with_config(base: Settings, path: Path, env: Mapping[str, str]) -> Settings:
@@ -157,13 +160,13 @@ def _with_config(base: Settings, path: Path, env: Mapping[str, str]) -> Settings
     for api, t in _table(doc.get("upstreams", {}), where, "upstreams").items():
         if api not in API_NAMES:
             raise ConfigError("upstream_api", where=where, api=api, apis="|".join(API_NAMES))
-        _only(t, {"base_url", "key_env", "timeout"}, f"{where} [upstreams.{api}]")
+        _only(t, UPSTREAM_KEYS, f"{where} [upstreams.{api}]")
         key_env = _str(t.get("key_env", ""), f"{where} [upstreams.{api}] key_env")
-        if key_env and key_env not in env:
+        if key_env and not env.get(key_env, "").strip():   # 빈 값도 — 키 없이 보내면 요청마다 상류 401로만 드러난다(D-121)
             raise ConfigError("key_env_missing", where=f"{where} [upstreams.{api}]", key_env=key_env)
         # key_env가 없으면 공급자 키를 달지 않는다 — GATEWAY_UPSTREAM_KEY(다른 공급자의 키일 수 있다)를 넘겨받지 않는다
         upstreams[api] = Upstream(_str(t.get("base_url", base.target_url), f"{where} [upstreams.{api}] base_url").rstrip("/"),
-                                  env.get(key_env, "") if key_env else "", float(t.get("timeout", base.timeout)))
+                                  env[key_env].strip() if key_env else "", float(t.get("timeout", base.timeout)))
     clients = dict(base.clients)
     known = {"default", *policies}
     items = doc.get("clients", [])
@@ -171,7 +174,7 @@ def _with_config(base: Settings, path: Path, env: Mapping[str, str]) -> Settings
         raise ConfigError("clients_array", where=where)
     for i, t in enumerate(items):
         at = f"{where} [[clients]] {i + 1}"
-        _only(t, {"name", "key_sha256", "policy"}, at)
+        _only(t, CLIENT_KEYS, at)
         digest, name = _str(t.get("key_sha256", ""), at), _str(t.get("name", ""), at)
         policy = _str(t.get("policy", "default"), at)
         if not SHA256_RE.fullmatch(digest) or not name:

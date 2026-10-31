@@ -972,3 +972,266 @@
   그래서 응답마다 탐지가 한 번 돈다(예전에는 발급이 없으면 건너뛰었다).
 - 바꾼 기존 테스트: 복원 meta를 그대로 비교하던 셋(`new: 0`이 더해졌다), '발급이 없으면 기록 없음'(이제 새 PII가 있으면 건수만 남긴다).
 - 계획과 다른 점: 감사의 client·api·config는 이미 있었다(D-107·D-119) — model·usage만 더했다. API 오류 본문은 카탈로그에 넣지 않았다(§2-3).
+
+---
+
+## D-121. 배포 패키지(compose·k8s) + 제품 문서(설정·운영·API 호환·보안 제보·영문 README) + 문서 동기화 테스트 (2026-10-31, PLAN 14단계)
+
+### 1. 근거
+
+- 설치 경로가 README의 `docker run` 한 줄뿐이다. 레플리카·헬스·종료 유예·비밀 보관을 고객이 처음부터 짜야 한다.
+- 설정·운영 지식이 README 4절과 결정 기록에 흩어져 있다. 키 회전 절차는 D-111 §5가 "14단계 운영 문서에 옮긴다"고 남겼다 — 그런데 D-114가 실제로 본 것은
+  캐시 미스만이 아니다. 진행 중인 대화의 이력 바이트가 바뀌면 Anthropic은 thinking 서명을 `bound to a different conversation` 400으로 거절한다.
+- 미지원 기능(`previous_response_id`, embeddings, files, 서버 측 도구 등)이 README 한 줄뿐이라 도입 검토 때 답할 문서가 없다. 취약점 제보 경로가 없다.
+- 문서의 환경변수 목록이 코드와 어긋나도 막는 것이 없다(D-118이 지운 변수 셋만 README에서 확인한다).
+
+### 2. 결정
+
+1. **로컬 체험** `deploy/compose.yml`: 게이트웨이(`gateway/Dockerfile` 빌드, 읽기 전용 루트) + 스텁 상류(같은 이미지에 `tests/stub_target.py`를 읽기 전용으로 마운트 —
+   스텁 이미지를 따로 만들지 않는다). 포트는 127.0.0.1에만 연다. 키는 체험용 고정값이고 문서·파일에 운영 금지를 적는다. `GATEWAY_INJECTION`만 셸에서 덮어쓴다.
+2. **k8s** `deploy/k8s/`, kustomize(`kubectl apply -k`, kubectl 내장): `gateway.yaml`(Deployment·Service·PodDisruptionBudget), `gateway.toml`(설정 파일 →
+   configMapGenerator), `secret.env.example`(→ `secret.env`, 커밋 안 함 → secretGenerator), `kustomization.yaml`.
+   - 생성되는 ConfigMap·Secret 이름에 내용 해시가 붙는다 — 설정·키를 바꾸고 apply하면 Deployment가 롤링 재시작된다. 게이트웨이는 설정을 다시 읽지 않으므로
+     재시작이 곧 적용이고, 나중에 다시 뜬 파드만 새 키를 받아 레플리카 사이에 대체값 키가 섞이는 일이 없다.
+   - Deployment: 레플리카 2, readiness = `/__gateway/health`, preStop `sleep 5` + uvicorn 종료 유예 25초 = `terminationGracePeriodSeconds: 30`,
+     비root 10001·읽기 전용 루트·권한 상승 없음·capabilities 전부 뗌·seccomp RuntimeDefault(Pod Security `restricted`), 노드 분산(soft), 워커 1 —
+     지표·레이트리밋·볼트 상한이 프로세스 단위라 파드 수로 늘린다. PDB `minAvailable: 1`. Service ClusterIP 8080.
+   - 클라이언트 키는 해시로 설정 파일(ConfigMap)에 둔다(D-119). Secret에는 대체값·관리·공급자 키만.
+   - 이미지는 `ghcr.io/hongjinkong/llm-security-gateway:0.1.0`(20단계 릴리스가 올린다 — 그 전에는 직접 빌드한 주소로 바꾼다).
+3. **문서**: `docs/configuration.md`(환경변수 전부·설정 파일 키 전부 — README 4절을 옮긴다), `docs/operations.md`(배포·키 회전·로그 수집·지표·용량·업그레이드),
+   `docs/api-compat.md`(지원 경로와 API별 검사·복원 범위, 미지원 기능, 헤더·오류·차단 응답 모양 — README 4절의 나머지를 옮긴다),
+   `SECURITY.md`(GitHub 비공개 취약점 제보, 범위 — README 2절의 알려진 한계는 취약점이 아니다), `README.en.md`(영문 한 파일 — 결정 표 #10).
+   README(한국어) 4절은 필수 변수와 링크로 줄인다.
+4. **문서 동기화 테스트** `tests/test_d121_docs.py`: `Settings.from_env`가 실제로 읽는 환경변수 이름(읽은 키를 기록하는 매핑으로 잰다)이
+   `docs/configuration.md`·`README.en.md`의 환경변수 표와 같다(uvicorn 변수 제외). 설정 파일 키 표가 코드의 키 집합과 같다(`CLIENT_KEYS`·`POLICY_KEYS`·`UPSTREAM_KEYS`로
+   이름을 붙인다). 견본 설정 파일이 `Settings.from_env`로 읽히고, 견본들(`.env.example`·`secret.env.example`·compose)의 변수는 코드가 읽는 이름(또는 설정 파일의 `key_env`)이다.
+   문서의 상대 링크가 가리키는 파일이 있다.
+5. CI docker 작업에 `docker compose -f deploy/compose.yml config -q`와 `kubectl kustomize deploy/k8s`(견본 `secret.env`로) — 렌더만 하고 클러스터는 없다.
+6. 기동 거부 문구(`no_client_keys`)에 설정 파일 `[[clients]]`를 넣는다 — k8s 견본은 클라이언트가 비어 있어 처음 올리면 이 문구를 본다.
+
+### 3. 버린 대안
+
+- **Helm 차트**: 값 파일·템플릿을 유지할 이유가 아직 없다(PLAN: 고객이 요구할 때). kustomize는 kubectl에 들어 있다.
+- **평문 매니페스트 + Secret 견본 YAML**: `kubectl apply -f deploy/k8s/`가 빈 견본으로 실제 Secret을 덮어쓸 수 있고, ConfigMap·Secret을 바꿔도 파드가 재시작되지 않는다
+  (§2-2의 키 섞임).
+- **스텁 전용 이미지**: 게이트웨이 이미지에 fastapi·uvicorn·탐지 패턴이 이미 있다 — 스텁 파일 하나만 마운트한다.
+- **운영·API 문서 영문 병행**: 결정 표 #10은 `README.en.md`만이다. 영문 README에 환경변수 표를 두고 같은 테스트로 맞춘다.
+- **문서의 환경변수 표를 코드에서 생성**: '뜻' 열은 사람이 쓴다. 이름 집합만 테스트로 맞춘다.
+- **`kubectl apply --dry-run=client`**: 이 맥에는 클러스터 컨텍스트가 없어 kubectl이 서버 탐색에서 멈춘다(사용자 확인 2026-10-31). 대신 `kubectl kustomize`(오프라인 렌더)와
+  kubernetes-validate(오프라인 스키마, `--strict`)로 잰다.
+
+### 4. 완료 기준 (`tests/test_d121_docs.py`)
+
+| # | 기준 |
+|---|---|
+| S1 | `docker compose -f deploy/compose.yml up`으로 뜬 게이트웨이(읽기 전용 루트·비root)에 OpenAI SDK 8/8·Anthropic SDK 6/6(`--gateway`, `GATEWAY_INJECTION=block`) |
+| S2 | `kubectl kustomize deploy/k8s` 렌더가 kubernetes-validate `--strict`를 통과. 레플리카 2·readiness·preStop 5·유예 30·PDB·restricted 보안 문맥이 렌더에 있다 |
+| S3 | 문서 동기화: 환경변수 표 둘 = 코드가 읽는 이름, 설정 키 표 = 코드, 견본 설정 파일이 읽힌다, 견본 변수 이름이 코드의 것, 문서의 상대 링크가 있다 |
+| S4 | 문서: `docs/configuration.md`·`docs/operations.md`·`docs/api-compat.md`·`SECURITY.md`·`README.en.md` |
+| — | 전체 `pytest -q`·`ruff check .`·`mypy` 통과 |
+
+### 5. 한계
+
+- 스키마 검증만이다 — 실제 클러스터(서버 dry-run 포함)에는 올려 보지 않았다. 사용자 할 일에 Docker Desktop Kubernetes를 켠 뒤의 확인을 둔다.
+- 자원 요청·상한은 유휴 메모리 실측과 본문 상한으로 잡은 잠정값이다. 부하 측정은 15단계다.
+- 문서 동기화 테스트는 이름만 맞춘다 — 기본값·뜻이 맞는지는 사람이 본다.
+- compose의 키는 체험용 고정값이다(127.0.0.1에만 열린다). 이미지 주소(GHCR)는 20단계 릴리스 전까지 비어 있다.
+- 게이트웨이는 TLS를 하지 않는다 — 인그레스·서비스 메시에서 끝낸다(운영 문서).
+
+### 6. 결과 (2026-10-31)
+
+- **S1 통과.** `GATEWAY_INJECTION=block docker compose -f deploy/compose.yml up --build`로 뜬 게이트웨이(읽기 전용 루트·uid 10001·healthy)에 OpenAI SDK 2.48.0 8/8·
+  Anthropic SDK 0.125.0 6/6(`--gateway`). 스텁이 받은 본문에는 가짜 번호(`010-5248-9756`)만 있었다. 최종 코드로 이미지를 다시 빌드해 한 번 더 통과.
+  이 맥의 8080은 다른 프로젝트 컨테이너가 쓰고 있어 호스트 포트를 `HOST_PORT`·`STUB_HOST_PORT`로 바꿀 수 있게 했다(18080·18000으로 확인).
+- **S2 통과.** `kubectl kustomize deploy/k8s` 렌더(ConfigMap·Secret 이름에 내용 해시, Deployment의 참조가 그 이름으로 바뀐다) 5개 리소스가 kubernetes-validate 1.37.0
+  `--strict`로 k8s 1.37·1.28 스키마를 통과했다. 견본 설정(`gateway.toml` + 클라이언트 한 줄)과 비밀을 읽기 전용·uid/gid 10001 컨테이너에 넣어 띄우니 info의 상류가 API별로
+  갈렸고 키 없는 요청은 401(상류 호출 없음)이었다. 이미지에 preStop의 `sleep`이 있다.
+- **S3 통과.** `tests/test_d121_docs.py` 19건(3.14·3.12). 변이 7개 — 표의 변수 이름, 지운 변수 언급, 설정 키 오타, 깨진 앵커, 깨진 파일 링크, 종료 유예 20초, compose의 없는 변수 —
+  를 모두 잡는다. 문서의 상대 링크는 GitHub 앵커 규칙(소문자·기호 삭제·공백은 -)으로 머리글까지 확인한다.
+- **S4**: `docs/configuration.md`·`docs/operations.md`·`docs/api-compat.md`·`SECURITY.md`·`README.en.md`. README 4절(설정 표)을 `docs/configuration.md`로 옮겼고(274 → 236줄),
+  2절에 Responses 사용자 정의 도구(보지 않는다)와 공급자 쪽 도구(가짜 값을 받는다)를 더했다 — 문서를 쓰며 어댑터를 다시 읽다 찾은 한계다.
+- **용량 자료(잠정, 15단계 전)**: 1MiB 요청(가짜 값 2,242개, 스텁이 같은 크기로 되돌린다) 50건 동시 → 모두 200, 23.5초(워커 1), 메모리 유휴 36MiB → 최대 256MiB → 끝난 뒤 122MiB.
+  첫 시도는 요청마다 가짜 값이 2만 개를 넘어 50건 모두 413 `too_many_findings`였다(상한이 동작). k8s 자원은 요청 CPU 500m·메모리 256Mi, 메모리 상한 1Gi로 잡았다.
+- 전체 `pytest -q` 658 통과(3.14 19.7초, 3.12도), `ruff check .`·`mypy` 통과.
+- **결정에 없던 변경**: 설정 파일 `key_env`가 가리키는 환경변수가 **비어 있어도** 기동 실패로 바꿨다(예전에는 없을 때만). 견본 `secret.env`를 채우지 않고 올리면 기동은 되고
+  요청마다 상류 401이 났을 것이다. `settings.py`에 키 집합 이름(`CLIENT_KEYS`·`UPSTREAM_KEYS`)을 붙였다.
+- 계획과 다른 점: kustomize(§3), 클라이언트 키는 해시로 ConfigMap에(Secret에는 대체값·관리·공급자 키), compose 호스트 포트 변수.
+- 못 한 것: 실제 클러스터 apply와 서버 dry-run(kubectl 컨텍스트 없음 — 사용자 할 일), GHCR 이미지(20단계), 부하 시험(15단계), GitHub 비공개 취약점 제보 켜기(사용자 할 일).
+- 15단계(D-122 §6) 리뷰가 이 단계의 산출물도 고쳤다: k8s 종료 유예 30 → 35초(여유 0초였다), 생성기 레이블과 키 회전 뒤 옛 Secret 정리 절차, 문서의 틀린 서술 14건
+  (설정 예시의 상속, 지표 뜻, 타임아웃·오류 형식, 실 API 확인 범위, 측정 환경 표시 등), `.env.example`, 문서 테스트의 변수 이름 경계.
+
+---
+
+## D-122. 부하·안정성 — 동시 스트림 지연 백분위·오류율, 30분 soak, 볼트 세션 지표 (2026-10-31, PLAN 15단계)
+
+### 1. 근거
+
+- 용량 수치가 D-121의 1MiB 버스트 한 점뿐이다. 동시 스트림·지연 백분위·오류율도, 오래 돌 때의 누수(메모리·파일·대체값 세션)도 잰 적이 없다.
+- PLAN 조건부 표의 트리거('목표 부하에서 게이트웨이 p95 > 50ms → 런타임 교체 검토')를 판정할 수치가 없다.
+- 503 `gateway_busy`를 정하는 양(진행 중인 대체값 세션 수)을 밖에서 볼 수 없다.
+
+### 2. 결정
+
+1. `scripts/load.py`(httpx 비동기, 새 의존성 없음): 스텁(지연 주입)과 게이트웨이를 서브프로세스로 띄우고 잰다.
+   - 게이트웨이는 이미지와 같은 서버 설정이다 — 워커 1, `--no-access-log --limit-concurrency 1000 --timeout-graceful-shutdown 25`, 이벤트 루프 asyncio·HTTP h11
+     (이미지에는 uvloop·httptools가 없다 — 개발 venv에는 있어 그대로 두면 이미지보다 빠르게 잰다). 정책은 기본(PII mask + 인젝션 observe).
+   - 부하: 스트리밍 작업자 S개(기본 50)와 비스트리밍 작업자 P개(기본 50)가 정한 시간 동안 쉬지 않고 요청한다. 세 API(chat·messages·responses)를 돌아가며 쓰고,
+     요청마다 다른 합성 전화번호(작업자·순번으로 만든다)를 넣는다 — 응답에 그 요청의 원래 번호가 있는지(복원), 다른 요청의 번호가 섞였는지(교차 누출)를 센다.
+   - 스텁 지연: 첫 바이트 전 `STUB_DELAY_MS`, 스트림 조각 사이 `STUB_CHUNK_MS`(스텁에 환경변수 둘을 더한다. 없으면 지금과 같다). load.py 기본 300ms·20ms.
+   - 잰다: 비스트리밍 지연, 스트림의 첫 내용 조각(TTFT)과 전체 시간의 p50·p95·p99, 같은 부하를 스텁에 바로 보낸 기준선(`--baseline`), 감사 줄의 `gateway_ms`(게이트웨이 자체 처리 시간)
+     백분위, 오류(2xx 아님·예외)·복원 실패·교차 누출 건수, 처리량.
+   - soak: `--duration`을 길게 주고 `--sample` 초마다 게이트웨이 프로세스의 RSS·열린 파일 수·`gateway_vault_sessions`를 적는다(`ps`·`lsof`/`/proc` — psutil 없음).
+     RSS 증가율 = 마지막 4분의 1 평균 ÷ 처음 4분의 1 평균 − 1(첫 표본은 워밍업이라 뺀다).
+   - 결과는 마크다운으로 stdout, 원자료는 `--out` JSON.
+2. 지표 `gateway_vault_sessions`(게이지): 이 워커에서 진행 중인 대체값 세션 수(정책 합). 정책·워커당 2,000에 닿으면 503 `gateway_busy`.
+3. 결과를 `docs/operations.md` '용량'에 표로 둔다 — 측정 환경(맥북 M2 8코어, 부하 생성기와 같은 기계, Python 3.14)과 함께. x86 서버의 값이 아니라고 적는다.
+4. CI 스모크 `tests/test_d122_load.py`: load.py를 몇 초·작은 동시성으로 돌려 오류 0·복원 100%·교차 누출 0(스크립트 배선이 썩지 않게), 지표 게이지.
+
+### 3. 버린 대안
+
+- **locust·k6**: 새 의존성이고, 복원·교차 누출 같은 응답 검사를 따로 짜야 한다. httpx 비동기로 충분하다.
+- **Docker 컨테이너에 부하**: macOS Docker Desktop의 포트 전달이 지연·오류에 섞인다. 서버 설정을 이미지와 맞춘 로컬 프로세스로 잰다.
+- **psutil**: 새 의존성. `ps -o rss=`와 `lsof -p`(macOS)·`/proc/<pid>/fd`(Linux)로 읽는다.
+- **uvloop·httptools를 이미지에 넣기**: 수치가 트리거에 닿을 때만 검토한다(PLAN 조건부 표).
+
+### 4. 완료 기준 (`tests/test_d122_load.py`, `scripts/load.py`)
+
+| # | 기준 |
+|---|---|
+| L1 | 60초 부하(스트림 50 + 비스트리밍 50): 오류 0, 복원 실패 0, 교차 누출 0. 게이트웨이 지연 p50·p95·p99와 기준선 표 |
+| L2 | 30분 soak(같은 부하): 오류 0, RSS 증가 10% 미만, 열린 파일 수·볼트 세션 수가 늘지 않는다(끝난 뒤 볼트 세션 0) |
+| L3 | `gateway_vault_sessions`: 스트림이 열려 있는 동안 1 이상, 끝나면 0 |
+| L4 | 수치가 `docs/operations.md` '용량'에 있다 |
+| L5 | CI 스모크(몇 초 부하에서 오류 0·복원 100%·교차 누출 0) |
+| — | 전체 `pytest -q`·`ruff check .`·`mypy` 통과 |
+
+### 5. 한계
+
+- 맥북(arm64) 로컬 프로세스의 수치다. 부하 생성기·스텁·게이트웨이가 같은 CPU를 나눠 쓴다. x86 서버·컨테이너 CPU 상한 아래에서는 다르다 — 배포 뒤 감사 줄 `gateway_ms`로 다시 본다.
+- 스텁의 답은 짧다(요청 문장을 되풀이). 실제 공급자의 큰 응답·긴 스트림에서 복원 비용은 응답 크기에 비례해 는다.
+- 워커 1 기준이다. 여러 워커·여러 파드의 합은 재지 않았다.
+
+### 6. 결과 (2026-10-31)
+
+- **찾은 병목(결정에 없던 변경 1)**: 첫 60초 부하는 오류 3(502 2·ReadError 1), 초당 60건, 비스트리밍 p50 821ms(스텁 직접 305ms)였다. cProfile로 보니 게이트웨이 시간의 73%가
+  httpcore 1.0.9 연결 풀의 배정 루프였다. 두 결함이 겹쳤다 — (1) 쉬는 연결을 셀 때 전체 연결 수를 연결마다 다시 세어(O(n²)) `max_keepalive`(기본 20)를 넘으면 쓴 연결을 바로 닫고,
+  (2) 배정이 연결을 예약하지 않아 기다리는 요청 여럿이 같은 쉬는 연결에 배정되고 하나만 쓴다. 작업자마다 클라이언트를 따로 두니 같은 부하가 초당 303건·1초 넘는 요청 0이었다.
+  httpcore·httpx가 최신이라 고친 판이 없다. **상류 연결 풀을 바꿨다**: `relay.UpstreamPool` — 연결 하나짜리 httpx 클라이언트를 빌려 쓰고 응답 본문을 닫을 때(`_Returning`) 돌려준다.
+  TLS 설정은 하나를 함께 쓴다(클라이언트마다 만들면 개당 약 9ms·0.2MiB). 부하 생성기도 같은 문제를 겪어 작업자마다 클라이언트를 둔다.
+- **찾은 누수(결정에 없던 변경 2)**: 클라이언트가 응답 전에 끊는 실험(동시 88건)에서 대체값 세션 17개가 남고 감사 줄 2개가 빠졌다. Starlette는 끊김을 앱 작업의 anyio 취소로 처리하고,
+  그 취소는 정리 코드의 다음 await에서 다시 터진다. 스트림 마무리를 한 번만 도는 `finish`로 묶어 취소를 막고 돌리고(`anyio.CancelScope(shield=True)`), 본문 생성기가 시작도 못 한 경우를
+  위해 응답 객체(`_Stream.__call__`)와 미들웨어에도 안전망을 두었다. 미들웨어는 `CancelledError`에도 감사 줄을 쓴다.
+- **다차원 리뷰 + 반박 검증**(울트라코드 워크플로, 에이전트 77): 리뷰어 5(동시성·회귀·배포 보안·문서 정확성·도구) → 발견 35 → 발견마다 검증자 2~3이 반박 시도 → 35 모두 남음.
+  고친 것: 요청을 만들다 실패하면(비ASCII 헤더 — 한국어 User-Agent) 빌린 연결을 잃어 100번이면 모든 요청 503(high, 두 리뷰어가 따로 찾음 — 헤더를 받은 바이트 그대로 넘기고 반환을
+  try 안으로), 스트림 응답을 만들다 실패하면 연결·세션·감사 줄을 잃음, 클라이언트가 끊은 스트림이 정상 200으로 기록됨(uvicorn이 ASGI 2.3이라 Starlette가 끊김을 삼킨다 → `ClientDisconnect`),
+  풀 대기자가 순서대로 받지 못함(→ 기다리는 순서대로 넘겨줌), 첫 클라이언트를 늦게 만들어 생성 오류가 기동을 막지 못함(→ 기동 때 만듦), 413 감사 사유 없음, `/v1/messages`의 500이 OpenAI 형식,
+  키 값의 앞뒤 공백, k8s 종료 유예 여유 0초(→ 35초), 키 회전 뒤 옛 Secret 남음(→ 생성기 레이블과 정리 절차), 문서 14건, 부하 스크립트의 검증 6건(가렸는지 확인 안 함 등), 문서 테스트 정규식.
+  수정마다 회귀 테스트를 더했고, 수정을 하나씩 되돌리면 그 테스트가 실패함을 확인했다(7/7).
+- **L1 통과**(최종 코드, 60초, 스트림 50 + 비스트리밍 50): 13,367건(초당 219) — 오류·복원 실패·교차 누출 0, 감사 줄 = 요청, 200 응답은 모두 가짜 값을 발급했다.
+  게이트웨이 경유 p50·p95·p99는 비스트리밍 315·362·409ms(스텁 직접 319·352·397), 스트림 첫 조각 313·364·781ms(314·346·605), 감사 `gateway_ms` 4.0·18.5·30.7ms, CPU 요청당 2.2ms.
+- **L2 통과**(최종 코드, 30분, 상류 연결 80 — 늘 20개가 대기): 323,416건, 판정 10개 모두 통과(503 0), RSS 53~80MiB·증가율 −2.4%, 열린 파일 일정, 끝난 뒤 세션·연결 0.
+  고치기 전 코드의 30분(연결 100): 402,926건, 오류 0, RSS +3.8%.
+- **L3·L5 통과**: `gateway_vault_sessions{policy}`(정책마다 — 상한이 정책마다라 합으로는 503을 읽을 수 없다는 리뷰 지적)와 `gateway_upstream_connections_in_use{upstream}`을 더했다.
+  `tests/test_d122_load.py` 12건(부하 스크립트 스모크, 게이지, 끊김 누수, 리뷰 회귀), 부하 스크립트 서버 인자가 Dockerfile CMD와 같은지 테스트.
+- **L4**: `docs/operations.md` '용량'에 표·soak·큰 요청·상한·자원 근거.
+- 전체 `pytest -q` 670 통과(3.14 30초·3.12), `ruff check .`·`mypy` 통과. compose 두 SDK 점검을 최종 이미지로 다시 통과.
+- 계획과 다른 점: 결정 §2에 없던 상류 풀 교체·취소 안전망·지표 하나 더(빌려 간 연결), k8s 견본 `UVICORN_TIMEOUT_KEEP_ALIVE=75`(인그레스 유휴 시간보다 길게 — 측정이 아니라 알려진 동작,
+  이미지 기본 5초가 환경변수로 바뀜을 컨테이너로 확인). 조건부 트리거(게이트웨이 p95 > 50ms)는 닿지 않았다 — 감사 `gateway_ms` p95 18.5ms.
+- 못 한 것·한계: x86 서버·컨테이너 CPU 상한 아래의 수치, 여러 워커·파드의 합, 비스트리밍 요청을 클라이언트가 끊은 경우의 감사(상류가 답하면 200으로 남는다 — 응답을 보낼 곳이 없을 뿐).
+
+---
+
+## D-123. 인젝션 평가셋 v1(한국어 중심) + 점수 스크립트 + 룰 기준선 (2026-10-31, PLAN 16단계)
+
+### 1. 근거
+
+- 인젝션 탐지 수치는 연구 단계의 garak 템플릿 매칭(헤드라인 74.5% → 0.2%)뿐이다. 동의어 하나로 14/14가 빠졌고, 한국어 공격 탐지율은 잰 적이 없다(부록 A).
+- 정상셋은 HR 질문 100문항(고유 89)뿐이라 오탐률을 말할 수 없다. 17·18단계(분류기·웹훅)를 같은 자로 비교하려면 판정기와 무관한 셋과 점수 규칙이 먼저 있어야 한다.
+- 2026-10-31 조사(데이터셋 카드·라이선스·리비전을 에이전트가 하나씩 확인): 재배포 가능한 한국어 인젝션셋이 여럿 있다(아래 표). 공격을 우리가 만들 필요가 없다.
+
+### 2. 결정
+
+1. **구성** — 공격은 공개 데이터셋 + 기존 `gateway/data/injection_corpus.jsonl` 59건 + 그 59건의 결정적 변형뿐이다. LLM으로 공격을 만들거나 번역하지 않는다. 정상은 공개 데이터셋 +
+   `eval/benign/all100.jsonl` + 에이전트가 쓴 한국어 업무 문장·하드 네거티브(정상 문장은 써도 된다 — PLAN 16단계). 고정 리비전(커밋 SHA)에서 받아 결정적으로 뽑는다(난수 없음, id의 SHA-256 순).
+
+   | 출처 | 라이선스 | 쓰는 행 | 언어 | 유형 |
+   |---|---|---|---|---|
+   | `gateway/data/injection_corpus.jsonl`(연구 단계 자체 작성) | 본 저장소 | 공격 59 + 결정적 변형(동의어·띄어쓰기·전각·제로폭·base64) | ko | direct·role_spoof / encoding |
+   | `xxxjjhhh/korean_guardrail_test` @cd91a65d | CC-BY-4.0 | 전부(중복 제거): 공격 ≈317 · 정상 ≈251 | ko | direct / benign |
+   | `kimchunsik03/KoreanGuardrail` @cd4c93cb | CC-BY-4.0 | 공격 씨앗 301, 정상 하드 네거티브 씨앗 204, 벤치마크의 난독화 변형(5기법 × 강도 1.0) | ko | direct·role_spoof·indirect / encoding / hard_negative |
+   | `JHC56/korean-prompt-injection-registers` @d348b1fd | BSD-2-Clause(번역) + Apache-2.0(deepset) | deepset 문항의 한국어 7말투(공격 273·정상 861). Tensor Trust 부분은 라이선스 불명이라 뺀다 | ko | direct·role_spoof / benign |
+   | `tristan-kim/guardrail4agent-sft` @bd89cc6b | Apache-2.0 | S3(도구 결과 속 인젝션)·S5(시스템 프롬프트 추출)·safe 표본 | ko | indirect·direct / benign |
+   | `taeyun16/korean-service-query-gating-v1` @9f0cc771 | MIT | core 표본 | ko | benign |
+   | `deepset/prompt-injections` | Apache-2.0 | 전부 662(공격 263·정상 399) | en·other | direct / benign |
+   | `Lakera/gandalf_ignore_instructions` @04737b65 | MIT | 표본(‘ignore’ 문구로 골라진 셋이라 따로 보고) | en | direct |
+   | `meta-llama/PurpleLlama` prompt_injection.json @f64eebd5 | MIT | security-violating 180(logic-violating은 시스템 프롬프트에 달린 라벨이라 뺀다) | en·other | direct·indirect |
+   | `microsoft/BIPIA` 공격 문자열 @a004b69e | MIT | 250(문서에 심는 간접 공격) | en | indirect |
+   | `uiuc-kang-lab/InjecAgent` | MIT | 고유 공격 지시 62(도구 결과에 심는 간접 공격) | en | indirect |
+   | `ethz-spylab/ctf-satml24` | MIT | 사용자 턴이 둘 이상인 공격 대화 표본 | en | multi_turn |
+   | `drakkeng/outilsia-injections-prompt-multilingue` @94be44f2 | CC-BY-4.0 | 전부 383(공격 229 — 난독화 포함, 정상은 출처가 만든 하드 네거티브 154) | en·other(ko 2) | 전 유형 / hard_negative |
+   | `leolee99/NotInject` | MIT | 전부 339(트리거 단어가 든 정상 문장) | en·other | hard_negative |
+   | `eval/benign/all100.jsonl`(연구 단계) | 본 저장소 | 100 | ko | benign |
+   | 에이전트 작성(이 단계) | 본 저장소 | HR·고객 지원·개발·금융·의료·법률 업무 문장과 하드 네거티브(‘지시사항 무시’ ‘개발자 모드’ ‘DAN 프로젝트’ ‘시스템 프롬프트 작성법’ 등) | ko | benign / hard_negative |
+
+   빼는 것: 유해 요청 셋(MultiJail·Salad-Data·PolyGuardPrompts·JBB behaviors — 인젝션이 아니다), in-the-wild 탈옥 원본(연구용 한정 문구)과 그 번역·사본
+   (`MarkrAI/ko-jailbreak`의 template 행, `jackhhao/jailbreak-classification` — §6 리뷰에서 뺐다), 라이선스 조건이 불분명한 셋(tom-gibbs 다중 턴·XL-SafetyBench·Tensor Trust 파생),
+   전체 llmail 라벨 파일(수백 MB).
+2. **스키마**(JSONL 한 줄): `id`, `label`(1 공격·0 정상), `text`(다중 턴은 `turns` 문자열 목록), `lang`(ko·en·other), `type`(direct·indirect·role_spoof·encoding·multi_turn·
+   benign·hard_negative), `role`(user·tool — 간접 공격과 문서형 정상은 tool), `group`(같은 원문의 변형·말투·번역·합성이 공유 — 출처를 넘어도 한 가족, 홀드아웃은 그룹째로 나눈다),
+   `source`, `transform`(변형이면). 같은 문장은 셋 전체에 하나만 둔다.
+   - 유형: direct 사용자가 직접 지시를 뒤집거나 역할을 바꾸거나 시스템 프롬프트를 묻는다 · indirect 문서·메일·도구 결과에 심은 지시 · role_spoof 가짜 역할 머리·대화 마크업
+     (`System:`·`[SYSTEM]`·`<|im_start|>`) · encoding 난독화(전각·제로폭·띄어쓰기·자모 분해·초성·base64·rot13·leet 등) · multi_turn 여러 턴에 걸친 공격.
+3. **홀드아웃 봉인**: 그룹의 SHA-256 첫 바이트로 20%를 `holdout.jsonl`에 둔다. 파일 SHA-256을 이 결정 §6에 적고 테스트가 지킨다. 룰·임계값·분류기 조정에 쓰지 않는다 —
+   점수는 `dev.jsonl`로 내고, 홀드아웃은 단계의 최종 측정(18단계 분류기 게이트)에만 한 번 쓰고 그때마다 결정에 적는다.
+4. **점수** `eval/injection/score.py`: 판정기 = `(item) -> 점수 0~1` 함수 하나(룰은 0/1, 분류기·웹훅은 17·18단계가 더한다). 전체·언어별·유형별 재현율과 오탐률(Wilson 95%),
+   recall@FPR 1%·0.5%(점수형은 정상셋에서 그 오탐률을 넘지 않는 가장 낮은 문턱, 0/1 판정기는 오탐률이 넘으면 '미달'). 원문은 출력하지 않는다(그룹·id만).
+5. **기준선**: 지금 룰(R1·R2, `match_rules`)의 dev 점수를 §6과 README '막지 못하는 것'에 적는다. 테스트가 그 숫자를 고정한다 — 룰을 바꾸면 결정과 함께 갱신한다.
+6. **라이선스 준수**: `eval/injection/SOURCES.md`에 출처·리비전·라이선스·저작권자·바꾼 것(CC-BY의 변경 표시)을 적고, MIT·BSD 고지문을 함께 둔다.
+7. 크기: 데이터 파일 합계 5MB 이하(긴 템플릿·메일은 표본을 줄인다).
+
+### 3. 버린 대안
+
+- **공격을 LLM으로 만들거나 영어 공격을 한국어로 번역**: PLAN이 금지한다. 측정 대상(우리 탐지기)과 같은 편향을 셋에 심는다.
+- **우리가 쓴 한국어 문장만으로 정상셋**: 우리 탐지기를 아는 사람이 쓴 문장은 쉬운 쪽으로 치우친다 — 공개 한국어 정상셋(서비스 질의·가드레일 정상·말투 번역)을 함께 쓴다.
+- **유해 요청셋을 공격으로**: 인젝션 탐지기의 일이 아니다(가드레일 영역). 섞으면 재현율이 의미를 잃는다.
+- **행 단위 무작위 홀드아웃**: 같은 원문의 말투·난독화 변형이 dev와 홀드아웃에 갈라지면 홀드아웃이 새지 않는다는 보장이 없다 — 그룹째로 나눈다.
+- **세션이 매번 받아 쓰기(데이터 미동결)**: 상류가 바뀌면 숫자가 바뀐다. 받은 결과를 저장소에 고정하고 SHA-256을 기록한다.
+
+### 4. 완료 기준 (`tests/test_d123_injection_eval.py`)
+
+| # | 기준 |
+|---|---|
+| E1 | 셋 파일·해시·라이선스 표(SOURCES.md)가 있고, 모든 줄이 스키마를 지킨다(id 유일, label·lang·type·role 값, group 단위 분할 — dev와 홀드아웃이 그룹을 공유하지 않는다) |
+| E2 | 정상 2,000 이상, 그중 하드 네거티브 20% 이상, 한국어 공격·정상이 각각 있다 |
+| E3 | 홀드아웃 SHA-256이 결정과 같다 |
+| E4 | `score.py`가 dev에서 룰 판정기의 표를 내고, 숫자가 결정의 기준선과 같다(CI 스모크) |
+| E5 | 원문이 점수 출력에 나오지 않는다 |
+| — | 전체 `pytest -q`·`ruff check .`·`mypy` 통과 |
+
+### 5. 한계
+
+- 공개셋의 라벨 잡음(deepset의 '역할 요청'이 공격 라벨, gandalf의 'ignore' 선택 편향, ctf 대화의 성공 라벨 등)과 LLM 합성 출처(KoreanGuardrail 절반·guardrail4agent·
+  서비스 질의셋·NotInject)를 그대로 안는다. 출처별 표를 따로 내서 한 출처가 전체 숫자를 끌지 않게 본다.
+- 같은 원문의 변형·말투가 여럿이라 행 수보다 독립 표본이 적다 — Wilson 구간이 실제보다 좁다.
+- 다중 턴 공격은 영어(ctf, 공격 팀 단위로 묶어 77대화)뿐이다 — 한국어 다중 턴은 없다. 우리가 쓴 한국어 정상 문장은 우리 시각의 문장이다.
+
+### 6. 결과 (2026-10-31)
+
+- **셋**: 6,871행 = dev 5,492 + 봉인 홀드아웃 1,379(20.1%), 1.96MiB. 공격 3,360(한국어 2,028) · 정상 3,511(한국어 2,608, 하드 네거티브 1,022 = 29%).
+  `eval/injection/build.py`가 고정 리비전(datasets-server 출처는 받은 날짜)에서 받아 결정적으로 만든다 — 두 번 만들어 바이트가 같았다.
+  - `holdout.jsonl` SHA-256 **5548bb27ec5fd0a8005dedacfeb932dafc5484eec99532890394860e549aed0f**
+  - `dev.jsonl` SHA-256 **371b58ddb701cb9f1174abf56f8fdfc60a46d2bfa936e5ed006c97ad57b25d39**
+  - 출처·라이선스·바꾼 것·고지문은 `eval/injection/SOURCES.md`. 한국어 업무 문장·하드 네거티브는 에이전트 9개가 쓰고(720) 두 검증자가 하드 네거티브를 따로 읽어 3개를 뺐다(717, `benign_ko.jsonl`).
+- **룰 기준선(dev, `python3 eval/injection/score.py`)**: 재현율 **230/2,630 = 8.7%**(7.7~9.9%), 오탐률 **76/2,862 = 2.7%**(2.1~3.3%), recall@FPR 1%·0.5% **미달**(0/1 판정기의 오탐률이 넘는다).
+  - 언어별 재현율: 한국어 94/1,592 = 5.9% · 영어 126/788 = 16.0% · 그 밖 10/250 = 4.0%. 유형별: 직접 12.6% · 간접 5.1% · 역할 위조 2.9% · 난독화 2.9% · 다중 턴 17.7%.
+  - 오탐: 일반 정상 0/2,034(0.0~0.2%), 하드 네거티브 76/828 = 9.2%(한국어 64/435 = 14.7%). 한국어 오탐률 64/2,138 = 3.0%.
+  - 출처별로 보면 'ignore' 문구로 골라진 gandalf만 45%대다 — 연구 단계 헤드라인(74.5% → 0.2%)이 템플릿 문구 매칭이었다는 부록 A의 지적이 같은 자로 확인됐다.
+- **리뷰 + 반박 검증**(울트라코드 워크플로, 에이전트 74): 리뷰어 4(빌드·점수·라이선스·테스트) → 발견 35 → 31 남음(4 반박). 고친 것:
+  JHC56 한국어 말투가 원문 deepset 행과 다른 그룹이라 홀드아웃의 12%가 dev의 번역이거나 번역을 dev에 둠(→ 원문과 한 그룹), ctf 대화가 같은 팀의 같은 첫 턴을 되풀이(→ 팀 단위 그룹·팀마다 10),
+  deepset '쌓은' 합성 문장과 원문이 다른 그룹(→ 포함 관계로 묶음), 셋 전체 중복 미제거(→ 98행 뺌, 라벨 충돌 0), in-the-wild 원본의 번역(ko-jailbreak)·사본(jackhhao) 포함(→ 뺌),
+  유형 오분류(역할 바꾸기 → direct, 에둘러 묻는 시스템 프롬프트 요청 → direct, drakkeng 정상 → hard_negative), 언어 휴리스틱(악센트 → other, 변형은 원문 언어),
+  CC BY 4.0 라이선스 주소·drakkeng 인용·NotInject 저작권줄, 점수 스크립트의 언어별 recall@FPR·'미달' 건수·문턱 정밀도·줄 나누기, 테스트(셋 전체 중복 금지·dev 해시 고정·짧은 원문 누출 검사).
+  반박된 4: base64 래퍼(결정적 변형의 일부), `--holdout`의 문턱 선택(그 셋의 정상으로 고르는 것이 recall@FPR의 정의), 'inf' 문턱 표시, README 라이선스 절.
+- `tests/test_d123_injection_eval.py` 8건(E1~E5 + 문턱 규칙 단위 테스트): 홀드아웃·dev 바이트 해시 고정, 기준선 숫자 고정, 원문 비출력. 홀드아웃 바이트 1개·룰 어휘 1개를 바꾸면 각각 실패함을 확인했다.
+- 계획과 다른 점: ko-jailbreak·jackhhao를 뺐다(§2-1 표에서 지움), 한국어 다중 턴은 없다, datasets-server 출처(deepset·gandalf·ctf·NotInject)는 리비전 대신 받은 날짜와 저장소 고정으로 재현한다.
+- 못 한 것·한계: 공개셋의 라벨 잡음과 LLM 합성 출처는 그대로다(§5). 홀드아웃은 아직 한 번도 열지 않았다 — 18단계 분류기 게이트에서 처음 쓴다.

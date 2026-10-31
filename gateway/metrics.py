@@ -8,6 +8,8 @@
   gateway_pii_suspect_total                    의심 잔여 — 남은 대체값 + 대체값의 식별 조각(끝 4자리·로컬파트)만 나타난 경우(D-113)
   gateway_pii_new_total                        응답에 새로 나온 PII·비밀(우리가 가린 원문·발급한 대체값이 아닌 것, D-120) — 가리지 않는다
   gateway_upstream_ms_sum/_count, gateway_total_ms_sum/_count   지연 합·횟수(평균은 나눠서)
+  gateway_vault_sessions{policy}               진행 중인 대체값 세션(게이지, D-122) — 정책·워커당 2,000이면 503 gateway_busy
+  gateway_upstream_connections_in_use{upstream} 빌려 간 상류 연결(게이지, D-122) — GATEWAY_MAX_CONNECTIONS면 기다리다 503 upstream_busy
 """
 from __future__ import annotations
 
@@ -48,7 +50,7 @@ class Metrics:
                 self.upstream_ms += rec["upstream_ms"]
                 self.upstream_n += 1
 
-    def render(self) -> str:
+    def render(self, vault_sessions: dict[str, int] | None = None, upstream_in_use: dict[str, int] | None = None) -> str:
         with self._lock:
             lines = ["# TYPE gateway_requests_total counter"]
             for (api, status, blocked), n in sorted(self.requests.items(), key=str):
@@ -65,4 +67,13 @@ class Metrics:
                       f"gateway_upstream_ms_count {self.upstream_n}",
                       "# TYPE gateway_total_ms summary", f"gateway_total_ms_sum {self.total_ms:.2f}",
                       f"gateway_total_ms_count {self.total_n}"]
+            lines.append("# TYPE gateway_vault_sessions gauge")
+            lines += [f'gateway_vault_sessions{{policy="{_label(p)}"}} {n}' for p, n in sorted((vault_sessions or {}).items())]
+            lines.append("# TYPE gateway_upstream_connections_in_use gauge")
+            lines += [f'gateway_upstream_connections_in_use{{upstream="{_label(u)}"}} {n}' for u, n in sorted((upstream_in_use or {}).items())]
             return "\n".join(lines) + "\n"
+
+
+def _label(value: str) -> str:
+    """Prometheus 레이블 값 — 역슬래시·따옴표·줄바꿈을 이스케이프한다(정책 이름·상류 주소는 운영자가 정한다)."""
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")

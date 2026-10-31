@@ -14,11 +14,14 @@ from __future__ import annotations
 
 import fnmatch
 import hmac
+import ssl
 import time
 import uuid
 from contextlib import asynccontextmanager
+from functools import partial
 from http.cookiejar import CookieJar, DefaultCookiePolicy
 
+import anyio
 import httpx
 from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.exception_handlers import http_exception_handler
@@ -32,7 +35,7 @@ from gateway.detectors.pii import PIIDetector
 from gateway.messages import t
 from gateway.metrics import Metrics
 from gateway.ratelimit import RateLimiter
-from gateway.relay import UpstreamClient, downstream, read_body, read_capped, relay, send
+from gateway.relay import UpstreamClient, UpstreamPool, downstream, read_body, read_capped, relay, send
 from gateway.settings import API_NAMES, DETECTOR_REGISTRY, Registry, Settings, build_chain
 from gateway.version import VERSION, code_fingerprint
 
@@ -55,16 +58,14 @@ def create_app(settings: Settings, registry: Registry = DETECTOR_REGISTRY) -> Fa
             raise RuntimeError(t("auth_off_with_key", s.lang))
         app.state.settings = s
         app.state.auth = Auth(None if s.auth_off else dict(s.clients))
-        # 상류마다 연결 풀 하나(같은 주소·시간 제한이면 함께 쓴다, D-119). 요청마다 새로 만들면 매번 TCP 핸드셰이크다.
-        # 쿠키는 저장하지도 보내지도 않는다(D-109). 풀은 모든 요청이 함께 쓴다 — 기본 쿠키 저장소면 상류가 한 요청에 준
-        # set-cookie(Cloudflare __cf_bm 등)가 다른 클라이언트의 요청에 붙어 나간다(재현: 스텁 /v1/models 두 번).
-        pools: dict[tuple[str, float], httpx.AsyncClient] = {}
+        # 상류마다 연결 풀 하나(같은 주소·시간 제한이면 함께 쓴다, D-119). 요청마다 새로 만들면 매번 TCP·TLS 핸드셰이크다.
+        # 풀은 연결 하나짜리 클라이언트를 빌려준다(D-122 — httpcore 공유 풀의 배정 겹침). TLS 설정(CA 묶음)은 하나를 함께 쓴다.
+        ssl_context = httpx.create_ssl_context()
+        pools: dict[tuple[str, float], UpstreamPool] = {}
         for u in upstreams.values():
             if (u.base_url, u.timeout) not in pools:
-                pools[(u.base_url, u.timeout)] = httpx.AsyncClient(
-                    base_url=u.base_url, timeout=httpx.Timeout(connect=5, read=u.timeout, write=30, pool=5),
-                    limits=httpx.Limits(max_connections=s.max_connections),
-                    cookies=CookieJar(DefaultCookiePolicy(allowed_domains=[])))
+                pools[(u.base_url, u.timeout)] = UpstreamPool(partial(_connection, u.base_url, u.timeout, ssl_context),
+                                                              s.max_connections, wait=5)
         app.state.upstreams = {api: UpstreamClient(pools[(u.base_url, u.timeout)], u.key) for api, u in upstreams.items()}
         app.state.metrics = Metrics()
         app.state.audit = AuditLog(s.log_path, s.log_max_bytes, s.log_backups, on_write=app.state.metrics.observe)
@@ -95,16 +96,26 @@ def create_app(settings: Settings, registry: Registry = DETECTOR_REGISTRY) -> Fa
     return app
 
 
+def _connection(base_url: str, timeout: float, ssl_context: ssl.SSLContext) -> httpx.AsyncClient:
+    """상류 연결 하나(D-122 — UpstreamPool이 빌려준다). 쿠키는 저장하지도 보내지도 않는다(D-109): 상류가 한 요청에 준 set-cookie
+    (Cloudflare __cf_bm 등)가 다른 클라이언트의 요청에 붙어 나가면 안 된다. 쉬는 연결은 4초 뒤 버린다 — 상류 서버의 keep-alive(uvicorn·Node 기본
+    5초)보다 짧아야 서버가 닫는 순간 그 연결로 보내 502가 나는 일이 없다(부하 측정에서 재현)."""
+    return httpx.AsyncClient(base_url=base_url, timeout=httpx.Timeout(connect=5, read=timeout, write=30, pool=5), verify=ssl_context,
+                             limits=httpx.Limits(max_connections=1, max_keepalive_connections=1, keepalive_expiry=4),
+                             cookies=CookieJar(DefaultCookiePolicy(allowed_domains=[])))
+
+
 async def _unhandled(request: Request, exc: Exception) -> Response:
     """처리 중 예외 → 500. 감사 줄은 미들웨어가 이미 남겼고, 같은 요청 ID를 헤더에 붙여 대조할 수 있게 한다(D-102).
     예전에는 Starlette 기본 500(본문 텍스트, 헤더 없음)이 나가 감사 줄과 응답을 이을 길이 없었다.
     Starlette는 이 응답을 보낸 뒤 예외를 그대로 다시 올리므로 uvicorn 로그에는 예전처럼 남는다.
     본문에 예외 메시지는 넣지 않는다 — 요청 본문 조각이 섞이는 라이브러리가 흔하다.
     """
+    response = error_format_for(request.url.path).error(500, "internal gateway error", "server_error", "internal_error")   # 그 API의 형식(D-122)
     rid = getattr(request.state, "request_id", None)
-    return JSONResponse(status_code=500, headers={"X-Gateway-Request-Id": rid} if rid else None,
-                        content={"error": {"message": "internal gateway error", "type": "server_error",
-                                           "param": None, "code": "internal_error"}})
+    if rid:
+        response.headers["X-Gateway-Request-Id"] = rid
+    return response
 
 
 async def _http_error(request: Request, exc: Exception) -> Response:
@@ -143,7 +154,12 @@ async def _audit_middleware(request: Request, call_next):
     t0 = state.t0 = time.perf_counter()
     try:
         response = await call_next(request)
-    except Exception as exc:
+    except BaseException as exc:   # 클라이언트가 끊으면 CancelledError(D-122) — 그 요청도 한 줄
+        if state.streaming:
+            # 스트림 응답을 만들었는데 응답이 돌기 전에 끝났다 — 스트림의 마무리(상류 닫기·볼트 해제·감사 한 줄)를 대신 부른다. 두 번 돌지 않는다
+            with anyio.CancelScope(shield=True):
+                await state.stream_finish(type(exc).__name__)
+            raise
         # ★ 2026-09-22: 이 자리가 비어 있었다. 기록이 처리 **완료 후에만** 이뤄져서,
         # 처리 중 예외가 나면 거기 도달하지 못했다. 타겟 연결 오류를 일으키면
         # HTTP 500이 나가고 **감사 로그는 0줄**이었다 — "요청 1건당 1줄"이라는
@@ -205,7 +221,13 @@ async def metrics(request: Request) -> Response:
     """Prometheus 텍스트 형식(D-107 E). 감사 레코드에서 센 값이라 감사 줄과 어긋나지 않는다. 관리 키가 있어야 보인다(D-109)."""
     if not _is_admin(request):
         return _not_found(request)
-    return Response(request.app.state.metrics.render(), media_type="text/plain; version=0.0.4; charset=utf-8")
+    # D-122: 503을 정하는 두 양 — 정책마다의 대체값 세션(상한 2,000 → gateway_busy), 상류마다 빌려 간 연결(상한 GATEWAY_MAX_CONNECTIONS → upstream_busy)
+    sessions = {name: sum(d.vault.session_count for d in chain.detectors if isinstance(d, PIIDetector) and d.mode == "mask")
+                for name, chain in request.app.state.chains.items()}
+    in_use: dict[str, int] = {}
+    for up in {id(u.pool): u for u in request.app.state.upstreams.values()}.values():   # 같은 풀을 여러 API가 함께 쓴다
+        in_use[up.pool.base_url] = in_use.get(up.pool.base_url, 0) + up.pool.in_use
+    return Response(request.app.state.metrics.render(sessions, in_use), media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 def _admit(request: Request) -> Response | None:
@@ -238,6 +260,7 @@ async def api(request: Request) -> Response:
     request.state.req_bytes = size
     if body is None:
         # 상류도 검사기도 부르지 않는다. 감사 줄은 미들웨어가 413으로 남긴다.
+        request.state.upstream_error = "request_too_large"
         return error_format_for(request.url.path).error(
             413, f"request body exceeds {request.app.state.settings.max_body_bytes} bytes", "invalid_request_error", "request_too_large")
     request.state.req_digest = digest(body)
@@ -267,10 +290,11 @@ async def api(request: Request) -> Response:
     try:
         return await relay(request, body, doc, chain, session)
     finally:
-        # 응답이 나가면 매핑을 다시 쓸 일이 없다 — 차단·상류 오류·예외로 끝나도 바로 버린다.
+        # 응답이 나가면 매핑을 다시 쓸 일이 없다 — 차단·상류 오류·예외·클라이언트 끊김으로 끝나도 바로 버린다(끊김의 취소를 막고, D-122).
         # 스트리밍 응답은 스트림이 끝난 뒤 생성기가 해제한다(D-106): 여기서 먼저 버리면 조각을 복원할 원문이 없다.
         if not request.state.streaming:
-            await chain.release(session)
+            with anyio.CancelScope(shield=True):
+                await chain.release(session)
 
 
 @router.get("/v1/models")

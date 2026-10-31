@@ -34,11 +34,12 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def serve(app: str, port: int, env: dict | None = None, probe: str = "/", cwd: Path | None = None) -> subprocess.Popen:
+def serve(app: str, port: int, env: dict | None = None, probe: str = "/", cwd: Path | None = None,
+          args: tuple[str, ...] = ()) -> subprocess.Popen:
     """기동 확인용 probe 경로는 감사 로그를 오염시키지 않는 곳으로 고른다.
-    게이트웨이는 /__gateway/health(로그 제외 경로)를 쓴다."""
+    게이트웨이는 /__gateway/health(로그 제외 경로)를 쓴다. `args`는 uvicorn에 더 줄 인자(D-122 — 이미지와 같은 서버 설정)."""
     p = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", app, "--port", str(port), "--log-level", "warning"],
+        [sys.executable, "-m", "uvicorn", app, "--port", str(port), "--log-level", "warning", *args],
         env={**os.environ, **(env or {})},
         cwd=cwd,   # 다른 작업 트리의 게이트웨이(D-114 옛 팔)
     )
@@ -78,15 +79,16 @@ def _run(server: uvicorn.Server) -> None:
 
 def install(app, settings: Settings, chain, client: httpx.AsyncClient | None = None) -> None:
     """lifespan 없이 프로세스 안 앱에 요청 처리 상태를 넣는다(D-118·D-119): 정책은 default 하나, 세 API가 상류 client 하나를 쓴다.
-    인증·감사·레이트리밋은 호출자가 넣는다."""
-    from gateway.relay import UpstreamClient
+    client는 연결 하나짜리 풀로 감싼다(D-122) — 동시 요청은 하나씩, 빈 연결 대기는 client의 pool 시간 제한. 인증·감사·레이트리밋은 호출자가 넣는다."""
+    from gateway.relay import UpstreamClient, UpstreamPool
     from gateway.settings import API_NAMES
     app.state.settings = settings
     app.state.policies = {"default": settings}
     app.state.chains = {"default": chain}
     app.state.chain = chain
     if client is not None:
-        app.state.upstreams = dict.fromkeys(API_NAMES, UpstreamClient(client, ""))
+        pool = UpstreamPool(lambda: client, 1, wait=client.timeout.pool or 5)
+        app.state.upstreams = dict.fromkeys(API_NAMES, UpstreamClient(pool, ""))
 
 
 def stop(servers: list[tuple[uvicorn.Server, threading.Thread]]) -> None:

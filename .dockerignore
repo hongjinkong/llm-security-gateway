@@ -15,6 +15,7 @@ docs
 eval
 scripts
 web
+deploy
 **/__pycache__
 **/*.pyc
 **/.DS_Store

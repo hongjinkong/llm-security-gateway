@@ -1,0 +1,25 @@
+# 게이트웨이 설정 파일(GATEWAY_CONFIG) — 키 설명은 docs/configuration.md. 바꾸고 `kubectl apply -k deploy/k8s`면 롤링 재시작된다.
+# 공급자 키는 여기 두지 않는다: key_env가 가리키는 환경변수(secret.env)에서 읽는다. 쓰지 않는 상류 표는 지운다(key_env가 비면 기동 실패).
+
+# 클라이언트(팀·앱)마다 하나. `python -m gateway keygen --hash`의 첫 줄(키)은 클라이언트에게 주고, 둘째 줄(key_sha256)을 여기에 둔다.
+# 클라이언트가 하나도 없으면 게이트웨이는 기동하지 않는다.
+# [[clients]]
+# name = "support-bot"
+# key_sha256 = "..."
+# policy = "default"
+
+[policies.default]
+injection = "observe"       # observe | block | off
+pii_mode = "mask"           # mask | detect | off
+
+[upstreams.chat]
+base_url = "https://api.openai.com"
+key_env = "OPENAI_API_KEY"
+
+[upstreams.responses]
+base_url = "https://api.openai.com"
+key_env = "OPENAI_API_KEY"
+
+[upstreams.messages]
+base_url = "https://api.anthropic.com"
+key_env = "ANTHROPIC_API_KEY"

@@ -1,0 +1,19 @@
+# 게이트웨이 k8s 배포(D-121): kubectl apply -k deploy/k8s  (네임스페이스는 -n 으로)
+# secret.env가 없으면 실패한다 — secret.env.example을 복사해 채운다(커밋하지 않는다, .gitignore).
+# 생성되는 ConfigMap·Secret 이름에 내용 해시가 붙는다. 설정(gateway.toml)이나 키(secret.env)를 바꾸고 다시 apply하면 파드가 롤링 재시작된다 —
+# 게이트웨이는 설정을 다시 읽지 않으므로 재시작이 곧 적용이고, 나중에 다시 뜬 파드만 새 키를 받아 레플리카끼리 대체값 키가 섞이는 일이 없다.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gateway.yaml
+generatorOptions:            # 만든 ConfigMap·Secret에 붙인다 — 키 회전 뒤 남은 옛 것을 이 레이블로 찾아 지운다(docs/operations.md)
+  labels:
+    app.kubernetes.io/name: llm-security-gateway
+configMapGenerator:
+  - name: llm-security-gateway
+    files:
+      - gateway.toml
+secretGenerator:
+  - name: llm-security-gateway
+    envs:
+      - secret.env

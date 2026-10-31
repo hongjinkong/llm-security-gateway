@@ -1,4 +1,4 @@
-# D-108: 설치 → lint → 타입 검사(D-118) → 테스트, 그리고 이미지 빌드. 액션은 커밋 SHA로 고정한다(태그는 옮겨질 수 있다). 옆의 주석은 확인 당시의 태그다.
+# D-108: 설치 → lint → 타입 검사(D-118) → 테스트, 그리고 이미지 빌드와 배포 견본 검사(D-121). 액션은 커밋 SHA로 고정한다(태그는 옮겨질 수 있다). 옆의 주석은 확인 당시의 태그다.
 name: ci
 
 on:
@@ -36,3 +36,7 @@ jobs:
         with:
           persist-credentials: false
       - run: docker build -f gateway/Dockerfile .
+      # 배포 견본(D-121): compose 문법, kustomize 렌더(견본 비밀로), k8s 스키마(오프라인, --strict). 클러스터는 없다
+      - run: docker compose -f deploy/compose.yml config -q
+      - run: cp deploy/k8s/secret.env.example deploy/k8s/secret.env && kubectl kustomize deploy/k8s > rendered.yaml
+      - run: pipx run --spec kubernetes-validate==1.37.0 kubernetes-validate --strict rendered.yaml

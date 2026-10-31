@@ -5,6 +5,7 @@
 """
 import asyncio
 import json
+import os
 from collections import defaultdict
 
 from fastapi import FastAPI, Request
@@ -14,6 +15,10 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from gateway.detectors.patterns import find_all
 
 app = FastAPI(title="stub target")
+
+# D-122: 부하 측정용 지연 — 첫 바이트 전(POST)과 스트림 조각 사이(초). 환경변수가 없으면 0이라 테스트는 예전과 같다.
+DELAY = float(os.environ.get("STUB_DELAY_MS", "0")) / 1000
+CHUNK = float(os.environ.get("STUB_CHUNK_MS", "0")) / 1000
 
 # D-107 B: 게이트웨이는 토큰이 아니라 같은 모양의 대체값을 보낸다. "가려진 것을 봤다"는 **PII 모양의 값이 있는데 테스트의
 # 합성 원문이 아니다**로 판정한다. 테스트가 쓰는 합성 값의 조각 목록이다 — 새 값을 테스트에 들이면 여기에도 더한다.
@@ -53,6 +58,8 @@ def _port(request: Request) -> int:
 async def record_hits(request: Request, call_next):
     if not request.url.path.startswith("/__stub/"):
         HITS[_port(request)].append([request.method, request.url.path])
+    if DELAY and request.method == "POST":
+        await asyncio.sleep(DELAY)
     return await call_next(request)
 
 
@@ -146,7 +153,7 @@ async def openai_chat(request: Request):
                     yield chunk({"content": text[i:i + size]})
                 if tool and i < len(args):
                     yield chunk({"tool_calls": [{"index": 0, "function": {"arguments": args[i:i + size]}}]})
-                await asyncio.sleep(0)          # 조각마다 전송 기회를 준다 — 한 덩어리로 뭉치지 않게
+                await asyncio.sleep(CHUNK)          # 조각마다 전송 기회를 준다 — 한 덩어리로 뭉치지 않게
             yield chunk({}, "tool_calls" if tool else "stop")
             if isinstance(payload.get("stream_options"), dict) and payload["stream_options"].get("include_usage") is True:
                 # D-120: OpenAI처럼 usage만 담은 마지막 조각(choices는 빈 배열)
@@ -297,7 +304,7 @@ async def anthropic_messages(request: Request):
             for i in range(0, len(text), size):
                 yield _sse("content_block_delta", {"type": "content_block_delta", "index": t0,
                                                    "delta": {"type": "text_delta", "text": text[i:i + size]}})
-                await asyncio.sleep(0)
+                await asyncio.sleep(CHUNK)
             yield _sse("content_block_stop", {"type": "content_block_stop", "index": t0})
             if tool:
                 yield _sse("content_block_start", {"type": "content_block_start", "index": 1, "content_block": {
@@ -306,7 +313,7 @@ async def anthropic_messages(request: Request):
                 for i in range(0, len(partial), size):
                     yield _sse("content_block_delta", {"type": "content_block_delta", "index": 1,
                                                        "delta": {"type": "input_json_delta", "partial_json": partial[i:i + size]}})
-                    await asyncio.sleep(0)
+                    await asyncio.sleep(CHUNK)
                 yield _sse("content_block_stop", {"type": "content_block_stop", "index": 1})
             yield _sse("message_delta", {"type": "message_delta", "delta": {
                 "stop_reason": "tool_use" if tool else "end_turn", "stop_sequence": None}, "usage": {"output_tokens": 9}})
@@ -390,7 +397,7 @@ async def openai_responses(request: Request):
                      part={"type": "output_text", "text": "", "annotations": []})
             for i in range(0, len(text), size):
                 yield ev("response.output_text.delta", item_id="msg_stub", output_index=0, content_index=0, delta=text[i:i + size])
-                await asyncio.sleep(0)
+                await asyncio.sleep(CHUNK)
             yield ev("response.output_text.done", item_id="msg_stub", output_index=0, content_index=0, text=text)
             yield ev("response.content_part.done", item_id="msg_stub", output_index=0, content_index=0, part=message["content"][0])
             yield ev("response.output_item.done", output_index=0, item=message)
@@ -398,7 +405,7 @@ async def openai_responses(request: Request):
                 yield ev("response.output_item.added", output_index=1, item={**call, "arguments": "", "status": "in_progress"})
                 for i in range(0, len(args), size):
                     yield ev("response.function_call_arguments.delta", item_id="fc_stub", output_index=1, delta=args[i:i + size])
-                    await asyncio.sleep(0)
+                    await asyncio.sleep(CHUNK)
                 yield ev("response.function_call_arguments.done", item_id="fc_stub", output_index=1, arguments=args)
                 yield ev("response.output_item.done", output_index=1, item=call)
             yield ev("response.completed", response=response)

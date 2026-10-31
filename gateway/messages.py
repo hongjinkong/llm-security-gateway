@@ -14,10 +14,10 @@ CATALOG: dict[str, dict[str, str]] = {
     "redacted_turn": {"ko": "[보안 정책에 의해 가려진 이전 메시지]", "en": "[earlier message hidden by the security policy]"},
     # 기동 거부
     "no_client_keys": {
-        "ko": "GATEWAY_CLIENT_KEYS가 없다 — 클라이언트 키 없이는 기동하지 않는다(D-107 A). `python -m gateway keygen`으로 키를 만들어 넣거나, "
-              "로컬 실험이면 GATEWAY_AUTH=off를 명시한다",
-        "en": "GATEWAY_CLIENT_KEYS is empty — the gateway does not start without client keys. Create one with `python -m gateway keygen`, "
-              "or set GATEWAY_AUTH=off explicitly for a local experiment"},
+        "ko": "GATEWAY_CLIENT_KEYS가 없다(설정 파일 [[clients]]도 비었다) — 클라이언트 키 없이는 기동하지 않는다(D-107 A). "
+              "`python -m gateway keygen`(설정 파일이면 `--hash`)으로 키를 만들어 넣거나, 로컬 실험이면 GATEWAY_AUTH=off를 명시한다",
+        "en": "GATEWAY_CLIENT_KEYS is empty (and the config file has no [[clients]]) — the gateway does not start without client keys. "
+              "Create one with `python -m gateway keygen` (`--hash` for the config file), or set GATEWAY_AUTH=off explicitly for a local experiment"},
     "auth_off_with_key": {
         "ko": "GATEWAY_AUTH=off와 GATEWAY_UPSTREAM_KEY(또는 상류의 key_env)를 함께 쓸 수 없다 — 누구나 상류 키로 중계하게 된다(D-109)",
         "en": "GATEWAY_AUTH=off cannot be combined with GATEWAY_UPSTREAM_KEY (or an upstream key_env) — anyone could relay with the provider key"},
@@ -39,8 +39,8 @@ CATALOG: dict[str, dict[str, str]] = {
     "not_str": {"ko": "{where}: 문자열이어야 한다 — {value!r}", "en": "{where}: must be a string — {value!r}"},
     "not_strs": {"ko": "{where}: 문자열 목록이어야 한다 — {value!r}", "en": "{where}: must be a list of strings — {value!r}"},
     "upstream_api": {"ko": "{where}: [upstreams.{api}] — api는 {apis} 중 하나", "en": "{where}: [upstreams.{api}] — api must be one of {apis}"},
-    "key_env_missing": {"ko": "{where}: key_env {key_env}가 가리키는 환경변수가 없다",
-                        "en": "{where}: environment variable {key_env} named by key_env is not set"},
+    "key_env_missing": {"ko": "{where}: key_env {key_env}가 가리키는 환경변수가 없거나 비었다",
+                        "en": "{where}: environment variable {key_env} named by key_env is not set or empty"},
     "clients_array": {"ko": "{where}: clients는 [[clients]] 표의 배열이다", "en": "{where}: clients must be an array of [[clients]] tables"},
     "client_fields": {"ko": "{where} [[clients]] {n}번째: name과 key_sha256(소문자 16진 64자, `python -m gateway keygen --hash`)이 필요하다",
                       "en": "{where} [[clients]] #{n}: name and key_sha256 (64 lowercase hex chars, `python -m gateway keygen --hash`) are required"},

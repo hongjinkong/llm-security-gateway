@@ -1,0 +1,105 @@
+# 게이트웨이 Deployment·Service·PodDisruptionBudget(D-121). ConfigMap(gateway.toml)과 Secret(secret.env)은 kustomization.yaml이 만든다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-security-gateway
+  labels:
+    app.kubernetes.io/name: llm-security-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llm-security-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: llm-security-gateway
+    spec:
+      # preStop 5초(Service 엔드포인트에서 빠질 시간) + uvicorn 종료 유예 25초(진행 중인 스트림, Dockerfile CMD) + 여유 5초 —
+      # uvicorn이 25초에 남은 스트림을 끊은 뒤 상류를 닫고 감사 줄을 쓸 시간이다. 여유가 없으면 그 전에 SIGKILL이다
+      terminationGracePeriodSeconds: 35
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: llm-security-gateway
+      containers:
+        - name: gateway
+          # 20단계 릴리스가 올리는 주소다. 그 전에는 직접 빌드해 올린 이미지 주소로 바꾼다(docs/operations.md).
+          image: ghcr.io/hongjinkong/llm-security-gateway:0.1.0
+          # 워커는 1(WEB_CONCURRENCY 기본) — 지표·레이트리밋·볼트 상한이 프로세스 단위라 파드 수로 늘린다.
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: GATEWAY_CONFIG
+              value: /etc/llm-security-gateway/gateway.toml
+            # 쉬는 연결을 75초 붙잡는다(uvicorn 기본 5초) — 인그레스·LB의 유휴 시간(ingress-nginx·AWS ALB 60초)보다 짧으면
+            # LB가 게이트웨이가 막 닫은 연결로 POST를 보내 502가 난다. LB 없이 클라이언트를 직접 받으면 기본값이 낫다(D-122).
+            - name: UVICORN_TIMEOUT_KEEP_ALIVE
+              value: "75"
+          envFrom:
+            - secretRef:
+                name: llm-security-gateway
+          readinessProbe:
+            httpGet:
+              path: /__gateway/health
+              port: http
+            periodSeconds: 5
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          # 잠정값: 유휴 36MiB, 1MiB 요청 동시 50건에서 최대 256MiB(docs/operations.md '용량')
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/llm-security-gateway
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: llm-security-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-security-gateway
+  labels:
+    app.kubernetes.io/name: llm-security-gateway
+spec:
+  selector:
+    app.kubernetes.io/name: llm-security-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: llm-security-gateway
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llm-security-gateway

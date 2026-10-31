@@ -19,3 +19,6 @@ logs/
 
 # 연구 단계의 로컬 데이터(AnythingLLM 저장소 등). 추적하지 않는다 — 연구 기록은 research-final 태그에 있다
 target/
+
+# k8s 배포의 비밀 값(D-121) — 견본은 deploy/k8s/secret.env.example
+deploy/k8s/secret.env

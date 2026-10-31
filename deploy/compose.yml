@@ -1,0 +1,40 @@
+# 로컬 체험(D-121) — 게이트웨이 + 스텁 상류. 외부 공급자로는 아무것도 나가지 않는다.
+# 키는 체험용 고정값이다. 운영에 쓰지 않는다(포트도 127.0.0.1에만 연다). 운영 배포는 deploy/k8s/와 docs/operations.md.
+#
+#   docker compose -f deploy/compose.yml up --build
+#   curl -s http://127.0.0.1:8080/v1/chat/completions -H 'Authorization: Bearer test-key' -H 'Content-Type: application/json' \
+#     -d '{"model":"stub-model","messages":[{"role":"user","content":"제 번호는 010-2345-6789입니다"}]}'
+#   curl -s http://127.0.0.1:8000/__stub/received        # 상류(스텁)가 실제로 받은 것 — 가짜 번호
+#
+# 인젝션 차단까지 보려면 GATEWAY_INJECTION=block, 호스트 포트가 겹치면 HOST_PORT=18080 STUB_HOST_PORT=18000을 앞에 붙인다.
+name: llm-security-gateway
+
+services:
+  gateway:
+    build:
+      context: ..
+      dockerfile: gateway/Dockerfile
+    image: llm-security-gateway:local
+    read_only: true
+    environment:
+      TARGET_URL: http://stub:8000
+      GATEWAY_CLIENT_KEYS: local=test-key
+      GATEWAY_SURROGATE_KEY: local-trial-surrogate-key-not-a-secret
+      GATEWAY_ADMIN_KEY: local-admin-key
+      GATEWAY_INJECTION: ${GATEWAY_INJECTION:-observe}
+    ports:
+      - "127.0.0.1:${HOST_PORT:-8080}:8080"
+    depends_on:
+      - stub
+
+  # 스텁은 게이트웨이 이미지(fastapi·uvicorn·탐지 패턴이 있다)에 tests/stub_target.py 하나를 얹어 띄운다
+  stub:
+    image: llm-security-gateway:local
+    read_only: true
+    command: ["uvicorn", "stub_target:app", "--app-dir", "/stub", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+    volumes:
+      - ../tests/stub_target.py:/stub/stub_target.py:ro
+    ports:
+      - "127.0.0.1:${STUB_HOST_PORT:-8000}:8000"
+    healthcheck:
+      disable: true

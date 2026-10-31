@@ -2,6 +2,7 @@
 
 ## 미출시
 
+- 쉽게 읽는 제품 설명서(`docs/overview/LLM보안게이트웨이_제품설명서.pdf`, 원본 `overview.html`): 앱·웹이 아닌 자체 설치형 서버라는 점, 지켜 주는 범위, 구조·요청 흐름 그림, 시나리오 6개와 오류 표, 화면 A~E(비교 데모·대시보드 예시·감사 줄·설정 파일), 도입 4단계, 한계, 숫자, 진행 상황과 v1.0 모습, FAQ·용어 풀이
 - 실 공급자 2턴 확인(D-114): Claude(`claude-haiku-5-5`) 앞에서 둘째 턴이 thinking 서명 검사 400 없이 프롬프트 캐시를 읽었다 — 요청마다 난수였던 옛 코드는 5/5가 400
   (`docs/verification/multiturn_claude.md`, `scripts/check_multiturn_claude.py`)
 - PII 평가 코퍼스와 CI 게이트(D-115): 합성 양성 500·음성 1,000·어려운 사례(`eval/pii/`), 종류별 재현율·오탐률과 Wilson 구간(`score.py`), `tests/test_pii_corpus.py`
@@ -19,6 +20,23 @@
 - 관측(D-120): 감사 줄에 `model`·`usage`(입력·출력·캐시 토큰, 스트리밍 포함 — Chat 스트림은 `include_usage`를 넣어 받고 클라이언트가 요청하지 않았으면 그 조각을 뺀다),
   응답에 새로 나온 PII 수 `pii_new`·`gateway_pii_new_total`(가리지 않음), 상류 요청 헤더 `x-gateway-request-id`. 문구 카탈로그 `GATEWAY_LANG=ko|en`
   (차단 문구·가린 이력 자리표시·기동 거부·설정 오류)
+- 배포·문서(D-121): `deploy/compose.yml`(로컬 체험 — 게이트웨이 + 스텁 상류), `deploy/k8s/`(kustomize — Deployment 레플리카 2·Service·PodDisruptionBudget,
+  설정 파일 ConfigMap·키 Secret 생성기라 바꾸고 apply하면 롤링 재시작, Pod Security `restricted`), 문서 `docs/configuration.md`·`docs/operations.md`(키 회전·로그·지표·용량)·
+  `docs/api-compat.md`·`SECURITY.md`·`README.en.md`, 문서와 코드의 환경변수·설정 키를 맞추는 테스트, CI에 배포 견본 검사(compose 문법·kustomize 렌더·k8s 스키마).
+  **바뀐 동작**: 설정 파일 `key_env`가 가리키는 환경변수가 비어 있어도 기동 실패(예전에는 키 없이 보내 요청마다 상류 401). README의 설정 표는 `docs/configuration.md`로 옮겼다
+- 부하·안정성(D-122): `scripts/load.py`(지연을 넣은 스텁 앞에서 스트리밍·비스트리밍 동시 부하 — 지연 백분위·복원·교차 누출·RSS·열린 파일·대체값 세션), 지표 `gateway_vault_sessions`.
+  **상류 연결 풀 교체**: httpx 클라이언트 하나를 함께 쓰던 것을 연결 하나짜리 클라이언트를 빌려 쓰는 풀로 바꿨다 — httpcore 1.0.9가 동시 요청을 같은 유휴 연결에 겹쳐
+  배정해, 동시 100(스트림 50 + 비스트리밍 50)에서 초당 60건에 머물고 p95가 4초를 넘었다. 이제 초당 223건이고 게이트웨이 경유 지연이 스텁 직접과 같다.
+  상류의 쉬는 연결은 4초 뒤 버린다(상류 서버 keep-alive 5초와의 경합 502). 풀이 찬 503의 감사 `error`는 `PoolTimeout` 대신 `upstream_busy`.
+  k8s 견본은 `UVICORN_TIMEOUT_KEEP_ALIVE=75`(인그레스·LB 유휴 시간보다 길게)
+- 리뷰 수정(D-122 §6, 다차원 리뷰 + 반박 검증 35건): 상류 연결 풀이 요청을 만들다 실패해도(한국어 User-Agent 등) 연결을 돌려준다 — 돌려주지 않아 연결 100개를 잃으면
+  모든 요청이 503이었다. 요청·응답 헤더는 받은 바이트 그대로 넘긴다(비ASCII 값이 500이던 것). 풀은 먼저 온 요청부터 받고, 첫 연결은 기동 때 만든다(클라이언트 생성 오류는 기동 실패).
+  클라이언트가 끊은 스트림은 감사 `error: ClientDisconnect`(예전에는 정상 200처럼 남았다), 끊김·취소 중에도 상류 닫기·대체값 세션 해제·감사 한 줄을 끝까지 한다.
+  본문 상한 413의 감사 `error: request_too_large`, `/v1/messages`의 500은 Anthropic 형식, 키 값의 앞뒤 공백을 뗀다. 지표 `gateway_vault_sessions{policy}`(정책마다)·
+  `gateway_upstream_connections_in_use{upstream}`. k8s 종료 유예 35초(여유 5초), 만든 ConfigMap·Secret에 레이블(키 회전 뒤 옛 Secret 정리)
+- 인젝션 평가셋 v1(D-123): `eval/injection/` — 공개 데이터셋 13개(한국어 5)·한국어 업무 문장과 하드 네거티브 717(에이전트 작성, 두 검증자 확인)·기존 한국어 코퍼스와 결정적 변형으로
+  6,871행(dev 5,492·봉인 홀드아웃 1,379 — 같은 원문의 번역·합성·팀까지 한 그룹으로 나눔). `build.py`(고정 리비전, 결정적, 바이트 재현), `score.py`(재현율·오탐률·Wilson 95%·recall@FPR,
+  언어·유형·출처별), `SOURCES.md`(출처·라이선스·고지). 지금 룰의 기준선: 재현율 8.7%(한국어 5.9%), 오탐률 2.7% — README '막지 못하는 것'에 적었다
 
 ## 0.1.0 — 2026-10-30
 

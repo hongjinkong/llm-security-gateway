@@ -19,7 +19,7 @@ from gateway.streaming import ref
 
 PATH = "/v1/messages"
 ERROR_TYPES = {400: "invalid_request_error", 401: "authentication_error", 413: "invalid_request_error",
-               429: "rate_limit_error", 502: "api_error", 504: "api_error"}
+               429: "rate_limit_error", 500: "api_error", 502: "api_error", 504: "api_error"}
 
 
 def anthropic_error(status: int, message: str, type_: str | None = None) -> JSONResponse:

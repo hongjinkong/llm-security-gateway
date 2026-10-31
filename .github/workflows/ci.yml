@@ -27,7 +27,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check .
       - run: mypy
-      - run: pytest -q
+      - run: pytest -q -rs   # 건너뛴 테스트의 사유를 찍는다(W7의 화면 확인 — Chrome을 띄우지 못하면 건너뜀, D-124)
 
   docker:
     runs-on: ubuntu-24.04

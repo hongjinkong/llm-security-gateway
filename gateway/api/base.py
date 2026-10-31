@@ -69,14 +69,19 @@ class Adapter:
 
     def serialize(self, payload: dict) -> bytes:
         import json
-        return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        try:
+            return json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        except UnicodeEncodeError:      # 짝 없는 서로게이트(D-124) — UTF-8로 못 쓴다. JSON 이스케이프(\ud800)로 쓰면 클라이언트가 보낸 뜻 그대로다
+            return json.dumps(payload).encode("ascii")
 
     def wants_stream(self, payload: dict) -> bool:
         return payload.get("stream") is True
 
     def model(self, payload: dict) -> str:
+        """클라이언트가 보낸 model. 짝 없는 서로게이트(JSON `"\\ud800"`)는 '?'로 바꾼다(D-124) — 그대로 두면 감사 줄·차단 응답·stats가
+        UTF-8로 못 바꿔 실패한다(감사 줄이 사라지고 stats가 500). 상류로 가는 본문은 그대로다."""
         m = payload.get("model")
-        return m if isinstance(m, str) else "gateway"
+        return m.encode("utf-8", "replace").decode() if isinstance(m, str) else "gateway"
 
     def upstream_path(self) -> str:
         return self.path

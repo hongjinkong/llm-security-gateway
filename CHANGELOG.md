@@ -37,6 +37,21 @@
 - 인젝션 평가셋 v1(D-123): `eval/injection/` — 공개 데이터셋 13개(한국어 5)·한국어 업무 문장과 하드 네거티브 717(에이전트 작성, 두 검증자 확인)·기존 한국어 코퍼스와 결정적 변형으로
   6,871행(dev 5,492·봉인 홀드아웃 1,379 — 같은 원문의 번역·합성·팀까지 한 그룹으로 나눔). `build.py`(고정 리비전, 결정적, 바이트 재현), `score.py`(재현율·오탐률·Wilson 95%·recall@FPR,
   언어·유형·출처별), `SOURCES.md`(출처·라이선스·고지). 지금 룰의 기준선: 재현율 8.7%(한국어 5.9%), 오탐률 2.7% — README '막지 못하는 것'에 적었다
+- 운영 대시보드(D-124): `GET /__gateway/dashboard` — 요청마다 가림·차단·거절 결과와 사유, 타일 8개, 종류별 가린 수, 최근 200줄을 2초마다 보여 주는 읽기 전용 화면
+  (한 파일, 외부 자원 없음, CSP 해시). 관리 키가 설정된 게이트웨이에만 있고, 키는 탭의 `sessionStorage`에만 둔다. 데이터는 `GET /__gateway/stats`(관리 키 —
+  형식이 바뀔 수 있으니 수집은 metrics로). `scripts/traffic.py`(합성 시험 트래픽 16장면을 보내고 대시보드의 줄과 대조), 지표 `gateway_outcomes_total{outcome,reason}`·
+  `gateway_pii_unmasked_total{kind}`. `scripts/load.py`·`web/app.py`가 기동 때 대시보드 주소와 관리 키를 찍는다.
+  **바뀐 점**: `gateway_pii_masked_total`은 실제로 가린 것만 센다 — detect 정책의 찾은 수가 빠진다(그 수는 `gateway_pii_unmasked_total`).
+  감사 `error`가 파싱 400(`invalid_json`·`invalid_messages`·`invalid_request`·`invalid_stream`)과 허용 목록 밖 404·405(`not_found`)에도 붙는다.
+  스트림 도중 AI 회사가 보낸 오류 이벤트는 감사 `error: upstream_stream_error`(예전에는 정상 200처럼 남았다).
+  Responses 스트림의 감사 `pii_restored`·`gateway_pii_restored_total`은 복원한 자리마다 한 번 센다 — 전에는 조각·`*.done`·`response.completed`에서
+  되풀이해 최대 5배로 셌다(이제 비스트리밍과 같은 수다). 인증 실패(401) 감사 줄의 `policy`는 null(전에는 `default`, 인증을 끈 게이트웨이의 줄은 그대로 `default`).
+  `gateway_upstream_connections_in_use`는 주소가 같고 `timeout`이 다른 풀이 있으면 합이 아니라 가장 바쁜 풀의 값이다(상한이 풀마다 따로다).
+  **보안**: FastAPI 기본 문서 경로(`/docs`·`/redoc`·`/openapi.json`·`/docs/oauth2-redirect`)를 없앴다 — 인증 없이 200이었고, `/docs`는 CDN 스크립트를 읽고
+  `/openapi.json`은 관리 경로까지 나열했다(D-109 허용 목록 위반). 끝에 `/`가 붙은 경로(`/v1/chat/completions/` 등)는 307 리다이렉트(Location은 요청의 Host로 만든다)
+  대신 404다. `model`에 짝 없는 서로게이트(`\ud800` 같은 JSON 이스케이프)를 넣은 요청은 감사 줄 없이 처리됐다(D-120부터) — 이제 감사 줄이 남는다.
+  그 줄이 최근 200줄에 있는 동안 `/__gateway/stats`가 500이던 것,
+  본문 어디든 짝 없는 서로게이트가 있으면 본문을 다시 쓰는 요청(가림·Chat 스트림)과 차단 응답이 500이던 것도 고쳤다(JSON 이스케이프로 보낸다)
 
 ## 0.1.0 — 2026-10-30
 

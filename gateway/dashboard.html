@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Security Gateway — 운영 대시보드</title>
+<link rel="icon" href="data:,">
+<style>
+:root { color-scheme: light dark; --bg: #f4f5f7; --card: #fff; --fg: #1f2937; --mute: #5d6470; --line: #e2e5e9; --soft: #f1f3f5;
+  --ink: #1e3a8a; --bar: #3b6fd8; --good: #0f766e; --warn: #a84b06; --bad: #b91c1c;
+  font: 14px/1.45 system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; }
+.o-masked { --c: #1d4ed8; } .o-passed { --c: #4b5563; } .o-observed { --c: #8a5300; } .o-blocked { --c: #b91c1c; }
+.o-rejected { --c: #a8360a; } .o-upstream_error { --c: #6d28d9; } .o-failed { --c: #9d174d; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111318; --card: #1a1d24; --fg: #e4e6eb; --mute: #9aa1ad; --line: #2c313b; --soft: #232731;
+    --ink: #a9c4ff; --bar: #6c9cff; --good: #4fd1c5; --warn: #f0b04a; --bad: #f87171; }
+  .o-masked { --c: #8fb4ff; } .o-passed { --c: #b4bac4; } .o-observed { --c: #f2c14e; } .o-blocked { --c: #ff8a8a; }
+  .o-rejected { --c: #ffa868; } .o-upstream_error { --c: #c4a5ff; } .o-failed { --c: #ff8fc8; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; padding: 14px 16px; background: var(--bg); color: var(--fg); word-break: keep-all; }
+h1 { font-size: 18px; margin: 0; }
+h2 { font-size: 14px; margin: 0 0 8px; }
+p { margin: 0; }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.mute, h2 .mute { color: var(--mute); font-weight: 400; }
+button, input, select { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; }
+button { cursor: pointer; } button:hover { border-color: var(--mute); }
+:focus-visible { outline: 2px solid var(--bar); outline-offset: 1px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0 0 10px; }
+.head .top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.head .top .sp { flex: 1; } body:has(#main[hidden]) :is(#pause, #lock) { display: none; }
+.tag, .pill { border: 1px solid var(--line); border-radius: 10px; padding: 0 8px; font-size: 13px; color: var(--mute); }
+.pill.good { color: var(--good); border-color: var(--good); } .pill.bad { color: var(--bad); border-color: var(--bad); }
+.pill.warn { color: var(--warn); border-color: var(--warn); }
+.band { border: 1px solid; border-radius: 6px; padding: 6px 10px; margin: 0 0 10px; } .band:empty { margin: 0; padding: 0; border: 0; }
+.band.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, var(--card)); }
+.band.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--card)); }
+#key { max-width: 640px; } #key p { margin: 0 0 8px; } #kin { width: 280px; }
+.msg { color: var(--bad); margin-top: 8px !important; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0 0 10px; }
+.tile { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.tile .tt { color: var(--mute); font-size: 13px; } .tile .ts { color: var(--mute); font-size: 12px; }
+.tile .tv { font-size: 26px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.tile.good { border-left-color: var(--good); } .tile.good .tv { color: var(--good); }
+.tile.warn { border-left-color: var(--warn); } .tile.warn .tv, .tile.warn .ts { color: var(--warn); }
+.row2 { display: grid; grid-template-columns: 3fr 7fr; gap: 10px; }
+.badge { display: inline-block; color: var(--c); background: color-mix(in srgb, var(--c) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); border-radius: 4px; padding: 0 6px; font-size: 13px; white-space: nowrap; }
+#outs { display: grid; gap: 4px; }
+.out { display: grid; grid-template-columns: 118px 1fr auto; align-items: center; gap: 8px; text-align: left; padding: 3px 8px; }
+.out code { color: var(--mute); } .out b { font-variant-numeric: tabular-nums; }
+.out[aria-pressed="true"] { border-color: var(--c); box-shadow: inset 3px 0 0 var(--c); }
+.reasons { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+.reasons li { display: grid; grid-template-columns: 40px auto 1fr; align-items: center; gap: 6px; min-width: 0; }
+.reasons b { text-align: right; font-variant-numeric: tabular-nums; } .reasons code { color: var(--mute); } .reasons li.mute { display: block; grid-column: 1 / -1; }
+.kinds { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 4px 24px; }
+.kind { display: grid; grid-template-columns: 104px 72px 1fr 44px; align-items: center; gap: 6px; }
+.kind code { color: var(--mute); } .kind b { text-align: right; font-variant-numeric: tabular-nums; }
+.kind.zero { color: var(--mute); } .kind.zero b { font-weight: 400; }
+.track { height: 9px; background: var(--soft); border-radius: 3px; overflow: hidden; }
+.bar { display: block; height: 100%; background: var(--bar); border-radius: 3px; }
+#unmasked { margin-top: 8px; }
+.tbar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; } .tbar h2 { margin: 0; flex: 1; }
+#find { width: 220px; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--mute); font-weight: 600; font-size: 13px; white-space: nowrap; }
+td { white-space: nowrap; } td.how { white-space: normal; width: 100%; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.model, td.who { max-width: min(200px, 16vw); overflow: hidden; text-overflow: ellipsis; }
+tr[data-rid] { cursor: pointer; } tr[data-rid]:hover, tr:has(.rid[aria-expanded="true"]) { background: var(--soft); }
+.rid { border: 0; padding: 0; background: none; white-space: nowrap; } .rid::before { content: "▸ "; } .rid[aria-expanded="true"]::before { content: "▾ "; }
+.flag { display: inline-block; border: 1px solid var(--mute); color: var(--mute); border-radius: 4px; padding: 0 4px; font-size: 12.5px; }
+.flag.warn { border-color: var(--warn); color: var(--warn); font-weight: 600; }
+tr.detail td { background: var(--soft); white-space: normal; }
+pre { margin: 0 0 6px; font-size: 12.5px; white-space: pre-wrap; max-height: 360px; overflow: auto; }
+footer { color: var(--mute); font-size: 13px; line-height: 1.6; margin-top: 4px; }
+</style>
+</head>
+<body>
+<header class="card head">
+  <div class="top"><h1>LLM 보안 게이트웨이 · 운영 대시보드</h1><span class="tag">읽기 전용</span><span id="state" class="pill">불러오는 중</span>
+    <span class="sp"></span><button id="pause" type="button">멈춤</button><button id="lock" type="button">잠금(키 지우기)</button></div>
+  <p id="proc"></p>
+  <p id="meta" class="mute"></p>
+</header>
+<p id="nojs" class="band bad">이 화면은 스크립트가 필요합니다 — 브라우저의 스크립트를 켜고 다시 여세요.</p>
+<p id="restart" class="band warn" role="status"></p>
+<p id="conn" class="band bad" role="status"></p>
+<section id="key" class="card" hidden>
+  <h2>관리 키</h2>
+  <p>게이트웨이의 관리 키(<code>GATEWAY_ADMIN_KEY</code>)를 넣는다. 이 탭에만 둔다(sessionStorage) — 탭을 닫으면 지워진다.
+    키는 주소·쿠키에 싣지 않고 요청 머리(<code>Authorization: Bearer</code>)로만 보낸다.</p>
+  <label for="kin">관리 키</label> <input id="kin" type="password" autocomplete="one-time-code" spellcheck="false">
+  <button id="kopen" type="button">열기</button>
+  <p id="kmsg" class="msg" role="alert"></p>
+</section>
+<main id="main" hidden>
+  <section id="tiles" class="tiles" aria-label="시작 이후 누적"></section>
+  <div class="row2">
+    <section class="card"><h2>처리 결과 <span class="mute">시작 이후 · 누르면 아래 표를 그 결과로 거른다</span></h2><div id="outs"></div></section>
+    <section class="card"><h2>사유별 건수 <span class="mute">많은 순</span></h2><ul id="reasons" class="reasons"></ul></section>
+  </div>
+  <section class="card"><h2>종류별 가린 개수 <span class="mute">가짜 값으로 바꾼 수 · 많은 순</span></h2>
+    <div id="kinds" class="kinds"></div><p id="unmasked" class="mute"></p></section>
+  <section class="card">
+    <div class="tbar"><h2>최근 요청 — 어떻게 처리했나 <span class="mute">최신이 위 · 최대 200줄 · 줄을 누르면 상세</span></h2>
+      <label>결과 <select id="filter"><option value="">전체</option></select></label>
+      <input id="find" type="search" placeholder="요청 ID·클라이언트 앞부분" aria-label="요청 ID나 클라이언트 앞부분으로 찾기">
+      <button id="freeze" type="button">표 멈춤</button><span id="shown" class="mute"></span></div>
+    <table>
+      <thead><tr><th scope="col">시각</th><th scope="col">요청 ID</th><th scope="col">클라이언트 · 정책</th><th scope="col">API · 모델</th>
+        <th scope="col">결과</th><th scope="col">어떻게 처리했나</th><th scope="col">복원</th><th scope="col">HTTP</th><th scope="col">게이트웨이 ms</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+</main>
+<footer>이 화면의 숫자는 이 프로세스 하나의 것이다 — 여러 대면 각자 따로 센다. 합산·보관은 Prometheus(<code>/__gateway/metrics</code>)·감사 로그가 맡는다.
+  스트리밍 응답은 스트림이 끝나야 줄이 생긴다. 이 화면으로 설정을 바꿀 수 없다(읽기 전용). 원문·가짜 값·IP는 화면에도 데이터에도 없다.</footer>
+<script>
+"use strict";
+// D-124 운영 대시보드 — 보기만 한다. 값은 createElement·textContent로만 넣는다(CSP 해시 + Trusted Types 아래에서 돈다).
+const K = "gw-admin-key";   // sessionStorage 이름 — scripts/traffic.py가 같은 이름으로 키를 넣는다
+const OUT = {masked: "가림 후 전달", passed: "그대로 전달", observed: "기록만", blocked: "차단", rejected: "거절",
+  upstream_error: "AI 회사 오류", failed: "오류·끊김"};
+const KIND = {rrn: "주민등록번호", frn: "외국인등록번호", passport: "여권번호", driver: "운전면허번호", card: "카드번호", phone: "전화번호",
+  email: "이메일", secret: "자격 증명", brn: "사업자등록번호", crn: "법인등록번호", account: "계좌번호", ipv4: "IP 주소"};
+const RULE = {R1: "지시 무효화", R2: "역할 전환·제약 해제"};
+const REASON = {unauthorized: "키 없음·틀림", rate_limited: "분당 한도", request_too_large: "본문 상한",
+  too_many_findings: "개인정보가 너무 많음", model_not_allowed: "허용 안 된 모델", not_found: "허용 목록 밖 경로",
+  gateway_busy: "게이트웨이 바쁨", upstream_busy: "AI 연결 가득", response_too_large: "AI 응답이 너무 큼", upstream_stream_error: "AI 회사가 스트림 도중 오류를 보냄",
+  ClientDisconnect: "클라이언트가 끊음", CancelledError: "처리 중 취소됨", injection_rule_turn: "이번 턴의 수상한 지시",
+  pii_mask: "개인정보를 가짜 값으로 바꿈", masked_turns: "이력의 수상한 턴을 가림", injection_observe: "수상한 지시 — 기록만",
+  unmasked: "가리지 않는 개인정보 — 기록만", none: "해당 없음"};
+const TIMEOUTS = ["ConnectTimeout", "ReadTimeout", "WriteTimeout", "PoolTimeout"];
+const GONE = Symbol("gone");
+const $ = id => document.getElementById(id);
+let key = sessionStorage.getItem(K), info = null, last = null, base = null, rows = [], sig = "", filter = "", open = null;
+let paused = false, frozen = false, busy = false, timer = 0;
+
+function el(tag, cls, ...kids) { const e = document.createElement(tag); if (cls) e.className = cls; e.append(...kids); return e; }
+const set = (n, t) => { if (n.textContent !== t) n.textContent = t; };   // 바뀐 글자만 쓴다 — 같은 글자라도 다시 쓰면 고르던 글자가 풀린다
+const drawn = {}, draw = (id, data, make) => { const k = JSON.stringify(data); if (drawn[id] !== k) { drawn[id] = k; $(id).replaceChildren(...make()); } };   // 같은 데이터면 그대로
+const pad = n => String(n).padStart(2, "0");
+const hms = ts => { const d = new Date(ts); return isNaN(d) ? "—" : `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const day = ts => { const d = new Date(ts); return d.toDateString() === new Date().toDateString() ? "" : `${pad(d.getMonth() + 1)}-${pad(d.getDate())} `; };
+const num = n => Number(n || 0).toLocaleString("ko-KR");
+const fmt = x => x >= 10 ? Math.round(x).toLocaleString("ko-KR") : x.toFixed(1);
+const sum = o => Object.values(o || {}).reduce((a, b) => a + b, 0);
+const ranked = o => Object.entries(o || {}).sort((a, b) => b[1] - a[1]);
+const kinds = o => ranked(o).map(([k, n]) => `${KIND[k] || k} ${n}`).join(" · ");
+const rname = h => `${h.rule} ${RULE[h.rule] || ""}`.trim();
+const josa = code => "2459".includes(String(code).slice(-1)) ? "를" : "을";   // 429를 · 401을
+
+function reasonLabel(o, r) {
+  if (REASON[r]) return REASON[r];
+  if (r.startsWith("invalid_")) return "요청 형식 오류";
+  if (r.startsWith("upstream_")) return "AI 회사가 준 오류 그대로 전달";
+  if (r.startsWith("http_")) return "게이트웨이가 거절";
+  if (o === "upstream_error") return TIMEOUTS.includes(r) ? "AI 응답 시간 초과" : "AI 회사 연결 실패·끊김";
+  if (o === "failed") return "게이트웨이 내부 오류";
+  return r;   // 그 밖의 차단·변환 검사기는 이름 그대로
+}
+
+// '어떻게 처리했나' — D-124 §2-7 문장 규칙. '상류 호출 없음'은 blocked·rejected 줄에만 붙는다(upstream_ms가 늘 null).
+function how(r) {
+  const rs = String(r.reason), st = r.status, rules = r.rules || [], um = kinds(r.unmasked), tail = um ? ` · 기록만: ${um}` : "";
+  const codes = [...new Set(rules.map(h => h.rule))].join(" · "), named = [...new Set(rules.map(rname))].join(" · ");
+  const turns = r.masked_turns ? `이력 ${r.masked_turns}턴 가림` + (named ? `(${named})` : "") : "";
+  const at = st === 200 ? `스트림 도중, ${rs}` : `${st} ${rs}`;
+  switch (r.outcome) {
+    case "masked":   // 가리지 않고 나간 종류(감사만)는 어느 문장에나 '기록만' 꼬리로 붙는다
+      if (rs === "masked_turns") return `${turns} — 이번 턴은 그대로 보냄` + tail;
+      if (rs !== "pii_mask") return `${rs} 검사기가 요청을 고쳐 보냄` + tail;
+      return `가짜 값으로 바꿔 보냄 — ${kinds(r.masked)} → ${r.restored}개 되돌림` + tail +
+        (turns ? ` · ${turns}` : codes ? ` · 인젝션 룰 ${codes} 적중(기록만)` : "");
+    case "blocked":
+      if (!rs.startsWith("injection")) return `${rs} 차단 — 상류 호출 없음`;
+      return `인젝션 룰 ${rules.map(h => `${rname(h)}(${h.object ? `${h.trigger} + ${h.object}` : h.trigger})`).join(" · ") || "적중"} — 이번 턴 차단, 상류 호출 없음`;
+    case "observed":
+      if (rs !== "injection_observe") return `${um} 찾음 — 가리지 않음(원래 값이 나감, 기록만)`;
+      return `인젝션 룰 ${codes} 적중 — 기록만(차단 꺼짐), 그대로 보냄` + tail;
+    case "rejected":
+      return `${reasonLabel("rejected", rs)}(${st} ${rs}) — 상류 호출 없음`;
+    case "upstream_error":
+      if (/^upstream_\d+$/.test(rs)) return `AI 회사가 ${rs.slice(9)}${josa(rs)} 줌 — 그대로 전달`;
+      if (rs === "upstream_stream_error") return `${REASON[rs]} — 그대로 전달(${st} ${rs})`;   // 200 뒤 스트림 안의 오류 이벤트 — 클라이언트도 그 이벤트를 받았다
+      return `${reasonLabel("upstream_error", rs)}(${at})`;
+    case "failed":   // 끊김은 상태로 가른다 — 200이면 응답(스트림) 도중, 아니면 응답 전(본문을 올리다 끊음 등)
+      if (rs === "ClientDisconnect" || rs === "CancelledError") return st === 200 ? `응답 도중 끊김(${rs})` : `${REASON[rs]}(${st} ${rs})`;
+      return `게이트웨이 내부 오류(${at})`;
+    default:
+      return "그대로 보냄 — 찾은 것 없음";
+  }
+}
+
+const tile = (title, value, sub, cls) => [title, value, sub, cls || ""];
+function tiles(s, prev) {   // prev(base)가 없으면(처음·재시작·멈춤·숨김·끊김 뒤) '지금 초당'은 — — 그 공백 전체의 평균을 '지금'으로 보이지 않게
+  const mins = Math.max(Date.parse(s.now) - Date.parse(s.started), 1000) / 60000;   // 실제 경과(1초 하한) — 첫 1분에도 분당 속도다
+  const dt = prev ? (Date.parse(s.now) - Date.parse(prev.now)) / 1000 : 0;
+  const rate = dt > 0 ? ((s.requests - prev.requests) / dt).toFixed(1) : "—";
+  const m = sum(s.masked), inj = s.injection || {}, busiest = Math.max(0, ...Object.values(s.upstreams || {}));
+  const share = ranked(s.masked).slice(0, 3).map(([k, n]) => `${KIND[k] || k} ${Math.round(n / m * 100)}%`).join(" · ");
+  const e5 = Object.entries(s.status || {}).reduce((a, [c, n]) => a + (c.startsWith("5") ? n : 0), 0);
+  const t = [
+    tile("요청 수", num(s.requests), `시작 이후 · 분당 평균 ${fmt(s.requests / mins)} · 지금 초당 ${rate}`),
+    tile("가린 개인정보", num(m), `${share || "아직 없음"} · 기록만 ${num(sum(s.unmasked))}`),
+    s.suspect ? tile("복원 실패 의심", num(s.suspect), "확인 필요 — 표의 '의심' 배지 줄", "warn")
+      : tile("복원 실패 의심", "0", "0이 아니면 바로 확인", "good"),
+    tile("응답에 새로 나온 개인정보", num(s.new), "AI가 스스로 쓴 값 — 가리지 않음(기록만)", s.new ? "warn" : ""),
+    tile("수상한 지시 기록", num((inj.observe || 0) + (inj.block || 0)), `기록만 ${num(inj.observe)} · 차단·이력 가림 ${num(inj.block)}`),
+    tile("게이트웨이 처리 시간", s.gateway_ms_avg == null ? "—" : `${s.gateway_ms_avg}ms`,
+      "평균, AI 응답 시간 빼고" + (s.upstream_ms_avg == null ? "" : ` · AI 응답 평균 ${fmt(s.upstream_ms_avg)}ms`)),
+    tile("사용 중 AI 연결", `${busiest} / ${s.max_connections}`, `가장 바쁜 상류 · 진행 중 대체값 세션 ${num(sum(s.vault_sessions))}`,
+      busiest >= s.max_connections ? "warn" : ""),
+    tile("오류(5xx) 비율", s.requests ? `${(e5 / s.requests * 100).toFixed(1)}%` : "—", `5xx ${num(e5)}건 · AI 회사 장애도 여기 보임`,
+      e5 ? "warn" : "good")];
+  const box = $("tiles");   // 타일은 한 번 만들고 바뀐 글자만 쓴다 — 고른 숫자가 갱신마다 풀리지 않게
+  if (!box.children.length) box.append(...t.map(() => el("div", "tile", el("div", "tt"), el("div", "tv"), el("div", "ts"))));
+  t.forEach(([title, value, sub, cls], i) => { const d = box.children[i]; d.className = "tile " + cls; [title, value, sub].forEach((x, j) => set(d.children[j], x)); });
+}
+
+function render(s, moved) {
+  tiles(s, moved ? null : base);
+  base = last = s;
+  set($("proc"), `시작 ${day(s.started)}${hms(s.started)} 이후(pid ${s.pid}) — 다시 시작하면 0 · 마지막 갱신 ${hms(s.now)}`);
+  for (const b of $("outs").children) set(b.lastChild, num((s.outcomes || {})[b.dataset.o]));
+  const list = s.reasons || [];   // 사유는 모두 보인다 — 건수가 적은 내부 오류·바쁨 사유일수록 진단에 필요하다
+  draw("reasons", list, () => list.length ? list.map(x => el("li", "o-" + x.outcome, el("b", null, num(x.count)),
+    el("span", "badge", OUT[x.outcome] || x.outcome), el("span", null, reasonLabel(x.outcome, x.reason) + " ", el("code", null, x.reason))))
+    : [el("li", "mute", "아직 요청이 없다")]);
+  const masked = s.masked || {}, top = Math.max(1, ...Object.values(masked));
+  const all = [...Object.keys(KIND), ...Object.keys(masked).filter(k => !KIND[k])].map(k => [k, masked[k] || 0]);
+  draw("kinds", masked, () => all.sort((a, b) => b[1] - a[1]).map(([k, n]) => {
+    const bar = el("span", "bar");
+    bar.style.width = `${n / top * 100}%`;   // CSSOM — style 속성이 아니라 CSP가 막지 않는다
+    return el("div", n ? "kind" : "kind zero", el("span", null, KIND[k] || k), el("code", null, k), el("span", "track", bar), el("b", null, num(n)));
+  }));
+  set($("unmasked"), `기록만(찾았지만 가리지 않음): ${kinds(s.unmasked) || "없음"}`);
+  const recent = s.recent || [], mark = `${s.started}|${s.pid}|${recent.length}|${recent[0]?.request_id}`;
+  if (!frozen && sig !== mark) { rows = recent; sig = mark; table(); }   // 새 줄이 왔을 때만 표를 맞춘다
+  $("key").hidden = true; $("main").hidden = false;
+}
+
+function restore(r) {
+  const td = el("td", null, r.issued ? `${r.restored}/${r.issued}` : "—");
+  if (r.suspect > 0) td.append(" ", el("span", "flag warn", `의심 ${r.suspect}`));
+  if (r.new > 0) td.append(" ", el("span", "flag", `새 값 ${r.new}`));
+  return td;
+}
+
+function line(r) {   // 줄 하나 — 처음 볼 때만 만든다. 시각 단추가 상세를 여닫는다(키보드로도). 요청 ID는 글자로 둬 복사할 수 있게
+  const who = el("td", "who", `${r.client ?? "—"} · ${r.policy ?? "—"}`), model = el("td", "model", `${r.api ?? "—"} · ${r.model ?? "—"}`);
+  const at = el("button", "rid mono"), tr = el("tr", null, el("td", null, at), el("td", "mono", r.request_id ?? "—"), who, model,
+    el("td", null, el("span", "badge o-" + r.outcome, OUT[r.outcome] || r.outcome)), el("td", "how", how(r)), restore(r),
+    el("td", "num", r.status ?? "—"), el("td", "num", r.gateway_ms == null ? "—" : Number(r.gateway_ms).toFixed(2)));
+  who.title = who.textContent; model.title = model.textContent; at.title = new Date(r.ts).toLocaleString("ko-KR"); at.type = "button";
+  tr.dataset.rid = r.request_id;   // traffic.py가 <tr data-rid="…">로 줄을 찾는다 — 이 태그에는 다른 속성을 두지 않는다
+  return tr;
+}
+
+const detail = r => el("tr", "detail", Object.assign(el("td", null, el("pre", null, JSON.stringify(r, null, 2)),
+  el("p", "mute", "원문·가짜 값·위치·IP는 없다 — 전체 감사 줄은 감사 로그에서 이 요청 ID로 찾는다")), {colSpan: 9}));
+function table() {
+  const q = $("find").value.trim().toLowerCase(), tb = $("rows"), now = [...tb.children], want = [];
+  const old = new Map(now.map(n => [n.dataset.rid, n]));   // 지금 표의 줄 노드를 다시 쓴다 — 새 줄만 만든다
+  const shown = rows.filter(r => (!filter || r.outcome === filter) &&
+    (!q || String(r.request_id).startsWith(q) || String(r.client ?? "").toLowerCase().startsWith(q)));
+  for (const r of shown) {
+    const tr = old.get(r.request_id) || line(r), at = tr.querySelector(".rid");
+    at.setAttribute("aria-expanded", String(open === r.request_id));
+    set(at, day(r.ts) + hms(r.ts));   // 오늘이 아니면 MM-DD를 붙인다
+    want.push(tr);
+    if (open === r.request_id) want.push(tr.nextElementSibling?.className === "detail" ? tr.nextElementSibling : detail(r));   // 펼쳐 둔 상세도 그대로
+  }
+  const keep = new Set(want);   // 있던 노드는 옮기지 않는다 — 새 줄만 끼우고 밀려난·걸러진 줄만 지운다(초점·고른 글자·펼친 상세·스크롤 위치가 남게)
+  for (const n of now) if (!keep.has(n)) n.remove();
+  let at = tb.firstChild;
+  for (const n of want) if (n === at) at = at.nextSibling; else tb.insertBefore(n, at);
+  set($("shown"), `${shown.length} / ${rows.length}줄` + (frozen ? " · 표 멈춤" : ""));
+}
+
+function toggle(e) {   // 줄을 누르면 상세를 여닫는다. ▸ 단추·키보드(detail 0)는 늘, 그 줄 안에서 글자를 끌어 고른 끝의 클릭만 거른다
+  const tr = e.target.closest("tr[data-rid]"), sel = getSelection();
+  if (!tr || (e.detail > 0 && !e.target.closest(".rid") && !sel.isCollapsed && tr.contains(sel.anchorNode))) return;
+  open = open === tr.dataset.rid ? null : tr.dataset.rid;
+  table();
+  tr.querySelector(".rid").focus();
+}
+
+const state = (text, cls) => { set($("state"), text); $("state").className = "pill " + (cls || ""); };
+const band = (id, text) => set($(id), text || "");   // role=status 띠는 늘 렌더링해 두고 글자만 바꾼다 — 비면 CSS가 높이를 0으로(스크린 리더가 놓치지 않게)
+
+async function get(path) {
+  const r = await fetch(path, {headers: {Authorization: "Bearer " + key}, cache: "no-store", credentials: "omit",
+    signal: AbortSignal.timeout(10000)});
+  if (r.status === 404) throw GONE;
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// 응답을 받은 뒤 2초 지나 다시 — setTimeout을 이어 걸어 요청이 겹치지 않는다. 탭이 숨거나 멈춤이면 쉰다.
+const later = ms => { clearTimeout(timer); timer = setTimeout(tick, ms); };
+
+async function tick() {
+  if (!key || paused || document.hidden || busy) return;
+  const k = key;
+  busy = true;
+  try {
+    const s = await get("/__gateway/stats");
+    const moved = last && (last.started !== s.started || last.pid !== s.pid);
+    if (!info || moved) info = await get("/__gateway/info");
+    if (key !== k) return key && later(0);   // 도중에 잠그고 새 키를 넣었으면 새 키로 다시
+    if (moved) band("restart", `다시 시작했거나 다른 프로세스 — 숫자가 0부터(${hms(s.now)}에 바뀜)`);
+    const pol = Object.entries(info.policies || {}).map(([p, d]) => `${p}: ${d.join(" · ") || "검사 없음"}`).join(" / ");
+    set($("meta"), `버전 ${info.version} · 코드 지문 ${info.code} · 설정 ${info.config || "파일 없음(환경변수만)"} · 정책별 검사기 ${pol}`);
+    render(s, moved);
+    band("conn", "");
+    if (!paused) state("연결됨", "good");
+    later(2000);
+  } catch (e) {
+    if (key !== k) return key && later(0);
+    if (e === GONE) return lock("키가 틀렸거나 이 게이트웨이에 관리 키가 없습니다");
+    base = null;   // 끊긴 동안의 평균을 '지금 초당'으로 보이지 않게
+    band("conn", `연결 끊김 — 5초 뒤 다시 시도${last ? ` · 마지막 갱신 ${hms(last.now)}` : ""}`);
+    state("연결 끊김", "bad");
+    later(5000);
+  } finally {
+    busy = false;
+  }
+}
+
+function lock(msg) {
+  sessionStorage.removeItem(K);
+  clearTimeout(timer);
+  key = info = last = base = open = null;
+  rows = []; sig = "";
+  $("rows").replaceChildren();
+  $("main").hidden = true;
+  $("key").hidden = false;
+  $("kmsg").textContent = msg || "";
+  $("proc").textContent = $("meta").textContent = "";
+  band("restart", ""); band("conn", "");
+  state("키 필요", "warn");
+  $("kin").focus();
+}
+
+function unlock() {
+  const v = $("kin").value.trim();
+  if (!v) return;
+  sessionStorage.setItem(K, v);
+  key = v;
+  $("kin").value = "";
+  $("kmsg").textContent = "확인 중…";
+  state("불러오는 중");
+  later(0);
+}
+
+$("nojs").remove();
+for (const [o, label] of Object.entries(OUT)) {
+  const b = el("button", "out o-" + o, el("span", null, el("span", "badge", label)), el("code", null, o), el("b", null, "0"));
+  b.type = "button";
+  b.dataset.o = o;
+  b.setAttribute("aria-pressed", "false");
+  $("outs").append(b);
+  $("filter").append(new Option(`${label} (${o})`, o));
+}
+function setFilter(o) {
+  filter = o;
+  $("filter").value = o;
+  for (const b of $("outs").children) b.setAttribute("aria-pressed", String(b.dataset.o === o));
+  table();
+}
+$("outs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) setFilter(filter === b.dataset.o ? "" : b.dataset.o); });
+$("filter").addEventListener("change", e => setFilter(e.target.value));
+$("find").addEventListener("input", table);
+$("rows").addEventListener("click", toggle);
+$("freeze").addEventListener("click", () => {
+  frozen = !frozen;
+  $("freeze").textContent = frozen ? "표 계속" : "표 멈춤";
+  if (!frozen && last) { rows = last.recent || []; sig = ""; }
+  table();
+});
+$("pause").addEventListener("click", () => {
+  paused = !paused;
+  $("pause").textContent = paused ? "계속" : "멈춤";
+  if (paused) state("멈춤", "warn");
+  else { base = null; later(0); }   // 쉬는 동안의 평균을 '지금 초당'으로 보이지 않게
+});
+$("lock").addEventListener("click", () => lock(""));
+$("kopen").addEventListener("click", unlock);
+$("kin").addEventListener("keydown", e => { if (e.key === "Enter") unlock(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { base = null; later(0); } });
+if (key) later(0);
+else lock("");
+</script>
+</body>
+</html>

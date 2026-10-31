@@ -5,6 +5,7 @@
 #   curl -s http://127.0.0.1:8080/v1/chat/completions -H 'Authorization: Bearer test-key' -H 'Content-Type: application/json' \
 #     -d '{"model":"stub-model","messages":[{"role":"user","content":"제 번호는 010-2345-6789입니다"}]}'
 #   curl -s http://127.0.0.1:8000/__stub/received        # 상류(스텁)가 실제로 받은 것 — 가짜 번호
+#   브라우저로 http://127.0.0.1:8080/__gateway/dashboard  # 운영 대시보드(읽기 전용) — 관리 키 local-admin-key
 #
 # 인젝션 차단까지 보려면 GATEWAY_INJECTION=block, 호스트 포트가 겹치면 HOST_PORT=18080 STUB_HOST_PORT=18000을 앞에 붙인다.
 name: llm-security-gateway

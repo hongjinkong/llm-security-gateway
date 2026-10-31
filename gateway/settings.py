@@ -59,7 +59,7 @@ class Settings:
     log_max_bytes: int = 100 * 1024 * 1024               # GATEWAY_LOG_MAX_BYTES
     log_backups: int = 5                                 # GATEWAY_LOG_BACKUPS
     rate_per_minute: int = 0                             # GATEWAY_RATE_PER_MINUTE — 0 = 끔
-    admin_key: str = ""                                  # GATEWAY_ADMIN_KEY — info·metrics를 연다(D-109). 없으면 둘 다 404
+    admin_key: str = ""                                  # GATEWAY_ADMIN_KEY — info·metrics·stats·대시보드를 연다(D-109·D-124). 없으면 모두 404
     # 차단 문구. 어댑터가 그 API의 정상 응답 모양(HTTP 200)에 싣는다 — 클라이언트 SDK가 오류로 다루지 않는다
     blocked_message: str = ""                            # GATEWAY_BLOCKED_MESSAGE — 비우면 카탈로그(GATEWAY_LANG)의 문구
     lang: str = "ko"                                     # GATEWAY_LANG — ko|en, 사용자·운영자 문구(D-120)

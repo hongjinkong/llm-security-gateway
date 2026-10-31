@@ -305,6 +305,9 @@ async def anthropic_messages(request: Request):
                 yield _sse("content_block_delta", {"type": "content_block_delta", "index": t0,
                                                    "delta": {"type": "text_delta", "text": text[i:i + size]}})
                 await asyncio.sleep(CHUNK)
+            if model == "stub-stream-error":            # D-124: 조각 몇 개 뒤 공급자 과부하 — 머리(200)는 이미 나갔으므로 오류 이벤트로 끝난다
+                yield _sse("error", {"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}})
+                return
             yield _sse("content_block_stop", {"type": "content_block_stop", "index": t0})
             if tool:
                 yield _sse("content_block_start", {"type": "content_block_start", "index": 1, "content_block": {
@@ -395,9 +398,10 @@ async def openai_responses(request: Request):
             yield ev("response.output_item.added", output_index=0, item={**message, "status": "in_progress", "content": []})
             yield ev("response.content_part.added", item_id="msg_stub", output_index=0, content_index=0,
                      part={"type": "output_text", "text": "", "annotations": []})
-            for i in range(0, len(text), size):
-                yield ev("response.output_text.delta", item_id="msg_stub", output_index=0, content_index=0, delta=text[i:i + size])
-                await asyncio.sleep(CHUNK)
+            if model != "stub-stream-done":             # D-124: stub-stream-done은 델타 없이 *.done·output_item.done·completed만 보낸다
+                for i in range(0, len(text), size):
+                    yield ev("response.output_text.delta", item_id="msg_stub", output_index=0, content_index=0, delta=text[i:i + size])
+                    await asyncio.sleep(CHUNK)
             yield ev("response.output_text.done", item_id="msg_stub", output_index=0, content_index=0, text=text)
             yield ev("response.content_part.done", item_id="msg_stub", output_index=0, content_index=0, part=message["content"][0])
             yield ev("response.output_item.done", output_index=0, item=message)

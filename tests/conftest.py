@@ -39,19 +39,24 @@ def serve(app: str, port: int, env: dict | None = None, probe: str = "/", cwd: P
     """기동 확인용 probe 경로는 감사 로그를 오염시키지 않는 곳으로 고른다.
     게이트웨이는 /__gateway/health(로그 제외 경로)를 쓴다. `args`는 uvicorn에 더 줄 인자(D-122 — 이미지와 같은 서버 설정)."""
     p = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", app, "--port", str(port), "--log-level", "warning", *args],
+        [sys.executable, "-m", "uvicorn", app, "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning", *args],   # 셸의 UVICORN_HOST보다 앞선다
         env={**os.environ, **(env or {})},
         cwd=cwd,   # 다른 작업 트리의 게이트웨이(D-114 옛 팔)
     )
-    for _ in range(100):  # 최대 10초 대기
-        try:
-            httpx.get(f"http://127.0.0.1:{port}{probe}", timeout=0.5)
-            return p
-        except httpx.RequestError:
-            if p.poll() is not None:
-                raise RuntimeError(f"{app} 기동 실패")
-            time.sleep(0.1)
-    raise RuntimeError(f"{app} 기동 시간 초과")
+    try:
+        for _ in range(100):  # 최대 10초 대기
+            try:
+                httpx.get(f"http://127.0.0.1:{port}{probe}", timeout=0.5)
+                return p
+            except httpx.RequestError:
+                if p.poll() is not None:
+                    raise RuntimeError(f"{app} 기동 실패")
+                time.sleep(0.1)
+        raise RuntimeError(f"{app} 기동 시간 초과")
+    except BaseException:
+        p.kill()      # 호출자의 정리 목록에 들기 전이다 — 시간 초과·Ctrl-C·SIGTERM에 끄지 않으면 고아가 되어 포트와 부모의 stdout 파이프를 쥔다(D-124)
+        p.wait()
+        raise
 
 
 def start(app, port: int) -> tuple[uvicorn.Server, threading.Thread]:

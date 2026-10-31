@@ -24,7 +24,7 @@
 | `GATEWAY_AUTH` | (켬) | `off`면 클라이언트 키 없이 받는다 — 로컬 실험만. 그때 클라이언트의 인증 헤더는 상류로 넘어간다. 공급자 키(`GATEWAY_UPSTREAM_KEY`·`key_env`)와 함께 쓰면 **기동 실패** |
 | `GATEWAY_CONFIG` | (없음) | 설정 파일(TOML) 경로 — 아래 '설정 파일'. 없으면 환경변수만으로 뜬다 |
 | `GATEWAY_UPSTREAM_KEY` | (없음) | 설정 파일에 없는 상류의 공급자 키. 상류 형식으로 단다 — `/v1/messages`와 `anthropic-version`을 보낸 요청은 `x-api-key`, 그 밖은 `Authorization: Bearer`. 없으면 공급자 키 없이 보낸다(클라이언트의 `openai-organization`·`openai-project`는 넘긴다) |
-| `GATEWAY_ADMIN_KEY` | (없음) | `/__gateway/info`·`/__gateway/metrics`를 여는 관리 키(`Authorization: Bearer`). 없으면 둘 다 404 |
+| `GATEWAY_ADMIN_KEY` | (없음) | `/__gateway/info`·`/__gateway/metrics`·`/__gateway/stats`(`Authorization: Bearer`)와 대시보드(`/__gateway/dashboard` — 화면에 키를 넣는다)를 여는 관리 키. 없으면 모두 404 — [운영 — 대시보드](operations.md#대시보드) |
 | `GATEWAY_SURROGATE_KEY` | (없음) | 결정적 대체값 키, 32자 이상. 어느 정책이든 `mask`면 필수(없거나 짧으면 **기동 실패**). 원문을 되짚을 수 있는 키라 공급자 키와 같은 등급으로 보관한다. 바꾸는 절차는 [운영 — 키 회전](operations.md#키-회전) |
 | `GATEWAY_PII` | `mask` | `mask`(같은 모양의 가짜 값으로 바꾸고 응답에서 복원) · `detect`(감사에만 남김) · `off` |
 | `GATEWAY_PII_KINDS` | 전부(`rrn,frn,passport,driver,card,phone,email,secret,brn,crn,account,ipv4`) | 탐지할 종류(쉼표). 종류는 [README 탐지 종류](../README.md#탐지-종류) |

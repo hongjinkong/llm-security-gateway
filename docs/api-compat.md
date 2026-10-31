@@ -12,9 +12,13 @@
 | `POST /v1/messages` | `messages` | 같음. 쿼리 문자열(SDK 베타 경로의 `?beta=true` 등)도 넘긴다 |
 | `GET /v1/models` | `anthropic-version` 헤더가 있으면 `messages`, 없으면 `chat` | 키 검증·레이트리밋·헤더 허용 목록만 지나 그대로 중계(본문 없음) |
 | `GET /__gateway/health` | — | 인증 없이 `{"status": "ok"}`만. readiness 용 |
-| `GET /__gateway/info`·`/__gateway/metrics` | — | 관리 키(`GATEWAY_ADMIN_KEY`)가 있어야 보인다 — [운영](operations.md#지표) |
+| `GET /__gateway/info` | — | 관리 키(`GATEWAY_ADMIN_KEY`, `Authorization: Bearer`)만. 버전·코드 지문·설정 버전·상류·검사기 — [운영](operations.md#업그레이드) |
+| `GET /__gateway/metrics` | — | 관리 키만. Prometheus 텍스트 — [운영](operations.md#지표) |
+| `GET /__gateway/stats` | — | 관리 키만. 대시보드의 데이터(JSON — 누적과 최근 200줄). 형식이 바뀔 수 있으니 수집은 metrics로 한다 — [운영](operations.md#대시보드) |
+| `GET /__gateway/dashboard` | — | 관리 키가 설정된 게이트웨이에만 있다. 인증 없이 데이터 없는 정적 화면을 주고, 화면이 탭에 넣은 키로 stats를 읽는다 — [운영](operations.md#대시보드) |
 
-그 밖의 경로·메서드는 404이고 상류에 연결하지 않는다(어떤 메서드가 있는지 알리지 않으려고 405도 404로 답한다).
+info·metrics·stats는 `Authorization: Bearer` 관리 키가 맞을 때만 200이다 — 키 없음·틀린 키·`?key=`·Basic·관리 키 미설정은 404. 이 경로들은 감사 로그·지표·레이트리밋에 들어가지 않는다.
+그 밖의 경로·메서드는 404이고 상류에 연결하지 않는다(어떤 메서드가 있는지 알리지 않으려고 405도 404로 답한다). 끝에 `/`를 붙인 경로(`/v1/chat/completions/` 등)도 리다이렉트(307) 없이 404다. FastAPI 기본 문서 경로(`/docs`·`/redoc`·`/openapi.json`)는 없다.
 
 처리 순서: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 파싱(400) → 허용 모델(403) → 인젝션 → PII → 상류 → 복원 → 감사 한 줄.
 401·429·413·403은 본문을 검사하지도 중계하지도 않는다.
@@ -81,7 +85,8 @@
 ## 오류
 
 게이트웨이가 만든 오류 본문은 그 API의 형식이다 — `/v1/messages*`는 Anthropic 형식(`{"type": "error", "error": {"type", "message"}}`), 그 밖은 OpenAI 형식
-(`{"error": {"message", "type", "param", "code"}}`). 스트리밍 요청이어도 오류는 JSON이다. 상류가 낸 오류는 상태 코드·본문을 그대로 넘긴다.
+(`{"error": {"message", "type", "param", "code"}}`). 스트리밍 요청이어도 오류는 JSON이다. 상류가 낸 오류는 상태 코드·본문을 그대로 넘긴다
+(스트림 도중 상류가 보낸 오류 이벤트도 그대로 넘기고 감사 `error`에 `upstream_stream_error`를 남긴다 — 상태는 이미 보낸 200).
 예외: 동시 연결이 1,000(쉬는 연결 포함)을 넘으면 uvicorn이 형식 없는 텍스트 503(`Service Unavailable`)을 준다 — 게이트웨이 앞에서 끊는 것이다.
 
 | 상태 | code(OpenAI 형식) | 언제 | 상류 호출 |

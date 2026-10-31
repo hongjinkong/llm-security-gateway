@@ -101,6 +101,12 @@ curl -s http://127.0.0.1:8080/v1/chat/completions -H 'Authorization: Bearer test
 curl -s http://127.0.0.1:8000/__stub/received     # what the upstream actually received
 ```
 
+Operations dashboard: a gateway with an admin key serves a read-only page at `/__gateway/dashboard` that shows, request by request, what was masked, blocked or rejected and why
+(Korean labels with code names, refreshed every 2 s). With the compose file above it is `http://127.0.0.1:8080/__gateway/dashboard` (admin key `local-admin-key`);
+`python3 scripts/traffic.py` sends synthetic test traffic and prints the address and key. Details: [`docs/operations.md`](docs/operations.md#대시보드) (Korean).
+
+![Operations dashboard](docs/dashboard.png)
+
 In front of a real provider:
 
 ```bash
@@ -128,7 +134,7 @@ Invalid choices, kinds and roles and unknown or invalid config-file keys stop st
 | `GATEWAY_AUTH` | (on) | `off` accepts requests without a client key — local experiments only. **Start-up fails** together with a provider key |
 | `GATEWAY_CONFIG` | (none) | Path of the TOML config file (below) |
 | `GATEWAY_UPSTREAM_KEY` | (none) | Provider key for upstreams not in the config file — `x-api-key` for `/v1/messages` and `anthropic-version` requests, `Authorization: Bearer` otherwise |
-| `GATEWAY_ADMIN_KEY` | (none) | Opens `/__gateway/info` and `/__gateway/metrics` (`Authorization: Bearer`); without it both are 404 |
+| `GATEWAY_ADMIN_KEY` | (none) | Opens `/__gateway/info`, `/__gateway/metrics`, `/__gateway/stats` (`Authorization: Bearer`) and the dashboard (`/__gateway/dashboard`, key entered in the page); without it all four are 404 |
 | `GATEWAY_SURROGATE_KEY` | (none) | Deterministic surrogate key, 32+ characters; **required** when any policy masks. Keep it like a provider key. Rotating it is described in `docs/operations.md` |
 | `GATEWAY_PII` | `mask` | `mask` (replace and restore) · `detect` (audit only) · `off` |
 | `GATEWAY_PII_KINDS` | all twelve | Kinds to detect, comma-separated |
@@ -182,10 +188,11 @@ key_env = "ANTHROPIC_API_KEY"
 ## 5. Layout
 
 ```
-gateway/      app (main), settings, relay, auth, API adapters (api/), detectors (detectors/), surrogates, vault, streaming restore, audit, metrics, rate limit
+gateway/      app (main), settings, relay, auth, API adapters (api/), detectors (detectors/), surrogates, vault, streaming restore, audit, metrics, rate limit,
+              operations dashboard page (dashboard.html)
 deploy/       compose.yml (local trial) · k8s/ (kustomize)
 docs/         configuration · operations · api-compat · verification/ (real-provider check)
-scripts/      demo · SDK checks · real-provider two-turn check
+scripts/      demo · SDK checks · real-provider two-turn check · dashboard test traffic (traffic.py)
 tests/        unit and integration tests, stub upstream (tests/stub_target.py)
 eval/         PII corpus and scoring (eval/pii/), injection eval set v1 with sources and licenses (eval/injection/), benign questions (eval/benign/)
 web/          browser demo

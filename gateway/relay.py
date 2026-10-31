@@ -374,23 +374,29 @@ async def _pump(upstream: httpx.Response, session: str, restorer: StreamRestorer
             yield out
             sent[0] += len(out)
         completed[0] = True
+        if restorer.failed:
+            error = "upstream_stream_error"     # 상류가 머리(200) 뒤 스트림 안에 보낸 오류 이벤트(D-124) — 예외가 아니어도 상류 오류로 센다
     except BaseException as exc:
-        error = type(exc).__name__      # 메시지는 남기지 않는다
+        # 메시지는 남기지 않는다. 상류 오류 이벤트 뒤의 끊김(SDK가 오류를 받고 닫음)은 상류 오류로 센다 — 먼저 일어난 원인(D-124)
+        error = "upstream_stream_error" if restorer.failed else type(exc).__name__
         raise
     finally:
         await finish(error)
 
 
 def _stream_steps(session: str, restorer: StreamRestorer, pii: PIIDetector | None) -> list[Step]:
-    """스트림이 끝난 뒤의 응답 기록. 스트림에서 실제로 복원한 건수와 내보낸 출력 전체의 잔여 대체값·의심·새 PII —
-    감사는 사용자가 받은 것을 적는다(D-106·D-120). 응답 경로의 검사기는 PII 하나다(D-109)."""
+    """스트림이 끝난 뒤의 응답 기록. 스트림에서 실제로 복원한 건수와 조각으로 내보낸 텍스트의 잔여 대체값·의심·새 PII —
+    감사는 사용자가 받은 것을 적는다(D-106·D-120). 응답 경로의 검사기는 PII 하나다(D-109).
+    복원 수는 조각에서 센 수와 끝 이벤트(응답 전체)에서 센 수 중 큰 쪽이다(D-124) — 델타 없이 done·completed로만 온 값도 센다.
+    잔여·의심·새 PII는 조각 텍스트에서만 센다 — 델타 없이 끝 이벤트로만 온 텍스트는 세지 않는다(D-124 §5)."""
     if pii is None:
         return []
     stats = pii.response_stats(session, restorer.visible_text)
     issued = pii.mode == "mask" and pii.vault.issued(session)
     if not issued:
         return [Step(pii.name, "restore", 0.0, "", {"new": stats["new"]})] if stats["new"] else []
-    return [Step(pii.name, "restore", 0.0, "", {"restored": restorer.restored, "issued": pii.vault.issued(session), **stats})]
+    restored = max(restorer.restored, restorer.final_restored)
+    return [Step(pii.name, "restore", 0.0, "", {"restored": restored, "issued": pii.vault.issued(session), **stats})]
 
 
 def _as_text(content: bytes, content_type: str) -> str | None:

@@ -33,7 +33,7 @@
 
 **E. 탐지 모델**
 - [x] 16. 한국어 평가셋 v1 + 기준선
-- [ ] 16-1. 운영 대시보드(읽기 전용) — 시험 중 요청마다 무엇을 가리고·막고·거절했는지 보기
+- [x] 16-1. 운영 대시보드(읽기 전용) — 시험 중 요청마다 무엇을 가리고·막고·거절했는지 보기
 - [ ] 17. 탐지 사이드카 + 한국어 PII NER(채택 게이트)
 - [ ] 18. 인젝션 분류기(관측) + 가드레일 웹훅
 
@@ -69,6 +69,7 @@
 | 2026-10-31 | 15 | D-122 | L1~L5·pytest 670(3.14·3.12)·ruff·mypy 통과. 동시 100(스트림 50 + 비스트리밍 50) 60초: 13,367건·오류 0·모두 실제 마스킹, 게이트웨이 경유 지연이 스텁 직접과 같음(비스트리밍 p95 362 vs 352ms), 감사 gateway_ms p95 18.5ms. 30분 soak(연결 80으로 대기 경로까지): 323,416건·판정 10/10·RSS −2.4%. 찾아 고친 것: httpcore 1.0.9 공유 풀 결함(처리량 1/4 — 연결 하나짜리 클라이언트를 빌려 쓰는 `UpstreamPool`), 클라이언트 끊김 때 세션·감사 줄 누수(anyio 취소 → 막고 정리), 다차원 리뷰+반박 검증 35건 전부 수정(회귀 테스트 되돌리기 7/7). 계획과 다른 점: 지표 둘(정책별 세션·빌려 간 연결), k8s `UVICORN_TIMEOUT_KEEP_ALIVE=75`, 종료 유예 35초 | 16단계(D-123 결정 적음, 빌드 워크플로 진행 중) |
 | 2026-10-31 | 16 | D-123 | E1~E5·pytest 678(3.14·3.12)·ruff·mypy 통과. 평가셋 v1 6,871행(dev 5,492·봉인 홀드아웃 1,379 — SHA-256 결정·테스트에 고정), 한국어 공격 2,028·정상 2,608, 하드 네거티브 29%. 룰 기준선(dev) 재현율 8.7%(한국어 5.9%)·오탐률 2.7%(일반 정상 0%·하드 네거티브 9.2%), recall@FPR 1% 미달. 데이터셋 조사(에이전트 36, 라이선스·리비전 확인)·한국어 정상 문장 작성·검증(에이전트 23)·리뷰+반박 검증(에이전트 74, 31건 수정 — 홀드아웃 가족 누수 12%·in-the-wild 번역 포함 등). 계획과 다른 점: 공개 한국어 정상셋을 함께 씀, ko-jailbreak·jackhhao 뺌, 한국어 다중 턴 없음, datasets-server 출처는 받은 날짜+저장소 고정 | 17단계 |
 | 2026-10-31 | — | — | 계획 변경: 16-1단계 추가(사용자 요청). 설명서 화면 C를 제품 안 읽기 전용 대시보드(`/__gateway/dashboard`·`/__gateway/stats`, 관리 키)로 만든다 — 요청마다 결과·사유가 보이는 최근 요청 표, 시험 트래픽 `scripts/traffic.py`(16장면, 스스로 대조, `--shot` 스크린샷). 선행 수정으로 FastAPI 기본 문서 경로(`/docs`·`/redoc`·`/openapi.json` 무인증 200, 재현)를 없앤다. 설계는 독립 설계 3개 → 종합 → 코드 대조·실행 가능성 검토 2개(지적 22건 반영). 16단계 커밋에 든 설명서 PDF(docs/overview)의 화면 C·7장도 이 단계에서 실제 화면으로 고친다. 17~22 번호는 그대로 | 16-1단계 |
+| 2026-10-31 | 16-1 | D-124 | W1~W10·pytest 767(이 단계 전 678)·ruff·mypy 통과. `/__gateway/dashboard`(정적 HTML·CSP 해시·Trusted Types, 400줄)·`/__gateway/stats`(관리 키)·`metrics.outcome()` 7결과·사유·최근 200줄, `scripts/traffic.py` 16장면 자기 대조 + `--shot`(16/16·fetch 키 취급 확인, `docs/dashboard.png` 416KB), FastAPI 문서 경로 제거. compose 이미지 확인(바이트·CSP·지문 같음), 부하 30초 6,751건 판정 10/10·감사 gateway_ms p95 14.4ms. 통합 중 결함 2(Responses 스트림 복원 5배 집계·401 줄 policy) 고침. 리뷰+반박 검증(에이전트 100) 44건 → 병렬 수정(5) → 회의적 재검증(5, partial 3·새 low 9 추가 수정): 서로게이트 model로 감사 줄 유실·stats 500, 끝 '/' 307, 스트림 안 공급자 오류 이벤트(`upstream_stream_error`), CRLF CSP, Chrome 비밀번호 저장 질문, 표 통째 재그리기 등. 설명서 PDF 21쪽으로 다시 만듦. 계획과 다른 점: W8이 W7 테스트 안에서도 돎(CI `--no-sandbox`·`-rs`), 관리 키 길이 하한은 두지 않음(keygen 안내·한계) | 17단계 |
 
 ## 사용자 할 일
 
@@ -84,6 +85,10 @@
 - [x] (14단계 전, 선택) Docker Desktop을 켜 두고 `kubectl`을 설치해 둔다 — 2026-10-31 확인: Docker 29.9.2 실행 중, kubectl v1.36.1 있음.
 - [ ] (선택) Docker Desktop 설정 → Kubernetes → Enable Kubernetes(`docker-desktop` 컨텍스트가 생긴다). kubectl은 `--dry-run=client`에도 서버 탐색이 필요해 컨텍스트가 없으면 `--validate=false`로도 실패한다(2026-10-31 확인). 14단계(D-121)는 클러스터 없이 kustomize 렌더 + 스키마 검증으로 끝냈다 — 켜 두면 다음 세션이 `kubectl apply -k deploy/k8s --dry-run=server`와 실제 배포를 확인한다.
 - [ ] (14단계 뒤) GitHub 저장소 Settings → Code security → **Private vulnerability reporting** 켜기 — `SECURITY.md`가 제보 경로로 가리킨다(켜기 전에는 그 링크가 열리지 않는다).
+- [ ] (16-1단계 커밋·푸시 뒤) GitHub Actions의 `test` 작업 로그에서 W7 테스트(`test_w7_traffic_script_one_round_matches_all_16_scenes`)를 본다 — CI가 이제 headless Chrome으로 대시보드 화면도 확인한다(`--no-sandbox`).
+  통과면 끝. `SKIPPED … Chrome을 실행하지 못했다`가 찍혔으면 러너의 Chrome이 뜨지 못한 것이다(W7 대조는 했다) — 그 줄을 다음 세션에 붙여 준다. 세션은 오프라인이라 러너를 확인하지 못했다.
+- [ ] (선택, 16-1단계 뒤) 시스템 임시 폴더에 이 세션의 검토 하네스가 남긴 Chrome 프로필·traffic 임시 폴더가 약 3.2GB 있다(2026-10-31 20:10~23:51, `cdp-prof-*` 145·`traffic-*` 4). 세션의 삭제는 권한 분류기가 막았다 — 지우려면 아래 명령. macOS도 오래된 임시 파일은 스스로 지운다.
+  `find "$TMPDIR" -maxdepth 1 \( -name 'cdp-prof-*' -o -name 'traffic-*' \) -type d -newermt '2026-10-31 20:00' -exec rm -rf {} +`
 
 ## 결정 표
 
@@ -395,7 +400,7 @@
 - 새 의존성·환경변수·컨테이너는 없다.
 
 할 일
-- [ ] D-124를 먼저 적는다.
+- [x] D-124를 먼저 적는다.
   - 근거와 결정: 결정 표 13번과 아래 설계.
   - 버린 대안:
     - Grafana만 쓰기 — 체험·시험 환경에 없고, 요청별 처리는 못 본다.
@@ -417,24 +422,25 @@
     - 관리 키가 있으면 화면 경로가 있다는 사실이 드러난다.
     - 관리 키로 최근 요청 요약까지 열린다.
     - traffic.py는 게이트웨이가 스스로 내는 rate_limited(429)·gateway_busy·upstream_busy(503)·내부 오류(500)·끊김을 만들지 않는다(상류 429 전달은 장면 15).
-- [ ] 선행 수정 — 같은 출처 정리. `create_app`의 `FastAPI(...)`에 `docs_url=None, redoc_url=None, openapi_url=None`을 준다.
+- [x] 선행 수정 — 같은 출처 정리. `create_app`의 `FastAPI(...)`에 `docs_url=None, redoc_url=None, openapi_url=None`을 준다.
   - 지금 다음 경로가 인증 없이 200이다(2026-10-31 재현):
     - `/docs`·`/redoc`: cdn.jsdelivr.net 스크립트를 읽는 HTML.
     - `/openapi.json`: 관리 경로까지 나열한다.
     - `/docs/oauth2-redirect`.
   - D-109 허용 목록 위반이다. 관리 키를 담는 화면과 같은 출처에 제3자 스크립트가 남아서는 안 된다.
-- [ ] 감사 `error` 빈칸 두 곳을 채운다(`gateway/main.py`).
+  - (리뷰 뒤 더함) `redirect_slashes=False` — 끝에 '/'가 붙은 경로가 307(Location은 요청의 Host)로 답하고 '그대로 전달'로 세어졌다. 이제 404 `not_found`.
+- [x] 감사 `error` 빈칸 두 곳을 채운다(`gateway/main.py`).
   - 파싱 400(`api()`의 `except ApiError`): `request.state.upstream_error = exc.code`. 코드는 `invalid_json`·`invalid_messages`·`invalid_request`·`invalid_stream`.
   - 허용 목록 밖 404·405(`_http_error`): `"not_found"`.
   - 이제 게이트웨이가 낸 4xx·5xx 감사 줄에는 모두 사유 코드가 있다.
-- [ ] `gateway/metrics.py`(+약 80줄). 원천은 지금처럼 `AuditLog(on_write=Metrics.observe)`의 감사 레코드 하나다.
+- [x] `gateway/metrics.py`(+약 80줄). 원천은 지금처럼 `AuditLog(on_write=Metrics.observe)`의 감사 레코드 하나다.
   - `outcome(rec) -> (결과, 사유)`. 위에서부터 처음 맞는 것을 쓴다. 사유는 공백 없는 코드다.
     1. `blocked` → `blocked`, 사유 `blocked_by`.
     2. `error`가 `REJECTED` 안에 있으면 → `rejected`, 사유는 그 코드. `REJECTED`: unauthorized·rate_limited·request_too_large·too_many_findings·model_not_allowed·invalid_json·invalid_messages·invalid_request·invalid_stream·not_found·gateway_busy·upstream_busy.
     3. `error`가 `UPSTREAM_ERRORS` 안에 있으면 → `upstream_error`, 사유 `error`. 상태는 보지 않는다.
-       - `UPSTREAM_ERRORS`: `httpx.RequestError` 하위 클래스 이름 전부(`{c.__name__ for c in vars(httpx).values() if isinstance(c, type) and issubclass(c, httpx.RequestError)}` — ConnectError·ReadTimeout·RemoteProtocolError 등)와 `response_too_large`.
+       - `UPSTREAM_ERRORS`: `httpx.RequestError` 하위 클래스 이름 전부(`{c.__name__ for c in vars(httpx).values() if isinstance(c, type) and issubclass(c, httpx.RequestError)}` — ConnectError·ReadTimeout·RemoteProtocolError 등)와 `response_too_large`, (리뷰 뒤 더함) `upstream_stream_error`(머리 200 뒤 상류가 스트림 안에 보낸 오류 이벤트 — Messages·Responses `type: error`, Responses `response.failed`, Chat `{"error": …}`).
        - 응답 전에 실패하면 502·504다. 스트림 도중 상류가 끊기거나 시간이 다 되면 이미 200을 보낸 뒤라 감사 줄이 `status 200, error "ReadTimeout"`이다(2026-10-31 재현: `GATEWAY_TIMEOUT=1`, 조각 사이 1.5초 스텁).
-    4. 그 밖에 `error`가 있으면 → `failed`, 사유는 예외 이름. 내부 500, 클라이언트가 끊은 요청(200 + ClientDisconnect, CancelledError), 스트림 도중의 게이트웨이 예외가 여기에 든다.
+    4. 그 밖에 `error`가 있으면 → `failed`, 사유는 예외 이름. 내부 500, 클라이언트가 끊은 요청(200 + ClientDisconnect, CancelledError), 스트림 도중의 게이트웨이 예외가 여기에 든다. (리뷰 뒤) 500 + CancelledError는 종료 유예를 넘긴 진행 중 요청이다.
     5. 상태 400 이상:
        - `upstream_ms`가 있으면 → `upstream_error`, 사유 `upstream_<상태>`(상류 응답을 그대로 전달).
        - 없으면 → `rejected`, 사유 `http_<상태>`.
@@ -443,7 +449,7 @@
     8. 나머지 → `passed`, 사유 `none`.
   - `row(rec)`: 고정 키 19개(`ROW_KEYS`).
     - ts, request_id, client, policy, api, status, outcome, reason, gateway_ms
-    - model: 앞 64자.
+    - model: 앞 64자. 짝 없는 서로게이트는 '?'(리뷰 뒤 더함 — `Adapter.model` 한 곳, 감사 줄·차단 응답이 함께 고쳐진다).
     - upstream_ms: null이면 상류 응답을 받지 않았다(차단·거절·상류 연결 실패).
     - masked{종류: 수}: pii_mask의 `pii`.
     - unmasked{종류: 수}: detect 정책의 `pii` + pii_mask의 `unmasked`.
@@ -463,7 +469,7 @@
     - `gateway_outcomes_total{outcome,reason}`·`gateway_pii_unmasked_total{kind}`를 더한다.
     - `gateway_pii_masked_total`은 실제로 가린 것만 센다. 지금은 detect 정책의 찾은 수가 섞인다(CHANGELOG '바뀐 점').
   - `# ponytail:` 주석: 링은 하나다. 부하 중에는 차단·거절 줄도 몇 초 안에 밀려난다. 필요해지면 passed·masked가 아닌 줄만 담는 두 번째 링을 둔다.
-- [ ] `gateway/main.py`(+약 40줄).
+- [x] `gateway/main.py`(+약 40줄).
   - `GET /__gateway/dashboard`
     - 관리 키가 설정된 게이트웨이에만 있다. 아니면 404.
     - 인증 헤더 없이 정적 HTML을 준다. 데이터·키·버전은 없다. 주소창 이동으로는 Bearer 헤더를 실을 수 없기 때문이다.
@@ -495,10 +501,10 @@
   - `/__gateway/*`는 모두 GET이다. INTERNAL_PREFIX 아래라 폴링이 감사·지표·레이트리밋에 들어가지 않는다.
   - 머리 docstring에 D-124 한 줄(metrics.py도 같다).
   - `gateway/version.py`의 `code_fingerprint()`가 `.py`와 함께 `dashboard.html`도 해시한다. 지금은 `rglob("*.py")`만이라 화면을 고쳐도 info의 코드 지문이 그대로다.
-- [ ] `gateway/dashboard.html`(한 파일, 400줄 이내). 패키지 안에 있어 휠·이미지에 함께 실린다.
+- [x] `gateway/dashboard.html`(한 파일, 400줄 이내). 패키지 안에 있어 휠·이미지에 함께 실린다.
   - 파일 규칙:
     - 속성 없는 `<style>`·`<script>`를 하나씩 둔다.
-    - 줄 끝은 LF만 쓴다. HTML 파서가 CRLF를 LF로 바꿔 해시가 어긋난다.
+    - 줄 끝은 LF만 쓴다(`.gitattributes`가 LF로 체크아웃). HTML 파서는 CRLF를 LF로 바꾼 뒤 해시를 재므로 서버도 바꾼 뒤 잰다(리뷰 뒤 더함 — CRLF 체크아웃에서도 스크립트가 막히지 않는다).
     - 외부 자원·프레임워크·CDN은 쓰지 않는다.
     - `<link rel="icon" href="data:,">`를 둔다. 파비콘 요청이 감사 404 줄을 만들지 않게 한다.
   - 그리는 규칙:
@@ -507,7 +513,7 @@
     - 한국어 문구에 코드 이름을 함께 적는다.
     - 색과 글자를 함께 쓴다. `th scope`를 쓰고, 다크 모드를 지원한다.
   1. 키 카드(키가 없을 때만)
-     - password 칸(autocomplete=off)과 [열기].
+     - password 칸(`autocomplete="one-time-code"` — autocomplete=off는 Chrome이 무시하고 키를 비밀번호로 저장하자고 묻는다. 리뷰 뒤 바꿈)과 [열기].
      - 키는 `sessionStorage`에만 둔다. 탭을 닫으면 사라진다.
      - `fetch`는 `Authorization: Bearer` 헤더로만 보낸다(`cache: "no-store"`, `credentials: "omit"`). URL·쿠키·localStorage에는 두지 않는다.
      - 404를 받으면 키를 지우고 "키가 틀렸거나 이 게이트웨이에 관리 키가 없습니다"를 보인다.
@@ -542,7 +548,9 @@
        - "허용 안 된 모델(403 model_not_allowed) — 상류 호출 없음"
        - "AI 회사가 429를 줌 — 그대로 전달"
        - "AI 응답 시간 초과(504 ReadTimeout)"
-       - "응답 도중 끊김(ClientDisconnect)"
+       - "응답 도중 끊김(ClientDisconnect)"(상태 200) · "클라이언트가 끊음(500 ClientDisconnect)"(본문을 보내다 끊음) · "처리 중 취소됨(500 CancelledError)"(종료 유예 초과)
+       - "AI 회사가 스트림 도중 오류를 보냄 — 그대로 전달(200 upstream_stream_error)"
+       - 가리지 않은 종류가 있으면 masked 문장(이력 턴만 가린 줄 포함)과 observed/injection_observe 문장 끝에 " · 기록만: 계좌번호 1"
      - '상류 호출 없음'은 결과가 blocked·rejected인 줄에 붙인다(이 줄들은 upstream_ms가 늘 null이다). 502 ConnectError처럼 연결을 시도하다 실패한 줄에는 붙이지 않는다.
      - 줄을 누르면 상세가 열린다. 그 줄의 JSON 전체(`<pre>`)와 "원문·가짜 값·위치·IP는 없다 — 전체 감사 줄은 감사 로그에서 이 요청 ID로 찾는다"를 보인다.
   7. 갱신과 바닥글
@@ -568,7 +576,8 @@
       - 시간 초과 예외(ConnectTimeout·ReadTimeout·WriteTimeout·PoolTimeout): AI 응답 시간 초과(504, 상태가 200이면 스트림 도중)
       - 그 밖의 `UPSTREAM_ERRORS`(ConnectError·ReadError·RemoteProtocolError 등): AI 회사 연결 실패·끊김(502, 상태가 200이면 스트림 도중)
       - response_too_large: AI 응답이 너무 큼(502)
-      - ClientDisconnect·CancelledError: 클라이언트가 끊음
+      - upstream_stream_error: AI 회사가 스트림 도중 오류를 보냄(200)
+      - ClientDisconnect: 클라이언트가 끊음 · CancelledError: 처리 중 취소됨(스트림 도중 끊김·종료 유예 초과 — 리뷰 뒤 나눔)
       - 그 밖의 예외 이름: 게이트웨이 내부 오류(500, 상태가 200이면 스트림 도중). 예외 이름을 함께 보인다
       - injection_rule_turn: 이번 턴의 수상한 지시(그 밖의 blocked_by는 검사기 이름 그대로)
       - pii_mask: 개인정보를 가짜 값으로 바꿈
@@ -576,8 +585,8 @@
       - injection_observe: 수상한 지시 — 기록만
       - unmasked: 가리지 않는 개인정보 — 기록만
       - none: 해당 없음
-- [ ] `scripts/traffic.py`(약 200줄). httpx와 stdlib만 쓰고, 개발 의존성이 필요하다. load.py처럼 `tests.conftest`의 `serve`·`free_port`와 `scripts/load.py`의 `SERVER_ARGS`를 쓴다.
-  - 띄우기: 셸의 `GATEWAY_*`·`TARGET_*` 변수를 지우고, 스텁과 게이트웨이(127.0.0.1:`--port`, 기본 8070)를 서브프로세스로 띄운다.
+- [x] `scripts/traffic.py`(약 200줄). httpx와 stdlib만 쓰고, 개발 의존성이 필요하다. load.py처럼 `tests.conftest`의 `serve`·`free_port`와 `scripts/load.py`의 `SERVER_ARGS`를 쓴다.
+  - 띄우기: 셸의 `GATEWAY_*`·`TARGET_*`·`STUB_*`·`UVICORN_*` 변수를 지우고(리뷰 뒤 STUB·UVICORN 더함), 스텁과 게이트웨이(127.0.0.1:`--port`, 기본 8070)를 서브프로세스로 띄운다.
   - 클라이언트 셋:
     - `app`: `GATEWAY_CLIENT_KEYS`로 넣는다. 기본 정책 = 제품 기본값(인젝션 기록만·PII 가림).
     - `strict`: 임시 `GATEWAY_CONFIG`에 둔다. `injection = "block"`, `allowed_models = ["stub-*"]`.
@@ -595,20 +604,20 @@
     3. 요청 수가 보낸 수 이상 늘었는지도 확인한다(돌리는 동안 출력된 클라이언트 키로 사용자가 보낸 요청도 같은 게이트웨이에 들어온다).
     4. 2초 쉬고 반복한다.
   - 플래그는 셋:
-    - `--rounds N`: N회 뒤 끝난다. 하나라도 어긋나면 종료 코드 1. 기본 0은 Ctrl-C까지 돈다.
+    - `--rounds N`: N회 뒤 끝난다. 하나라도 어긋나면 종료 코드 1. 기본 0은 Ctrl-C까지 돈다. (리뷰 뒤 더함) N회를 다 돌기 전에 Ctrl-C·SIGTERM으로 멈추면 1(서버를 끄고 임시 폴더를 지운다), 음수·범위 밖 포트는 2.
     - `--port P`
     - `--shot PNG`: W8.
   - 외부 공급자 옵션은 두지 않는다. 늘 자기 스텁으로만 보낸다.
-- [ ] 기존 도구에 연결한다.
+- [x] 기존 도구에 연결한다.
   - `scripts/load.py`: 기동 직후 "대시보드 … · 관리 키 load-admin" 한 줄.
   - `web/app.py`: "있음" 게이트웨이의 대시보드 주소와 관리 키 demo-admin 한 줄.
   - `deploy/compose.yml` 머리 주석: http://127.0.0.1:8080/__gateway/dashboard, 관리 키 local-admin-key.
   - `GATEWAY_ADMIN_KEY` 설명을 "info·metrics·stats·대시보드를 연다. 없으면 모두 404"로 고친다. 고칠 곳은 여섯이다: `Settings.admin_key` 주석, `.env.example`(13행), `deploy/k8s/secret.env.example`, docs/configuration.md, README 4절, README.en.
-- [ ] 테스트.
+- [x] 테스트.
   - `tests/test_d124_dashboard.py`: W1~W7·W10.
   - `tests/test_d109_boundary.py`의 test_b8 parametrize에 `/__gateway/stats`를 더한다. dashboard는 넣지 않는다 — 인증 헤더 없이 200이 정상이다.
-- [ ] 세션이 직접 확인한다: W8 브라우저(스크린샷 `docs/dashboard.png`), W9 컨테이너·부하. 수치와 스크린샷 경로를 D-124 결과에 적는다.
-- [ ] 문서를 고친다.
+- [x] 세션이 직접 확인한다: W8 브라우저(스크린샷 `docs/dashboard.png`), W9 컨테이너·부하. 수치와 스크린샷 경로를 D-124 결과에 적는다.
+- [x] 문서를 고친다.
   - `docs/operations.md` — 지표 절 뒤에 새 절 '## 대시보드':
     - 여는 법:
       - compose.
@@ -635,7 +644,7 @@
     - 추가: 대시보드·stats·traffic.py·지표 둘.
     - 바뀐 점: `gateway_pii_masked_total`의 뜻, 감사 `error`가 400·404에도 붙는다.
     - 보안: FastAPI 기본 문서 경로 제거.
-- [ ] 설명서 `docs/overview/overview.html`을 고치고 PDF를 다시 만든다.
+- [x] 설명서 `docs/overview/overview.html`을 고치고 PDF를 다시 만든다.
   - 고칠 곳:
     - 표지와 0장 '지금 상태': 16단계 + 16-1.
     - 0장 '무엇인가요?', 1장 '화면' 행과 상자, 7장 머리 문단: "제품에 든 화면은 시연용 비교 화면(B)과 운영 대시보드(C) 둘".
@@ -656,8 +665,8 @@ traffic.py 장면. 값은 모두 합성이고 web/app.py·tests에 이미 있는
 | # | 장면 | 클라이언트 · 요청 | 대시보드에 보일 처리 |
 |---|---|---|---|
 | 1 | 개인정보 | app · chat, 전화+이메일 | masked — phone 1·email 1, restored 2 |
-| 2 | 스트리밍 API 키 | app · responses `stub-stream`, 가짜 `sk-proj-` 키 | masked — secret 1(스트림이 끝난 뒤 한 줄) |
-| 3 | 고유식별정보 + 감사만 | app · messages, 주민번호·카드·계좌 | masked — rrn·card, unmasked account |
+| 2 | 스트리밍 API 키 | app · responses `stub-stream`, 가짜 `sk-proj-` 키 | masked — secret 1, restored 1(스트림이 끝난 뒤 한 줄) |
+| 3 | 고유식별정보 + 감사만 | app · messages, 주민번호·카드·계좌 | masked — rrn·card, unmasked account, restored 2 |
 | 4 | 정상 질문 | app · chat `stub-quiet` | passed |
 | 5 | 수상한 지시(기록만) | app · chat, 공격 문장 | observed — R1, 상류 호출 있음 |
 | 6 | 수상한 지시(차단) | strict · chat, 공격 문장 | blocked — injection_rule_turn·R1, 상류 호출 없음 |
@@ -686,7 +695,8 @@ traffic.py 장면. 값은 모두 합성이고 web/app.py·tests에 이미 있는
   - nosniff·no-referrer·no-store 헤더가 있다.
   - 본문에 다음이 없다: innerHTML, outerHTML, insertAdjacentHTML, document.write, eval, new Function, localStorage, document.cookie, `style=`, 인라인 `on…=`, `http://`, `https://`, 관리 키 값.
   - 본문에 `<link rel="icon" href="data:,">`와 `id="nojs"`가 있다.
-  - 본문에 `\r`이 없다. CRLF면 브라우저는 LF로 바꾼 뒤 해시를 재므로 스크립트가 막힌다 — 서버와 테스트가 같은 바이트로 잰 해시 비교로는 잡히지 않는다.
+  - 본문에 `\r`이 없다(코드 지문이 체크아웃마다 같게). 서버는 해시 전에 줄 끝을 LF로 바꾸므로 CRLF여도 스크립트가 돈다(리뷰 뒤 — 테스트가 CRLF·CR 해시가 같음을 본다).
+  - (리뷰 뒤 더함) 키 취급 정적 검사: fetch 호출이 하나이고 Bearer 머리·`cache: "no-store"`·`credentials: "omit"`, 스크립트에 `?key`·`key=`·`searchParams`·`URLSearchParams` 없음, 404면 lock()이 sessionStorage 키를 지운다.
 - W3 분류
   - `outcome()` 표 테스트가 레코드 모양 하나씩으로 8규칙을 모두 지난다:
     - passed
@@ -713,16 +723,16 @@ traffic.py 장면. 값은 모두 합성이고 web/app.py·tests에 이미 있는
   - `python3 scripts/traffic.py --rounds 1 --port <빈 포트>`가 종료 코드 0으로 끝난다.
   - 16장면이 모두 기대와 일치하고, 결과 6가지(masked·passed·observed·blocked·rejected·upstream_error)가 나온다.
   - CI에서 돈다.
-- W8 브라우저(세션이 직접, CI 밖)
+- W8 브라우저(세션이 직접 — 리뷰 뒤로는 W7 테스트도 Chrome이 있으면 `--shot`을 붙여 돈다. CI에서는 `--no-sandbox`, Chrome을 실행하지 못하면 W7만 확인하고 건너뜀)
   - `python3 scripts/traffic.py --rounds 1 --shot docs/dashboard.png`가 0으로 끝난다.
   - ① headless Chrome `--dump-dom`으로 실제 서버의 화면을 연다.
-    - CSP 아래에서 스크립트가 돌아 `id="nojs"`가 사라지고, 키 카드(`id="key"`)가 있다.
+    - CSP 아래에서 스크립트가 돌아 `id="nojs"`가 사라지고, 키 카드(`id="key"`)가 보인다(hidden 없음).
     - 연 뒤에도 stats의 requests가 그대로다(파비콘 등 감사 줄이 생기지 않는다).
   - ② 마지막 stats·info를 넣은 `file://` 사본을 `--screenshot=<PNG> --window-size=1280,1600 --hide-scrollbars --virtual-time-budget=5000`으로 찍는다. 기본 창(800×600)이면 아래 표가 잘린다 — 16줄 표까지 한 장에, 설명서 A4 한 쪽에 들어가는 비율로 한다.
     - 사본에는 원래 `<script>` 앞에 fetch를 대체하고 키를 넣는 스크립트를 끼운다.
     - 응답 헤더와 같은 CSP를 `<meta http-equiv="Content-Security-Policy">`로 넣는다. script-src에 끼운 스크립트의 해시를 더하고, meta가 무시하는 frame-ancestors는 뺀다. ①은 키가 없는 상태라 그리기 경로를 지나지 않으므로, 데이터를 그리는 경로가 실제 CSP·Trusted Types 아래에서 도는지는 이 사본이 본다(2026-10-31 확인: file:// + meta CSP에서 해시가 맞는 스크립트는 돌고 innerHTML은 막힌다).
-    - Chrome은 PATH의 google-chrome·chromium이나 macOS 경로에서 찾는다. 없으면 종료 코드 2다.
-  - ③ 같은 사본을 `--dump-dom --virtual-time-budget=5000`으로도 열어, 16장면의 요청 ID마다 그 줄에 장면 표의 결과 배지와 '어떻게 처리했나' 핵심어(예: 장면 6 '차단'·'상류 호출 없음', 장면 10 'model_not_allowed', 장면 1 '가짜 값')가 있는지 traffic.py가 확인한다. 어긋나면 종료 코드 1.
+    - Chrome은 PATH의 google-chrome·chromium이나 macOS 경로에서 찾는다. 없거나 실행하지 못하면 종료 코드 2다(stderr 'Chrome을 실행하지 못했다').
+  - ③ 같은 사본을 `--dump-dom --virtual-time-budget=5000`으로도 열어, 16장면의 요청 ID마다 그 줄에 장면 표의 결과 배지와 '어떻게 처리했나' 핵심어(예: 장면 6 '차단'·'상류 호출 없음', 장면 10 'model_not_allowed', 장면 1 '가짜 값')가 있는지 traffic.py가 확인한다. 어긋나면 종료 코드 1. (리뷰 뒤) 칸별로 본다 — 라벨은 배지 `<span class="badge o-<결과>">`, 핵심어는 `<td class="how">`, 의심·새 값은 그 다음 복원 칸. 사본의 fetch 대체가 부른 주소·옵션을 DOM에 남겨, 주소에 '?'·키가 없고 Bearer 머리·no-store·omit인지도 본다.
   - 세션이 PNG를 열어 확인한다:
     - 타일 8개, 처리 결과, 종류별 막대가 보인다.
     - 차단·거절·가림·기록만 배지와 '어떻게 처리했나' 문장이 보인다.

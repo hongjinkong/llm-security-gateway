@@ -58,6 +58,8 @@ class StreamRestorer:
         self._pending: dict[str, str] = {}      # 채널 → 보류 중인 꼬리
         self._visible: list[str] = []          # 복원 대상 채널로 내보낸 텍스트(사고 과정 밖) — 감사의 잔여 대체값을 여기서 센다(D-112)
         self.restored = 0
+        self.final_restored = 0                 # 응답 전체를 담은 끝 이벤트에서 복원한 수(D-124 — Responses completed·incomplete·failed)
+        self.failed = False                     # 상류가 머리(200) 뒤 스트림 안에 오류 이벤트를 보냈다(D-124)
         self._usage, self._drop = usage, drop   # 이벤트의 usage 읽기, 내보내지 않을 이벤트(D-120 — Chat의 usage 조각)
         self.usage_raw: dict = {}               # 이벤트들의 usage를 차례로 덮어 합친 것(Messages: message_start + message_delta)
 
@@ -110,6 +112,10 @@ class StreamRestorer:
             return block
         if not isinstance(obj, dict):
             return block
+        # 오류 이벤트: Messages·Responses `type: error`, Responses `response.failed`, Chat `{"error": {...}}`. 블록은 그대로 내보낸다.
+        # 최상위만 본다 — response.completed의 `response.error: null` 같은 중첩 값은 오류가 아니다.
+        if obj.get("type") in ("error", "response.failed") or isinstance(obj.get("error"), dict):
+            self.failed = True
         if self._usage is not None and isinstance(raw := self._usage(obj), dict):
             self.usage_raw.update(raw)
         if self._drop is not None and self._drop(obj):
@@ -144,10 +150,15 @@ class StreamRestorer:
                     prefix += self._shape.synthesize(channel, restored)
 
         if self._shape.full_text(obj):
-            # 전체 텍스트를 담은 이벤트(Responses `*.done`·`response.completed`)는 문자열 값마다 복원한다 — reasoning 요약은 건너뛴다(D-112)
+            # 전체 텍스트를 담은 이벤트(Responses `*.done`·`response.completed`)는 문자열 값마다 복원한다 — reasoning 요약은 건너뛴다(D-112).
+            # 복원 수에는 넣지 않는다(D-124): 조각으로 이미 보내고 센 텍스트를 되풀이한다 — 세면 대체값 하나가 조각·done·part·item·completed에서
+            # 다섯 번 세어져, 같은 답의 비스트리밍 복원 수(1)와 어긋난다. 잔여·의심도 조각 텍스트(visible_text)에서만 센다.
+            # 응답 전체(`response`)를 담은 끝 이벤트의 수는 따로 든다 — 조각 채널이 없는 항목(mcp 인자·refusal·델타 없는 상류)도 세므로
+            # 비스트리밍 복원 수와 같은 단위다. 감사에는 조각에서 센 수와 큰 쪽을 적는다(relay._stream_steps).
             n = map_strings(obj, self._restore)
-            self.restored += n
-            changed = changed or n > 0
+            if isinstance(obj.get("response"), dict):
+                self.final_restored = n
+            changed = n > 0 or changed
         new_payload = json.dumps(obj, ensure_ascii=False) if changed else payload
         if new_payload == payload and not prefix:
             return block

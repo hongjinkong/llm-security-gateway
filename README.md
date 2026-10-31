@@ -187,6 +187,11 @@ curl -s http://127.0.0.1:8080/v1/chat/completions -H 'Authorization: Bearer test
 curl -s http://127.0.0.1:8000/__stub/received     # 상류가 실제로 받은 것 — 가짜 번호
 ```
 
+운영 대시보드 — 관리 키를 둔 게이트웨이의 `/__gateway/dashboard`가 요청마다 가림·차단·거절 결과와 그 사유를 2초마다 보여 준다(읽기 전용).
+위 compose는 `http://127.0.0.1:8080/__gateway/dashboard`(관리 키 `local-admin-key`), 시험 트래픽은 `python3 scripts/traffic.py` — [운영 — 대시보드](docs/operations.md#대시보드).
+
+![운영 대시보드](docs/dashboard.png)
+
 Kubernetes — [`deploy/k8s/`](deploy/k8s/)(kustomize, `kubectl apply -k deploy/k8s`): 레플리카 2·PodDisruptionBudget·readiness·종료 유예(preStop 5초 + 25초)·
 Pod Security `restricted`. 설정 파일과 키는 ConfigMap·Secret으로 만들어지고, 바꾸고 apply하면 파드가 롤링 재시작된다.
 올리는 순서·키 회전·로그 수집·지표·용량은 [`docs/operations.md`](docs/operations.md).
@@ -203,7 +208,7 @@ Pod Security `restricted`. 설정 파일과 키는 ConfigMap·Secret으로 만�
 | `GATEWAY_SURROGATE_KEY` | 결정적 대체값 키(32자 이상) — PII `mask`(기본)면 필수. 공급자 키와 같은 등급으로 보관하고, 바꿀 때는 [운영 — 키 회전](docs/operations.md#키-회전)을 따른다 |
 | `TARGET_URL` · `GATEWAY_UPSTREAM_KEY` | 상류 주소와 공급자 키. API마다 다른 상류(OpenAI와 Anthropic을 한 게이트웨이로)는 설정 파일 `[upstreams.*]` |
 | `GATEWAY_PII` · `GATEWAY_INJECTION` | `mask`·`detect`·`off` / `observe`(기본)·`block`·`off` |
-| `GATEWAY_ADMIN_KEY` | `/__gateway/info`·`/__gateway/metrics`를 연다. 없으면 둘 다 404 |
+| `GATEWAY_ADMIN_KEY` | `/__gateway/`의 info·metrics·stats·대시보드를 연다. 없으면 모두 404 |
 | `GATEWAY_CONFIG` | 클라이언트별 정책(인젝션·PII·허용 모델), API별 상류, 해시로 둔 클라이언트 키 |
 
 경로·헤더·오류 형식·차단 응답의 모양은 [`docs/api-compat.md`](docs/api-compat.md)에 있다.
@@ -215,13 +220,14 @@ Pod Security `restricted`. 설정 파일과 키는 ConfigMap·Secret으로 만�
 ```
 gateway/    앱(main: create_app·라우팅·관리 엔드포인트) · 설정(settings: 환경변수 → Settings, 검사기 체인) · 상류 중계(relay) ·
             인증(auth) · API 어댑터(api/: chat·anthropic·responses) · 검사기(detectors/) ·
-            대체값(surrogate)·볼트(vault)·스트리밍 복원(streaming) · 감사 로그(audit)·지표(metrics)·레이트리밋(ratelimit)
+            대체값(surrogate)·볼트(vault)·스트리밍 복원(streaming) · 감사 로그(audit)·지표(metrics)·레이트리밋(ratelimit) ·
+            운영 대시보드 화면(dashboard.html)
   data/       injection_corpus.jsonl — 인젝션 룰 회귀 테스트 입력
 deploy/     compose.yml(로컬 체험) · k8s/(kustomize — Deployment·Service·PDB, 설정 파일, 비밀 견본)
 docs/       configuration(설정) · operations(운영) · api-compat(API 호환 범위) · verification/(실 공급자 확인 기록)
   overview/   쉽게 읽는 제품 설명서(PDF·HTML) — 비개발자용: 구조·요청 흐름·시나리오·화면·도입 절차·한계
 web/        데모 웹 — 브라우저 비교 화면
-scripts/    터미널 데모 · OpenAI·Anthropic SDK 점검 · 실 공급자 2턴 확인(check_multiturn_claude.py)
+scripts/    터미널 데모 · OpenAI·Anthropic SDK 점검 · 실 공급자 2턴 확인(check_multiturn_claude.py) · 대시보드 시험 트래픽(traffic.py)
 tests/      단위·통합 테스트 + 스텁 상류(tests/stub_target.py)
 eval/pii/   PII 평가 코퍼스(합성, 양성 1,200·음성 1,200·어려운 사례 40)·점수(score.py)·CI 게이트(tests/test_pii_corpus.py)
 eval/injection/   인젝션 평가셋 v1(공개 데이터셋 + 한국어 업무 문장, dev 5,492·봉인 홀드아웃 1,379)·만들기(build.py)·점수(score.py)·출처와 라이선스(SOURCES.md)

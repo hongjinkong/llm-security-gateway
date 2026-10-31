@@ -85,6 +85,7 @@ async def lifespan(app: FastAPI):
             procs.append(serve("gateway.main:app", gw_port, env, probe="/__gateway/health"))
             arms[arm] = {"gateway": f"http://127.0.0.1:{gw_port}", "target": target,
                          "stub": stub if target == stub else None, "log": log}
+        print(f'대시보드("있음" 게이트웨이) {arms["on"]["gateway"]}/__gateway/dashboard · 관리 키 {ADMIN_KEY}', flush=True)   # D-124
         app.state.arms = arms
         app.state.client = httpx.AsyncClient(timeout=120)
         yield

@@ -26,10 +26,10 @@ except PackageNotFoundError:
 
 
 def code_fingerprint(pkg_dir: pathlib.Path | None = None) -> str:
-    """gateway 패키지의 모든 .py 파일 내용을 해시한다. 앞 12자리를 쓴다."""
+    """gateway 패키지의 모든 .py 파일과 대시보드 화면(D-124 — 화면만 고쳐도 지문이 바뀐다) 내용을 해시한다. 앞 12자리를 쓴다."""
     root = pkg_dir or PKG
     h = hashlib.sha256()
-    for path in sorted(root.rglob("*.py")):
+    for path in sorted([*root.rglob("*.py"), *root.glob("dashboard.html")]):
         if "__pycache__" in path.parts:
             continue
         h.update(path.relative_to(root).as_posix().encode())

@@ -9,17 +9,23 @@ D-109: 경로 허용 목록 — 세 POST와 GET /v1/models만 받고 그 밖은 
      /__gateway/health는 status만, 상세(info)와 metrics는 GATEWAY_ADMIN_KEY가 있어야 보인다.
 D-118: 앱은 `create_app(settings)`로 만든다(설정은 gateway/settings.py, 상류 중계는 gateway/relay.py, 감사 줄 모양은 gateway/audit.py).
      이 모듈의 `app`은 uvicorn용이다 — 환경변수를 한 번 읽는다. `.env`는 읽지 않는다(`uvicorn --env-file .env`).
+D-124: 읽기 전용 운영 대시보드 — /__gateway/dashboard(정적 HTML, CSP 해시)와 /__gateway/stats(관리 키, gateway/metrics.py의 snapshot).
+     FastAPI 기본 문서 경로(/docs·/redoc·/openapi.json)와 끝 '/' 리다이렉트(307)는 없다. 파싱 400·허용 목록 밖 404의 감사 `error`도 채운다.
 """
 from __future__ import annotations
 
+import base64
 import fnmatch
+import hashlib
 import hmac
+import re
 import ssl
 import time
 import uuid
 from contextlib import asynccontextmanager
 from functools import partial
 from http.cookiejar import CookieJar, DefaultCookiePolicy
+from pathlib import Path
 
 import anyio
 import httpx
@@ -43,6 +49,24 @@ from gateway.version import VERSION, code_fingerprint
 INTERNAL_PREFIX = "/__gateway/"
 
 router = APIRouter()
+
+
+def _csp(html: bytes) -> str:
+    """대시보드의 CSP(D-124) — 유일한 `<script>`·`<style>` 블록의 SHA-256만 허용한다. 블록이 하나가 아니면 여기서 ValueError(기동 실패).
+    해시는 줄 끝을 LF로 바꾼 뒤 잰다 — 브라우저가 HTML을 읽을 때 CRLF·CR을 LF로 바꾼 뒤 재기 때문이다. CRLF로 체크아웃한 파일(Windows autocrlf)도 맞는다."""
+    (script,) = re.findall(rb"<script>(.*?)</script>", html, re.S)
+    (style,) = re.findall(rb"<style>(.*?)</style>", html, re.S)
+
+    def sha(block: bytes) -> str:
+        block = block.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+        return "'sha256-" + base64.b64encode(hashlib.sha256(block).digest()).decode() + "'"
+    return (f"default-src 'none'; script-src {sha(script)}; style-src {sha(style)}; img-src data:; connect-src 'self'; "
+            "base-uri 'none'; form-action 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'")
+
+
+DASHBOARD = Path(__file__).with_name("dashboard.html").read_bytes()
+DASHBOARD_HEADERS = {"Content-Security-Policy": _csp(DASHBOARD), "X-Content-Type-Options": "nosniff",
+                     "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"}
 
 
 def create_app(settings: Settings, registry: Registry = DETECTOR_REGISTRY) -> FastAPI:
@@ -88,7 +112,10 @@ def create_app(settings: Settings, registry: Registry = DETECTOR_REGISTRY) -> Fa
                 await pool.aclose()
             app.state.audit.close()
 
-    app = FastAPI(title="LLM Security Gateway", lifespan=lifespan)
+    # 기본 문서 경로를 끈다(D-124): /docs·/redoc은 CDN 스크립트를 읽는 HTML이고 /openapi.json은 관리 경로까지 나열한다 — 허용 목록 밖이다(D-109)
+    # 끝 '/' 경로도 307로 돌리지 않고 404다(D-124) — 307이면 감사 줄이 사유 없는 '그대로 전달'로 세어지고 Location이 Host 헤더를 따른다
+    app = FastAPI(title="LLM Security Gateway", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None,
+                  redirect_slashes=False)
     app.add_exception_handler(Exception, _unhandled)
     app.add_exception_handler(HTTPException, _http_error)
     app.middleware("http")(_audit_middleware)
@@ -123,6 +150,7 @@ async def _http_error(request: Request, exc: Exception) -> Response:
     405도 404로 돌려준다: 어떤 메서드가 있는지 알리지 않는다."""
     assert isinstance(exc, HTTPException)       # HTTPException에만 등록한다
     if exc.status_code in (404, 405):
+        request.state.upstream_error = "not_found"     # 감사 사유(D-124)
         return _not_found(request)
     return await http_exception_handler(request, exc)
 
@@ -216,18 +244,42 @@ async def info(request: Request) -> Response:
     })
 
 
+def _gauges(request: Request) -> tuple[dict[str, int], dict[str, int]]:
+    """D-122: 503을 정하는 두 양 — 정책마다의 대체값 세션(상한 2,000 → gateway_busy), 상류마다 빌려 간 연결(상한 GATEWAY_MAX_CONNECTIONS → upstream_busy).
+    주소가 같은 풀이 여럿이면(API마다 시간 제한이 다르면) 합이 아니라 가장 바쁜 풀의 값이다 — 상한이 풀마다라서 같은 단위다(D-124)."""
+    sessions = {name: sum(d.vault.session_count for d in chain.detectors if isinstance(d, PIIDetector) and d.mode == "mask")
+                for name, chain in request.app.state.chains.items()}
+    in_use: dict[str, int] = {}
+    for up in {id(u.pool): u for u in request.app.state.upstreams.values()}.values():   # 같은 풀을 여러 API가 함께 쓴다
+        in_use[up.pool.base_url] = max(in_use.get(up.pool.base_url, 0), up.pool.in_use)
+    return sessions, in_use
+
+
 @router.get("/__gateway/metrics")
 async def metrics(request: Request) -> Response:
     """Prometheus 텍스트 형식(D-107 E). 감사 레코드에서 센 값이라 감사 줄과 어긋나지 않는다. 관리 키가 있어야 보인다(D-109)."""
     if not _is_admin(request):
         return _not_found(request)
-    # D-122: 503을 정하는 두 양 — 정책마다의 대체값 세션(상한 2,000 → gateway_busy), 상류마다 빌려 간 연결(상한 GATEWAY_MAX_CONNECTIONS → upstream_busy)
-    sessions = {name: sum(d.vault.session_count for d in chain.detectors if isinstance(d, PIIDetector) and d.mode == "mask")
-                for name, chain in request.app.state.chains.items()}
-    in_use: dict[str, int] = {}
-    for up in {id(u.pool): u for u in request.app.state.upstreams.values()}.values():   # 같은 풀을 여러 API가 함께 쓴다
-        in_use[up.pool.base_url] = in_use.get(up.pool.base_url, 0) + up.pool.in_use
-    return Response(request.app.state.metrics.render(sessions, in_use), media_type="text/plain; version=0.0.4; charset=utf-8")
+    return Response(request.app.state.metrics.render(*_gauges(request)), media_type="text/plain; version=0.0.4; charset=utf-8")
+
+
+@router.get("/__gateway/stats")
+async def stats(request: Request) -> Response:
+    """대시보드의 데이터(D-124) — 이 프로세스의 누적과 최근 200줄. 관리 키 Bearer만(키를 URL·Basic으로 받지 않는다), 아니면 404.
+    수집용이 아니다(형식이 바뀔 수 있다) — 수집은 metrics로 한다."""
+    if not _is_admin(request):
+        return _not_found(request)
+    body = request.app.state.metrics.snapshot(*_gauges(request), request.app.state.settings.max_connections)
+    return JSONResponse(body, headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
+
+
+@router.get("/__gateway/dashboard")
+async def dashboard(request: Request) -> Response:
+    """운영 대시보드(D-124) — 정적 HTML. 관리 키가 설정된 게이트웨이에만 있다(없으면 404). 인증 없이 주는 것은 데이터·키·버전이 없는 화면뿐이다 —
+    주소창 이동으로는 Bearer 헤더를 실을 수 없으므로, 화면의 스크립트가 탭에 넣은 키로 /__gateway/stats를 읽는다."""
+    if not request.app.state.settings.admin_key:
+        return _not_found(request)
+    return Response(DASHBOARD, media_type="text/html; charset=utf-8", headers=DASHBOARD_HEADERS)
 
 
 def _admit(request: Request) -> Response | None:
@@ -235,7 +287,8 @@ def _admit(request: Request) -> Response | None:
     auth: Auth = request.app.state.auth
     client = auth.client_of(request.headers)
     request.state.client = client.name if client else None
-    request.state.policy = client.policy if client else "default"
+    # 무인증이면 default, 인증에 실패한 요청은 정책이 없다(None) — 감사·대시보드 줄에 정책이 찍히지 않게(D-124)
+    request.state.policy = client.policy if client else (None if auth.enabled else "default")
     if auth.enabled and client is None:
         request.state.upstream_error = "unauthorized"
         return error_format_for(request.url.path).error(401, "invalid or missing API key", "authentication_error", "invalid_api_key")
@@ -272,9 +325,9 @@ async def api(request: Request) -> Response:
     try:
         doc = Doc(adapter, adapter.parse(body))
     except ApiError as exc:
+        request.state.upstream_error = exc.code         # invalid_json·invalid_messages·invalid_request·invalid_stream — 감사 사유(D-124)
         return adapter.error(exc.status, str(exc), exc.type_, exc.code, exc.param)
-    model = doc.payload.get("model")
-    request.state.model = model if isinstance(model, str) else None
+    request.state.model = adapter.model(doc.payload) if isinstance(doc.payload.get("model"), str) else None   # 서로게이트는 '?'(D-124)
 
     policy: Settings = request.app.state.policies[request.state.policy]
     if policy.allowed_models is not None:       # 허용 모델(D-119) — 검사기·상류를 부르지 않는다

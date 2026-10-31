@@ -140,7 +140,7 @@ def test_b8_health_is_status_only(custody):
     assert r.status_code == 200 and r.json() == {"status": "ok"}
 
 
-@pytest.mark.parametrize("path", ["/__gateway/info", "/__gateway/metrics"])
+@pytest.mark.parametrize("path", ["/__gateway/info", "/__gateway/metrics", "/__gateway/stats"])
 def test_b8_admin_endpoints_need_the_admin_key(no_admin, stack, path):
     assert httpx.get(no_admin.gateway + path).status_code == 404
     assert httpx.get(no_admin.gateway + path, headers=ADMIN).status_code == 404     # 관리 키가 없는 게이트웨이는 아무도 못 본다

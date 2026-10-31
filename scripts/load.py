@@ -19,6 +19,7 @@ import os
 import re
 import resource
 import secrets
+import signal
 import statistics
 import subprocess
 import sys
@@ -224,6 +225,7 @@ def audit(log: Path) -> dict:
 
 
 def main() -> int:
+    signal.signal(signal.SIGTERM, signal.default_int_handler)   # kill(SIGTERM)도 Ctrl-C처럼 — 아래 finally가 서버를 끄고 임시 폴더를 지운다(D-124)
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--duration", type=float, default=60, help="부하 시간(초)")
     ap.add_argument("--streams", type=int, default=50, help="스트리밍 작업자 수")
@@ -237,8 +239,8 @@ def main() -> int:
     a = ap.parse_args()
     if not 0 < a.streams + a.plain <= 1000:
         ap.error("작업자는 1~1,000개다(번호 꼴 010-2www-nnnn)")
-    for name in [k for k in os.environ if k.startswith(("GATEWAY_", "TARGET_"))]:
-        del os.environ[name]                 # 셸의 게이트웨이 설정이 측정에 섞이지 않게 — 아래에서 다 정한다
+    for name in [k for k in os.environ if k.startswith(("GATEWAY_", "TARGET_", "UVICORN_"))]:
+        del os.environ[name]                 # 셸의 게이트웨이·uvicorn 설정(UVICORN_ENV_FILE·HOST 등)이 측정에 섞이지 않게 — 아래에서 다 정한다
     key = secrets.token_urlsafe(32)
     with tempfile.TemporaryDirectory() as tmp:
         sp, gp = free_port(), free_port()
@@ -252,6 +254,8 @@ def main() -> int:
                 "GATEWAY_ADMIN_KEY": ADMIN, "GATEWAY_SURROGATE_KEY": key, "GATEWAY_PII": "mask", "GATEWAY_INJECTION": "observe",
                 "GATEWAY_MAX_CONNECTIONS": str(a.max_connections),
             }, probe="/__gateway/health", args=SERVER_ARGS))
+            # D-124: 측정하는 동안 열어 본다(폴링은 감사·지표에 들지 않는다). 결과 표는 끝에 한꺼번에 찍으므로 표가 깨지지 않는다
+            print(f"대시보드 {gateway}/__gateway/dashboard · 관리 키 {ADMIN}", flush=True)
             pid = procs[-1].pid
             base = asyncio.run(load(stub, a.streams, a.plain, a.duration, None))[0] if a.baseline else None
             stub_cpu0, me0 = cpu_s(procs[0].pid), resource.getrusage(resource.RUSAGE_SELF)

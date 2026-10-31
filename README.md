@@ -39,22 +39,49 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
 
 ![데모 — 게이트웨이 없음 vs 있음](docs/demo.gif)
 
+### 탐지 종류
+
+종류 이름은 감사 로그·지표(`kind`)와 `GATEWAY_PII_KINDS`에 쓰는 이름이다. 탐지는 모양만 보고, 문맥어(값 앞뒤 20자)는 가릴지만 정한다 — 응답에서 문맥 없이 돌아온 가짜 값도
+같은 모양으로 되찾기 위해서다. 그래서 문맥 없이는 흔한 숫자열과 구별되지 않는 꼴(구분자 없는 10·12자리 등)은 지원하지 않는다.
+**감사만** 종류는 탐지해 감사(`unmasked`)에 남기고 그대로 보낸다 — `GATEWAY_PII_DETECT_KINDS`에서 빼면 가린다.
+재현율은 가리기로 켰을 때의 합성 코퍼스 값이다(`eval/pii/`, 종류마다 양성 100건, 숫자가 빽빽한 업무 문장 음성 1,200건의 오탐은 전체 3건 0.2%).
+
+| 종류 | 잡는 꼴 | 검증 | 기본 | 가리지 않는 경우·지원하지 않는 꼴 | 재현율 |
+|---|---|---|---|---|---|
+| 주민등록번호 `rrn` | 앞 6자리 + 뒤 7자리(하이픈·공백·붙임), 성별 1~4 | 실제 날짜, 검증식(등급만 — 2020-10 이후 번호는 검증식이 없다) | 가림 | 검증식이 안 맞고 구분자·문맥어(주민·생년·등록번호…)가 없는 13자리는 감사만. 하이픈 앞뒤 빈칸 | 98 (검증식 통과 55/55) |
+| 외국인등록번호 `frn` | 같은 꼴, 성별 5~8 | 실제 날짜, 검증식(등급만) | 가림 | 주민번호와 같다 | 95 (검증식 통과 57/57) |
+| 여권 `passport` | M·S·R·O·D + 8자리(구형), + 3자리·대문자·4자리(2021-12 차세대) | — | 가림 | 구형은 '여권·passport'가 가까이 없으면 감사만. 소문자 | 80 (차세대 47/47) |
+| 운전면허 `driver` | `11-20-123456-78`(하이픈) | 지역 11~26·28 | 가림 | 구분자 없는 12자리, 지역명 꼴(`서울 07-…`, 2014-07 이전) | 100 |
+| 카드 `card` | 13~19자리(하이픈·공백·붙임) | Luhn, 발급사 범위(국내 전용 9 포함) | 가림 | 범위 밖(IMEI·주문번호 등)은 카드 문맥어가 없으면 감사만. 점 구분 | 100 |
+| 전화 `phone` | 국내(010·02·031…·070)·괄호 지역번호·`+국가번호` | — | 가림 | 050 안심번호, 영문자에 붙은 번호(`TEL010-…`) | 100 |
+| 이메일 `email` | `로컬@도메인` | — | 가림 | — | 100 |
+| 자격 증명 `secret` | OpenAI·Anthropic·AWS·GitHub·Google·Slack 키, JWT, PEM 개인 키 | 접두사·형식 | 가림 | 접두사가 없는 키·비밀번호 | 100 |
+| 사업자등록번호 `brn` | `123-45-67891`(하이픈) | 검증식 | **감사만** | 구분자 없는 10자리 | 100 |
+| 법인등록번호 `crn` | `134511-0012340`(하이픈) | 검증식 | **감사만** | 주민번호 꼴인 번호(`110111-1…`)는 '법인'이 가까이 없으면 주민번호로 가린다 | 89 |
+| 계좌번호 `account` | 은행별 하이픈 꼴 14가지(국민·신한·우리·하나·농협·기업·카카오·토스·케이·우체국·SC·새마을) | — | **감사만** | 계좌 문맥어(계좌·입금·송금·은행 이름…)가 없으면 감사만. 구분자 없는·띄어 쓴 계좌 | 64 |
+| IPv4 `ipv4` | 공인 주소(사설·예약·멀티캐스트·끝이 0인 주소 제외) | — | **감사만** | '버전·빌드·펌웨어…'가 가까우면 감사만. 문맥어 없는 4묶음 버전 번호는 IP로 오인. IPv6 | 100 |
+
+패턴·검증식은 Presidio 한국 인식기(KR_RRN·KR_FRN·KR_BRN·KR_PASSPORT·KR_DRIVER_LICENSE)와 공개 검증식으로 대조했다(DECISIONS D-117).
+가짜 값은 같은 모양이고 검증식이 있는 종류는 검증식을 맞춘다(주민·외국인 번호는 날짜·성별만). 운전면허 지역·사업자 앞 5자리·법인 앞 7자리·계좌 앞 3자리·IP 첫 묶음은 그대로 둔다.
+
 ---
 
 ## 2. 막지 못하는 것
 
-- **형식이 없는 개인정보·기밀.** 탐지는 주민등록번호·카드번호·전화번호(국내·국제 `+국가번호`·괄호 지역번호)·이메일, 그리고 접두사가 고정된 키
-  (OpenAI·Anthropic·AWS·GitHub·Google·Slack)·JWT·PEM 개인 키뿐이다. 이름·주소·계좌번호·여권·운전면허·IBAN·서술형 민감정보는 그대로 나간다.
-  인터넷 전화(070), 영문자에 붙은 번호(`TEL010-…`), 하이픈 앞뒤에 빈칸을 둔 주민번호, 점으로 구분한 카드 번호도 잡지 못한다.
+- **형식이 없는 개인정보·기밀.** 탐지는 1절 '탐지 종류' 표의 열두 종류뿐이다. 이름·주소·IBAN·IPv6·서술형 민감정보는 그대로 나가고, 표의 '지원하지 않는 꼴'
+  (구분자 없는 운전면허·사업자·계좌번호, 띄어 쓴 계좌, 소문자 여권, 050 안심번호, 영문자에 붙은 번호, 점으로 구분한 카드 번호 등)도 잡지 못한다.
   전각 숫자·제로폭 문자·대시 변형(–)은 정규화해서 잡고, 가짜 값은 원문 자리에 넣고 원문 그대로 돌려준다.
-- **애매한 숫자열은 가리지 않는다.** 구분자 없이 붙여 쓴 13자리 주민번호 꼴이 검증식에 맞지 않고(2020-10 이후 번호는 검증식이 없다) 앞뒤 20자 안에 '주민·생년·등록번호'
-  같은 말이 없으면, 또 Luhn은 맞지만 카드 발급사 범위 밖인 숫자열(IMEI·주문번호 등)에 '카드' 같은 말이 없으면 감사(`unmasked`)에만 남기고 그대로 보낸다 —
-  업무 번호를 지키는 대가로 그 꼴의 진짜 값은 상류로 간다. 합성 평가(`eval/pii/`, 숫자가 빽빽한 업무 문장 1,000건)의 오탐은 0.3%, 양성 500건의 재현율은 98.8%다.
+- **애매한 숫자열은 가리지 않는다.** 구분자 없이 붙여 쓴 13자리 주민·외국인 번호 꼴이 검증식에 맞지 않고 앞뒤 20자 안에 '주민·생년·등록번호' 같은 말이 없으면,
+  Luhn은 맞지만 카드 발급사 범위 밖인 숫자열(IMEI·주문번호 등)에 '카드' 같은 말이 없으면, 구형 여권 꼴(글자 + 8자리)에 '여권'이 없으면 감사(`unmasked`)에만 남기고
+  그대로 보낸다 — 업무 번호를 지키는 대가로 그 꼴의 진짜 값은 상류로 간다. 표의 머리줄에만 '여권번호'가 있는 표·CSV도 같다.
+- **사업자·법인·계좌번호와 IP는 기본으로 보낸다.** 탐지해 감사에 남기지만 가리지 않는다(`GATEWAY_PII_DETECT_KINDS`로 켠다) — 사업체 번호는 공개 의무가 있는 식별자이고,
+  계좌 꼴은 은행마다 달라 송장·관리번호와 겹치며, IP는 개발 대화에서 질문의 대상(서버 주소)인 경우가 많다. 고객 접속 로그를 다루면 켠다.
 - **비텍스트**(이미지·PDF 원본)와 텍스트가 아닌 블록은 보지 않는다.
 - **사고 과정에는 가짜 값이 보인다.** Anthropic thinking과 Responses reasoning 요약은 상류가 서명한 그대로 돌려주므로(바꾸면 다음 턴이 거절되고, 복원하면 원래 값이
   다음 턴에 thinking에 담겨 상류로 간다) 그 안에서는 가짜 값이 보인다.
 - **룰이 모르는 공격.** 인젝션 룰은 알려진 영어 문구에만 듣는다. 동의어·인코딩·역할 헤더 위조는 잡지 못하고, 한국어 공격 탐지율은 잰 적이 없다.
-- **출력 방향.** 모델이 새로 내보낸 개인정보는 사용자에게 그대로 간다.
+- **출력 방향.** 모델이 새로 내보낸 개인정보는 사용자에게 그대로 간다 — 가리지 않고 감사 `pii_new`·지표 `gateway_pii_new_total`로 센다
+  (그 요청에서 가린 원문·발급한 가짜 값이 아닌 것. detect 모드에서는 사용자가 보낸 값이 되돌아온 것도 센다).
 - **대체값 복원 실패는 조용하다.** 모델이 가짜 값을 알아볼 수 없게 바꿔 쓰면(구분자·대소문자 변경은 복원된다) 사용자는 가짜 값을 받는다.
   응답 헤더 `x-gateway-pii: issued=N restored=M`, 감사의 `pii_issued`·`pii_restored`·`pii_suspect`, 지표 `gateway_pii_suspect_total`(남은 가짜 값 + 가짜 값의
   끝 4자리·이메일 로컬파트만 나타난 경우)로 보인다. 가짜 이메일은 예약 도메인(`example.com`·`.net`·`.org`)이라 실제 주소가 되지 않지만,
@@ -62,7 +89,7 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
 - **세 API와 `GET /v1/models` 밖의 공급자 기능**(파일·임베딩·배치·`count_tokens` 등)은 게이트웨이로 쓸 수 없다(404).
 - **요청 간 연결.** 같은 대체값 키 아래 같은 원문은 늘 같은 가짜 값이라, 공급자 로그에서 같은 값을 담은 요청끼리 이어 볼 수 있다. 키를 바꾸면 끊긴다.
   키와 가짜 값이 함께 있으면 전화번호처럼 공간이 작은 값은 되짚을 수 있으므로 키는 공급자 키와 같은 등급으로 보관한다.
-- **운영 제약.** 레이트리밋·지표는 워커(프로세스)별이다. 클라이언트 키는 이름일 뿐 권한 구분이 없다. Responses API의
+- **운영 제약.** 레이트리밋·지표는 워커(프로세스)별이다. 정책은 클라이언트 단위이고, 설정을 바꾸면 재시작해야 한다. Responses API의
   `previous_response_id`처럼 상류에 저장된 대화는 게이트웨이가 볼 수 없고 복원하지 못한다.
 
 ---
@@ -84,6 +111,7 @@ pip install -e ".[dev]"
 ```bash
 pytest -q
 ruff check .
+mypy
 ```
 
 한 명령 데모 — 스텁 상류와 게이트웨이를 임시 포트에 띄우고, 여섯 장면(개인정보·API 키·assistant 이력·이번 턴 차단·이력 가림·413)에서
@@ -111,6 +139,8 @@ uvicorn tests.stub_target:app --port 8000
 GATEWAY_CLIENT_KEYS=demo=demo-key GATEWAY_SURROGATE_KEY="$(python3 -m gateway keygen)" TARGET_URL=http://localhost:8000 \
   uvicorn gateway.main:app --port 8080
 ```
+
+`.env`(견본 `.env.example`)에 설정을 두었으면 `uvicorn gateway.main:app --port 8080 --env-file .env`로 넘긴다 — 게이트웨이는 `.env`를 스스로 읽지 않는다.
 
 ```bash
 curl -s http://localhost:8080/v1/chat/completions \
@@ -146,12 +176,15 @@ docker run -p 8080:8080 -e GATEWAY_CLIENT_KEYS=... -e GATEWAY_SURROGATE_KEY=... 
 
 | 변수 | 기본값 | 뜻 |
 |---|---|---|
-| `TARGET_URL` | `http://localhost:8000` | 상류(공급자) 주소. Chat Completions의 상류 경로만 `GATEWAY_CHAT_UPSTREAM_PATH`로 바꿀 수 있다(Gemini) |
-| `GATEWAY_CLIENT_KEYS` | (없음 — **기동 실패**) | 클라이언트 키 `이름=키,이름2=키2`. `Authorization: Bearer`나 `x-api-key`로 낸다. 로컬 실험만 `GATEWAY_AUTH=off` |
-| `GATEWAY_UPSTREAM_KEY` | (없음) | 공급자 키. 상류 형식으로 단다 — `/v1/messages`와 `anthropic-version`을 보낸 요청은 `x-api-key`, 그 밖은 `Bearer`. `GATEWAY_AUTH=off`와 함께 쓰면 기동 실패 |
+| `TARGET_URL` | `http://localhost:8000` | 상류(공급자) 주소(origin). 상류 경로는 받은 경로 그대로다 |
+| `GATEWAY_CLIENT_KEYS` | (없음 — 설정 파일에도 없으면 **기동 실패**) | 클라이언트 키 `이름=키,이름2=키2`(정책 `default`). `Authorization: Bearer`나 `x-api-key`로 낸다. 읽을 때 SHA-256으로 바꿔 든다. 로컬 실험만 `GATEWAY_AUTH=off` |
+| `GATEWAY_CONFIG` | (없음) | 설정 파일(TOML) — 클라이언트별 정책·허용 모델, API별 상류(아래). 없으면 환경변수만으로 뜬다 |
+| `GATEWAY_UPSTREAM_KEY` | (없음) | 설정 파일에 없는 상류의 공급자 키. 상류 형식으로 단다 — `/v1/messages`와 `anthropic-version`을 보낸 요청은 `x-api-key`, 그 밖은 `Bearer`. `GATEWAY_AUTH=off`와 함께 쓰면 기동 실패 |
 | `GATEWAY_ADMIN_KEY` | (없음) | `/__gateway/info`·`/__gateway/metrics`를 여는 관리 키(`Authorization: Bearer`). 없으면 둘 다 404 |
 | `GATEWAY_SURROGATE_KEY` | (없음 — mask 모드면 **기동 실패**) | 결정적 대체값 키(32자 이상, `python -m gateway keygen`). 바꾸면 진행 중인 대화는 다음 턴에 이력 바이트가 바뀐다(캐시 미스 한 번) |
-| `GATEWAY_PII` | `mask` | `mask`(대체값으로 바꾸고 응답에서 복원) · `detect`(감사에만) · `off`. 종류는 `GATEWAY_PII_KINDS`(기본 `rrn,card,phone,email,secret`), 역할은 `GATEWAY_PII_ROLES`(기본 `user,assistant,tool,system`, `developer`는 system) |
+| `GATEWAY_PII` | `mask` | `mask`(대체값으로 바꾸고 응답에서 복원) · `detect`(감사에만) · `off`. 종류는 `GATEWAY_PII_KINDS`(기본 전부 — 1절 표), 역할은 `GATEWAY_PII_ROLES`(기본 `user,assistant,tool,system`, `developer`는 system) |
+| `GATEWAY_PII_DETECT_KINDS` | `account,brn,crn,ipv4` | `mask` 모드에서도 가리지 않고 감사(`unmasked`)에만 남길 종류(쉼표). 빈 값이면 모든 종류를 가린다. 두 종류 설정 모두 모르는 이름은 기동 실패 |
+| `GATEWAY_LANG` | `ko` | 사용자·운영자 문구(차단 문구·가린 이력 자리표시·기동 거부·설정 오류) — `ko`·`en`. `GATEWAY_BLOCKED_MESSAGE`가 있으면 차단 문구는 그것. API 오류 본문은 언제나 영어 |
 | `GATEWAY_INJECTION` | `observe` | `observe`(적중을 감사에만, `would_block`) · `block`(이번 턴이 걸리면 차단, 이력의 걸린 턴은 가림) · `off` |
 | `GATEWAY_MAX_BODY_BYTES` | 1MiB | 넘으면 검사기·상류를 부르지 않고 413 |
 | `GATEWAY_MAX_FINDINGS` | 5000 | `mask` 모드에서 한 요청의 탐지 상한. 넘으면 대체값을 하나도 만들지 않고 413(`too_many_findings`), 상류 없음 |
@@ -159,35 +192,78 @@ docker run -p 8080:8080 -e GATEWAY_CLIENT_KEYS=... -e GATEWAY_SURROGATE_KEY=... 
 | `GATEWAY_RATE_PER_MINUTE` | 0(끔) | 클라이언트(무인증이면 IP)마다 분당 상한. 넘으면 429 + `retry-after`, 상류 없음 |
 | `GATEWAY_TIMEOUT` | 600 | 상류 읽기 대기(초). 연결 5초·쓰기 30초·풀 대기 5초는 고정. 대체값 매핑은 이보다 60초 더 산다 |
 | `GATEWAY_LOG_PATH` | `logs/gateway.jsonl` | 감사 로그. `-`면 stdout. 파일이면 `GATEWAY_LOG_MAX_BYTES`(100MiB)·`GATEWAY_LOG_BACKUPS`(5)로 회전 |
-| `GATEWAY_DETECTORS` | (없음) | 저수준 검사기 목록(쉼표). **설정돼 있으면 위 PII·INJECTION 설정을 무시한다** — 테스트용. 빈 값은 검사기 없음 |
 
-- 처리 순서: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 파싱(400) → 인젝션 → PII → 상류 → 복원 → 감사 한 줄. 401·429·413은 본문을 검사하지도 중계하지도 않는다.
+- 처리 순서: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 파싱(400) → 허용 모델(403) → 인젝션 → PII → 상류 → 복원 → 감사 한 줄. 401·429·413·403은 본문을 검사하지도 중계하지도 않는다.
 - 차단(`block` 모드)은 HTTP 200의 정상 응답으로 돌려준다 — Chat `finish_reason=content_filter`, Messages `stop_reason=refusal`, Responses `status=incomplete`(`content_filter`),
   모두 `gateway_blocked: true`와 문구 끝의 `(요청 ID: …)`. 사유는 넣지 않는다(감사에만). 상류는 부르지 않는다.
 - 스트리밍(`stream: true`)은 상류 SSE를 조각마다 흘려보내며 채널(텍스트·도구 인자·content block)마다 조각 경계에 걸린 대체값을 복원한다.
-  감사 줄은 스트림이 끝난 뒤 한 줄. 스트리밍의 `x-gateway-pii`에는 발급 수만 있다(복원 수는 감사에). 오류(400·401·404·413·429·502·503·504)는 스트리밍 요청에도 JSON이고 형식은 API를 따른다(Messages는 Anthropic 오류 형식).
+  감사 줄은 스트림이 끝난 뒤 한 줄. 스트리밍의 `x-gateway-pii`에는 발급 수만 있다(복원 수는 감사에).
+  감사 줄에는 `model`과 `usage`(`input`·`output`·`cache_read`·`cache_write` 토큰)가 있다 — Chat 스트림은 게이트웨이가 상류에 `stream_options.include_usage`를 넣어 받고,
+  클라이언트가 요청하지 않았으면 usage만 담은 마지막 조각을 클라이언트 스트림에서 뺀다(그것을 모르는 OpenAI 호환 서버는 400을 낼 수 있다). 오류(400·401·404·413·429·502·503·504)는 스트리밍 요청에도 JSON이고 형식은 API를 따른다(Messages는 Anthropic 오류 형식).
   503은 상류 연결 풀이 찼거나(`upstream_busy`) 진행 중인 대체값 세션이 상한(워커당 2,000)에 닿았을 때(`gateway_busy`)다 — 둘 다 `retry-after: 1`.
   비스트리밍 상류 응답이 32MiB를 넘으면 502(`upstream_response_too_large`).
-- 상류로 넘기는 요청 헤더는 `content-type` `accept` `user-agent` `anthropic-version` `anthropic-beta` `openai-beta` `idempotency-key`뿐이다.
+- 상류로 넘기는 요청 헤더는 `content-type` `accept` `user-agent` `anthropic-version` `anthropic-beta` `openai-beta` `idempotency-key`와
+  게이트웨이의 `x-gateway-request-id`(감사 줄 `request_id`와 같다 — 사내 상류의 로그와 잇는다)뿐이다.
   클라이언트의 인증 헤더는 `GATEWAY_AUTH=off`일 때만 넘긴다(켜져 있으면 그것은 게이트웨이 키다). 공급자 키가 없으면 `openai-organization`·`openai-project`도 넘긴다.
   클라이언트로 넘기는 응답 헤더는 `content-type` `cache-control` `retry-after` `retry-after-ms` `x-should-retry`와 게이트웨이의 `x-gateway-request-id`뿐이다.
   상류 요청 ID는 감사 줄 `upstream_request_id`에 남는다. 상류 쿠키는 저장하지도 보내지도 않는다.
 - `/__gateway/health`는 인증 없이 `{"status": "ok"}`만 준다. 버전·코드 지문·상류·검사기는 `/__gateway/info`, Prometheus 지표(요청·차단·마스킹·복원·잔여·지연)는
   `/__gateway/metrics` — 둘 다 `GATEWAY_ADMIN_KEY`가 있어야 보인다.
 
+### 설정 파일 (`GATEWAY_CONFIG`)
+
+한 게이트웨이로 OpenAI와 Anthropic을 함께 쓰고, 클라이언트(팀·앱)마다 정책을 달리 준다. 공급자 키는 파일에 두지 않고 `key_env`가 가리키는 환경변수(K8s Secret)에서 읽는다.
+클라이언트 키도 해시만 둔다 — `python -m gateway keygen --hash`가 키(클라이언트에게 준다)와 `key_sha256 = "…"` 줄(파일에 넣는다)을 낸다.
+
+```toml
+[[clients]]
+name = "support-bot"
+key_sha256 = "…"            # keygen --hash의 둘째 줄
+policy = "strict"           # 없으면 default
+
+[policies.default]          # 빠진 값은 환경변수(GATEWAY_INJECTION·GATEWAY_PII…)를 따르고, 다른 정책은 default를 따른다
+pii_kinds = ["rrn", "frn", "passport", "driver", "card", "phone", "email", "secret"]
+
+[policies.strict]
+injection = "block"         # observe | block | off
+pii_mode = "mask"           # mask | detect | off
+pii_detect_kinds = []       # 계좌·사업자·IP까지 가린다
+allowed_models = ["gpt-4.1*", "claude-sonnet-*"]   # fnmatch 글롭. 밖의 모델은 403(model_not_allowed), 상류 호출 없음
+
+[upstreams.chat]            # chat · responses · messages(어댑터 이름). 없는 것은 TARGET_URL·GATEWAY_UPSTREAM_KEY
+base_url = "https://api.openai.com"
+key_env = "OPENAI_API_KEY"
+
+[upstreams.responses]
+base_url = "https://api.openai.com"
+key_env = "OPENAI_API_KEY"
+
+[upstreams.messages]
+base_url = "https://api.anthropic.com"
+key_env = "ANTHROPIC_API_KEY"
+timeout = 600
+```
+
+- 파일에 적은 상류는 `key_env`가 없으면 공급자 키를 달지 않는다(`GATEWAY_UPSTREAM_KEY`를 넘겨받지 않는다 — 다른 공급자의 키일 수 있다).
+  `GET /v1/models`는 `anthropic-version` 헤더가 있으면 `messages` 상류, 없으면 `chat` 상류로 간다.
+- 모르는 표·키, 틀린 값, 없는 정책을 가리키는 클라이언트, 없는 환경변수를 가리키는 `key_env`는 기동 실패다.
+- 파일 SHA-256 앞 12자가 `/__gateway/info`의 `config`와 감사 줄의 `config`에, 요청의 정책 이름이 감사 줄 `policy`에 남는다.
+- 한 게이트웨이에 두 SDK 확인: `python3 scripts/check_sdks.py --openai-python … --anthropic-python …`(스텁 둘, 비용 0).
+
 ---
 
 ## 5. 구조
 
 ```
-gateway/    프록시 본체(main) · 인증(auth) · API 어댑터(api/: chat·anthropic·responses) · 검사기(detectors/) ·
+gateway/    앱(main: create_app·라우팅·관리 엔드포인트) · 설정(settings: 환경변수 → Settings, 검사기 체인) · 상류 중계(relay) ·
+            인증(auth) · API 어댑터(api/: chat·anthropic·responses) · 검사기(detectors/) ·
             대체값(surrogate)·볼트(vault)·스트리밍 복원(streaming) · 감사 로그(audit)·지표(metrics)·레이트리밋(ratelimit)
   data/       injection_corpus.jsonl — 인젝션 룰 회귀 테스트 입력
 web/        데모 웹 — 브라우저 비교 화면
 scripts/    터미널 데모 · OpenAI·Anthropic SDK 점검 · 실 공급자 2턴 확인(check_multiturn_claude.py)
 docs/verification/   실 공급자 확인 기록(요약 md + 원자료 jsonl, 키·원문 없음)
 tests/      단위·통합 테스트 + 스텁 상류(tests/stub_target.py)
-eval/pii/   PII 평가 코퍼스(합성, 양성 500·음성 1,000·어려운 사례)·점수(score.py)·CI 게이트(tests/test_pii_corpus.py)
+eval/pii/   PII 평가 코퍼스(합성, 양성 1,200·음성 1,200·어려운 사례 40)·점수(score.py)·CI 게이트(tests/test_pii_corpus.py)
 eval/benign/all100.jsonl   정상 질문 100문항 — 인젝션 룰 오탐 회귀 테스트 입력
 ```
 

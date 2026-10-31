@@ -6,6 +6,7 @@
   gateway_pii_masked_total{kind}               마스킹 건수(종류별)
   gateway_pii_restored_total / gateway_pii_residual_total   복원 건수 / 복원 뒤 남은 대체값 수
   gateway_pii_suspect_total                    의심 잔여 — 남은 대체값 + 대체값의 식별 조각(끝 4자리·로컬파트)만 나타난 경우(D-113)
+  gateway_pii_new_total                        응답에 새로 나온 PII·비밀(우리가 가린 원문·발급한 대체값이 아닌 것, D-120) — 가리지 않는다
   gateway_upstream_ms_sum/_count, gateway_total_ms_sum/_count   지연 합·횟수(평균은 나눠서)
 """
 from __future__ import annotations
@@ -20,7 +21,7 @@ class Metrics:
         self.requests: Counter = Counter()
         self.injection: Counter = Counter()
         self.masked: Counter = Counter()
-        self.restored = self.residual = self.suspect = 0
+        self.restored = self.residual = self.suspect = self.new = 0
         self.upstream_ms = self.total_ms = 0.0
         self.upstream_n = self.total_n = 0
 
@@ -35,10 +36,11 @@ class Metrics:
                     for kind, n in (d.get("pii") or {}).items():
                         self.masked[kind] += n
             for d in rec.get("response_detectors") or []:
-                if d.get("detector") == "pii_mask":
+                if d.get("detector") in ("pii_mask", "pii"):
                     self.restored += d.get("restored") or 0
                     self.residual += d.get("residual_tokens") or 0
                     self.suspect += d.get("suspect") or 0
+                    self.new += d.get("new") or 0
             if rec.get("total_ms") is not None:
                 self.total_ms += rec["total_ms"]
                 self.total_n += 1
@@ -58,6 +60,7 @@ class Metrics:
             lines += ["# TYPE gateway_pii_restored_total counter", f"gateway_pii_restored_total {self.restored}",
                       "# TYPE gateway_pii_residual_total counter", f"gateway_pii_residual_total {self.residual}",
                       "# TYPE gateway_pii_suspect_total counter", f"gateway_pii_suspect_total {self.suspect}",
+                      "# TYPE gateway_pii_new_total counter", f"gateway_pii_new_total {self.new}",
                       "# TYPE gateway_upstream_ms summary", f"gateway_upstream_ms_sum {self.upstream_ms:.2f}",
                       f"gateway_upstream_ms_count {self.upstream_n}",
                       "# TYPE gateway_total_ms summary", f"gateway_total_ms_sum {self.total_ms:.2f}",

@@ -1,7 +1,8 @@
 """OpenAI Chat Completions 어댑터(D-107 C). 파서는 openai_api.py의 것을 그대로 쓴다(D-074·D-102)."""
 from __future__ import annotations
 
-import os
+import json
+
 
 from fastapi.responses import JSONResponse, Response
 
@@ -49,8 +50,7 @@ class ChatAdapter(Adapter):
         return refs
 
     def upstream_path(self) -> str:
-        # D-086: Gemini의 OpenAI 호환 입구는 /v1beta/openai/chat/completions라 chat completions만 상류 경로를 바꿀 수 있다.
-        return os.environ.get("GATEWAY_CHAT_UPSTREAM_PATH", CHAT_COMPLETIONS_PATH)
+        return CHAT_COMPLETIONS_PATH      # 상류 경로 바꾸기(GATEWAY_CHAT_UPSTREAM_PATH, D-086)는 D-118에서 뺐다 — 상류별 설정은 PLAN 12단계
 
     def error(self, status: int, message: str, type_: str, code: str, param: str | None = None) -> JSONResponse:
         return openai_error(status, message, type_, code, param)
@@ -67,6 +67,15 @@ class ChatAdapter(Adapter):
             "choices": [{"index": 0, "message": {"role": "assistant", "content": message}, "finish_reason": "content_filter"}],
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             "gateway_blocked": True})
+
+    def with_stream_usage(self, body: bytes) -> tuple[bytes, bool]:
+        """Chat 스트림은 요청해야 usage를 준다(D-120) — `stream_options.include_usage`를 넣고, 클라이언트가 요청하지 않았으면 그 조각을 뺀다."""
+        payload = json.loads(body)
+        opts = payload.get("stream_options")
+        if isinstance(opts, dict) and opts.get("include_usage") is True:
+            return body, False
+        payload["stream_options"] = {**(opts if isinstance(opts, dict) else {}), "include_usage": True}
+        return self.serialize(payload), True
 
     def stream_shape(self) -> ChatShape:
         return ChatShape()

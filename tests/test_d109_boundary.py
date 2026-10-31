@@ -122,7 +122,7 @@ def test_b6_auth_on_without_upstream_key_keeps_the_gateway_key_home(keyed):
 # ---------- B7 기동 ----------
 
 def test_b7_auth_off_with_upstream_key_does_not_boot():
-    env = {**os.environ, "GATEWAY_AUTH": "off", "GATEWAY_UPSTREAM_KEY": "k", "GATEWAY_LOG_PATH": "-", "GATEWAY_DETECTORS": ""}
+    env = {**os.environ, "GATEWAY_AUTH": "off", "GATEWAY_UPSTREAM_KEY": "k", "GATEWAY_LOG_PATH": "-", "GATEWAY_PII": "off"}
     p = subprocess.run([sys.executable, "-m", "uvicorn", "gateway.main:app", "--port", str(free_port())],
                        env=env, capture_output=True, text=True, timeout=30)
     assert p.returncode != 0 and "GATEWAY_UPSTREAM_KEY" in p.stderr

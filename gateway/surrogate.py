@@ -13,23 +13,27 @@
           복원에 실패해도 실제 제3자의 주소가 되지 않는다.
   secret  알려진 접두사(`sk-`·`sk-proj-`·`AKIA`·`ghp_`·`AIza`·`xoxb-`·JWT의 `eyJ`) 유지, 나머지는 같은 글자 부류의 무작위.
           PEM은 BEGIN/END 줄 유지, 본문은 같은 부류의 무작위.
+  D-117   frn은 주민번호와 같고 성별 5~8. passport는 종류 글자 유지·같은 부류 무작위. driver는 지역 2자리, account는 앞 3자리 유지.
+          brn은 앞 5자리(세무서·구분), crn은 앞 7자리 유지에 검증 숫자 계산. ipv4는 첫 묶음 유지, 나머지는 무작위 공인 주소.
 난수는 호출자가 넘긴다(D-111). 볼트는 값마다 `random.Random(HMAC-SHA256(대체값 키, 종류 + "\0" + 정규화 값))`을 넘기므로
 같은 키·같은 원문은 언제나 같은 대체값이 된다 — 다음 턴 이력의 바이트가 바뀌지 않는다(thinking 서명·프롬프트 캐시).
 `make`를 rng 없이 부르면(모양 규칙 테스트) 시스템 난수를 쓴다.
 """
 from __future__ import annotations
 
+import ipaddress
 import random
 import re
 import secrets
 import string
+from collections.abc import Callable
 
-from gateway.detectors.patterns import digits
+from gateway.detectors.patterns import brn_check, crn_check, digits
 
 _SYSTEM = secrets.SystemRandom()
 
 WS_RE = re.compile(r"\s")
-KR_PREFIX_RE = re.compile(r"^\(?(?:01[016789]|02|0[3-6][1-5])\)?")
+KR_PREFIX_RE = re.compile(r"^\(?(?:01[016789]|02|0[3-6][1-5]|070)\)?")
 INTL_PREFIX_RE = re.compile(r"^\+\d{1,3}(?=[-.\s(]|$)|^\+\d{1,2}")   # `+82 10…`은 `+82`, `+821023…`은 `+82`
 SECRET_PREFIX_RE = re.compile(
     r"^(?:sk-(?:[a-z]+-)?|AKIA|ASIA|gh[pousr]_|github_pat_|AIza|xox[abprs]-)")
@@ -77,10 +81,15 @@ def phone(value: str, rng: random.Random) -> str:
     return "".join(_random_digits_in(value, rng, keep_first=keep))
 
 
-def card(value: str, rng: random.Random) -> str:
-    chars = _random_digits_in(value, rng, keep_first=1, keep_last=1)
-    body = digits("".join(chars))[:-1]
-    # Luhn 검증 자리: 본문 뒤에 붙였을 때 합이 10의 배수가 되는 한 자리
+def _with_check(chars: list[str], check: Callable[[str], int]) -> str:
+    """마지막 숫자 자리를 그 앞 숫자들의 검증 숫자로 바꾼 텍스트."""
+    last = max(i for i, c in enumerate(chars) if c.isdigit())
+    chars[last] = str(check(digits("".join(chars))[:-1]))
+    return "".join(chars)
+
+
+def _luhn(body: str) -> int:
+    """본문 뒤에 붙였을 때 Luhn 합이 10의 배수가 되는 한 자리."""
     total = 0
     for i, ch in enumerate(reversed(body)):
         n = int(ch)
@@ -89,18 +98,54 @@ def card(value: str, rng: random.Random) -> str:
             if n > 9:
                 n -= 9
         total += n
-    check = (10 - total % 10) % 10
-    last = max(i for i, c in enumerate(chars) if c.isdigit())
-    chars[last] = str(check)
-    return "".join(chars)
+    return (10 - total % 10) % 10
 
 
-def rrn(value: str, rng: random.Random) -> str:
+def card(value: str, rng: random.Random) -> str:
+    return _with_check(_random_digits_in(value, rng, keep_first=1, keep_last=1), _luhn)
+
+
+def rrn(value: str, rng: random.Random, genders: str = "1234") -> str:
     sep = WS_RE.sub(" ", value[6:-7])                   # `-`, 공백, 또는 없음
-    gender = rng.choice("1234")
-    yy = rng.randint(40, 99) if gender in "12" else rng.randint(0, 20)
+    gender = rng.choice(genders)
+    yy = rng.randint(40, 99) if gender in "1256" else rng.randint(0, 20)
     mm, dd = rng.randint(1, 12), rng.randint(1, 28)
     return f"{yy:02d}{mm:02d}{dd:02d}{sep}{gender}{rng.randint(0, 999999):06d}"
+
+
+def frn(value: str, rng: random.Random) -> str:
+    return rrn(value, rng, "5678")
+
+
+def crn(value: str, rng: random.Random) -> str:
+    # 앞 7자리(등기소·법인 종류·일련번호 첫 자리)를 지키면 주민번호 꼴인지가 원문과 같다 — 같은 종류로 다시 잡힌다
+    return _with_check(_random_digits_in(value, rng, keep_first=7, keep_last=1), crn_check)
+
+
+def brn(value: str, rng: random.Random) -> str:
+    return _with_check(_random_digits_in(value, rng, keep_first=5, keep_last=1), brn_check)
+
+
+def driver(value: str, rng: random.Random) -> str:
+    return "".join(_random_digits_in(value, rng, keep_first=2))
+
+
+def account(value: str, rng: random.Random) -> str:
+    return "".join(_random_digits_in(value, rng, keep_first=3))
+
+
+def passport(value: str, rng: random.Random) -> str:
+    return _scramble(value, rng, keep=1)
+
+
+def ipv4(value: str, rng: random.Random) -> str:
+    head = value.split(".")[0]
+    for _ in range(1000):          # 공인 주소만 탐지하므로 대체값도 공인 주소여야 다시 잡힌다
+        s = f"{head}.{rng.randrange(256)}.{rng.randrange(256)}.{rng.randrange(1, 255)}"
+        ip = ipaddress.IPv4Address(s)
+        if s != value and ip.is_global and not ip.is_multicast:
+            return s
+    raise ValueError(f"공인 대체 주소를 만들지 못했다: {head}.x.x.x")
 
 
 RESERVED_DOMAINS = ("example.com", "example.net", "example.org")
@@ -121,7 +166,8 @@ def secret(value: str, rng: random.Random) -> str:
     return _scramble(value, rng, keep=len(m.group(0)) if m else 0)
 
 
-MAKERS = {"phone": phone, "card": card, "rrn": rrn, "email": email, "secret": secret}
+MAKERS = {"phone": phone, "card": card, "rrn": rrn, "email": email, "secret": secret, "frn": frn, "crn": crn, "brn": brn,
+          "driver": driver, "account": account, "passport": passport, "ipv4": ipv4}
 
 
 def make(kind: str, value: str, rng: random.Random | None = None) -> str:

@@ -11,9 +11,10 @@ import time
 import httpx
 import pytest
 
-from gateway.detectors import pii as p
+from gateway.detectors import patterns as p
 from gateway.detectors.base import Action, Inspection
 from gateway.detectors.pii import FINDINGS_LIMIT, PRIORITY, Finding, PIIDetector, find_all
+from tests.chain_app import REGISTRY as TEST_REGISTRY
 
 PATH = "/v1/chat/completions"
 HEADERS = {"Authorization": "Bearer test-key", "Content-Type": "application/json"}
@@ -36,24 +37,9 @@ def chat(messages: list[dict], **extra) -> dict:
 # ---------- #1 탐지 건수에 선형 — 결과는 예전 방식과 같다 ----------
 
 def _reference_find_all(text: str) -> list[Finding]:
-    """2026-10-29 이전의 겹침 해소 그대로: 후보 전체를 우선순위·길이·위치로 정렬해 탐욕적으로 고른다."""
-    cands: list[Finding] = []
-    for m in p.SECRET_RE.finditer(text):
-        cands.append(Finding("secret", m.start(), m.end(), "strong"))
-    for m in p.RRN_RE.finditer(text):
-        yy, mm, dd, gender, _ = m.groups()
-        if not p.rrn_date_ok(yy, mm, dd, gender):
-            continue
-        conf = "strong" if p.rrn_checksum_ok(p.digits(m.group(0))) else "weak"
-        cands.append(Finding("rrn", m.start(), m.end(), conf))
-    for m in p.CARD_RE.finditer(text):
-        d = p.digits(m.group(0))
-        if 13 <= len(d) <= 19 and p.luhn_ok(d):
-            cands.append(Finding("card", m.start(), m.end(), "strong"))
-    for m in p.PHONE_RE.finditer(text):
-        cands.append(Finding("phone", m.start(), m.end(), "strong"))
-    for m in p.EMAIL_RE.finditer(text):
-        cands.append(Finding("email", m.start(), m.end(), "strong"))
+    """2026-10-29 이전의 겹침 해소 그대로: 후보 전체를 우선순위·길이·위치로 정렬해 탐욕적으로 고른다.
+    후보는 `candidates`에서 받는다 — 종류가 늘어도(D-117) 이 테스트는 겹침 해소만 비교한다."""
+    cands = [f for found in p.candidates(text).values() for f in found]
     cands.sort(key=lambda f: (PRIORITY[f.kind], -(f.end - f.start), f.start))
     taken: list[Finding] = []
     for f in cands:
@@ -65,7 +51,8 @@ def _reference_find_all(text: str) -> list[Finding]:
 
 SAMPLES = ["010-2345-6789", "900101-1234563", "4111-1111-1111-1111", "kim@example.com",
            "sk-" + "A1b2C3d4" * 6, "9001011234563", "02-123-4567", "연차는 며칠인가요",
-           "302-1122-3344-55", "AKIA" + "ABCDEFGHIJKLMNOP", "a@b.co", "1234"]
+           "302-1122-3344-55", "AKIA" + "ABCDEFGHIJKLMNOP", "a@b.co", "1234",
+           "124-81-00998", "130111-0006246", "11-20-123456-78", "M12345678", "121.134.5.6", "900101-5234567"]   # D-117
 
 
 def test_find_all_matches_the_previous_algorithm_on_random_mixes():
@@ -147,7 +134,7 @@ def test_stream_null_is_accepted(stack):
 # ---------- #9 500에도 요청 ID가 붙는다 ----------
 
 def test_unhandled_error_response_carries_request_id(make_stack):
-    boom = make_stack("tests.chain_app:app", GATEWAY_DETECTORS="test_boom")   # 검사기 내부 예외
+    boom = make_stack(TEST_REGISTRY, GATEWAY_DETECTORS="test_boom")   # 검사기 내부 예외
     r = httpx.post(f"{boom.gateway}{PATH}", json=chat([{"role": "user", "content": "hi"}]), headers=HEADERS)
     assert r.status_code == 500
     assert r.json()["error"]["code"] == "internal_error"

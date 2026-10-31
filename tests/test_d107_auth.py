@@ -58,14 +58,14 @@ def test_presented_key_reads_bearer_or_x_api_key():
 
 
 def test_upstream_headers_swap_by_path():
-    auth = Auth({"ck": "c"}, "up")
+    auth = Auth({"ck-hash": "c"})
     pairs = [("authorization", "Bearer ck"), ("x-api-key", "ck"), ("content-type", "application/json")]
-    assert auth.upstream_headers(CHAT, pairs) == [("content-type", "application/json"), ("authorization", "Bearer up")]
-    assert auth.upstream_headers("/v1/messages", pairs) == [("content-type", "application/json"), ("x-api-key", "up")]
-    assert auth.upstream_headers("/v1/models", [*pairs, ("anthropic-version", "2023-06-01")])[-1] == ("x-api-key", "up")
+    assert auth.upstream_headers(CHAT, pairs, "up") == [("content-type", "application/json"), ("authorization", "Bearer up")]
+    assert auth.upstream_headers("/v1/messages", pairs, "up") == [("content-type", "application/json"), ("x-api-key", "up")]
+    assert auth.upstream_headers("/v1/models", [*pairs, ("anthropic-version", "2023-06-01")], "up")[-1] == ("x-api-key", "up")
     # 상류 키가 없으면: 인증을 켠 게이트웨이는 게이트웨이 키를 상류로 보내지 않고(D-109), 끈 게이트웨이는 그대로 넘긴다
-    assert Auth({"ck": "c"}, None).upstream_headers(CHAT, pairs) == [("content-type", "application/json")]
-    assert Auth(None, None).upstream_headers(CHAT, pairs) == pairs
+    assert auth.upstream_headers(CHAT, pairs, "") == [("content-type", "application/json")]
+    assert Auth(None).upstream_headers(CHAT, pairs, "") == pairs
 
 
 def test_keygen_prints_one_key():

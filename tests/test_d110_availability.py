@@ -11,7 +11,8 @@ import pytest
 
 from gateway.detectors.base import Inspection
 from gateway.vault import HOLD_CAP, TokenVault
-from tests.conftest import free_port, serve
+from tests.conftest import free_port, install, start, stop
+from tests.stub_target import app as stub_app
 
 CHAT = "/v1/chat/completions"
 KEY = "sk-proj-" + "Ab1Cd2Ef3Gh4" * 13 + "Xy9Z"        # 168자 합성 키(이어 붙여 만든다 — 저장소 비밀 검사 오인 방지)
@@ -109,36 +110,39 @@ def test_v3_hold_is_bounded_by_the_longest_surrogate_issued():
 
 @pytest.fixture
 def inproc(tmp_path):
-    """같은 프로세스의 게이트웨이 앱. 상태를 직접 갈아 끼운다(상류 클라이언트·체인)."""
-    from gateway import main
+    """같은 프로세스의 게이트웨이 앱(D-118 create_app). lifespan 없이 상태를 직접 갈아 끼운다(상류 클라이언트·체인)."""
     from gateway.audit import AuditLog
     from gateway.auth import Auth
     from gateway.chain import DetectorChain
-    main.app.state.chain = DetectorChain([])
-    main.app.state.auth = Auth(None)
-    main.app.state.audit = AuditLog(tmp_path / "gateway.jsonl")
-    main.app.state.ratelimit = main.RateLimiter(0)
-    yield main
-    main.app.state.audit.close()
+    from gateway.main import create_app
+    from gateway.ratelimit import RateLimiter
+    from gateway.settings import Settings
+    settings = Settings(auth_off=True)
+    app = create_app(settings)
+    install(app, settings, DetectorChain([]))
+    app.state.auth = Auth(None)
+    app.state.audit = AuditLog(tmp_path / "gateway.jsonl")
+    app.state.ratelimit = RateLimiter(0)
+    yield app
+    app.state.audit.close()
 
 
 @pytest.fixture(scope="module")
 def stub_url():
     port = free_port()
-    p = serve("tests.stub_target:app", port)
+    servers = [start(stub_app, port)]
     yield f"http://127.0.0.1:{port}"
-    p.terminate()
-    p.wait(10)
+    stop(servers)
 
 
-def _gw(main) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://gw", timeout=30)
+def _gw(app) -> httpx.AsyncClient:
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://gw", timeout=30)
 
 
 @pytest.mark.anyio
 async def test_v4_pool_exhaustion_is_503_with_retry_after(inproc, stub_url):
-    inproc.app.state.client = httpx.AsyncClient(base_url=stub_url, limits=httpx.Limits(max_connections=1),
-                                                timeout=httpx.Timeout(10, pool=0.2))
+    client = httpx.AsyncClient(base_url=stub_url, limits=httpx.Limits(max_connections=1), timeout=httpx.Timeout(10, pool=0.2))
+    install(inproc, inproc.state.settings, inproc.state.chain, client)
     try:
         async with _gw(inproc) as gw:
             slow = asyncio.create_task(gw.post(CHAT, json=chat("hi", "stub-slow")))   # 연결 하나를 2초 붙잡는다
@@ -148,7 +152,7 @@ async def test_v4_pool_exhaustion_is_503_with_retry_after(inproc, stub_url):
             assert r.json()["error"]["code"] == "upstream_busy"
             assert (await slow).status_code == 200
     finally:
-        await inproc.app.state.client.aclose()
+        await client.aclose()
 
 
 @pytest.mark.anyio
@@ -157,8 +161,8 @@ async def test_v5_full_vault_is_503_and_existing_sessions_survive(inproc, stub_u
     from gateway.detectors.pii import PIIDetector
     det = PIIDetector("mask", vault=TokenVault(max_sessions=1))
     live = det.vault.token_for("other-request", "phone", "010-2345-6789")   # 진행 중인 다른 요청이 한 자리를 쓰고 있다
-    inproc.app.state.chain = DetectorChain([det])
-    inproc.app.state.client = httpx.AsyncClient(base_url=stub_url)
+    client = httpx.AsyncClient(base_url=stub_url)
+    install(inproc, inproc.state.settings, DetectorChain([det]), client)
     try:
         async with _gw(inproc) as gw:
             r = await gw.post(CHAT, json=chat("제 번호는 010-9876-5432입니다"))
@@ -166,13 +170,15 @@ async def test_v5_full_vault_is_503_and_existing_sessions_survive(inproc, stub_u
         assert r.json()["error"]["code"] == "gateway_busy"
         assert det.vault.restore("other-request", live) == ("010-2345-6789", 1)
     finally:
-        await inproc.app.state.client.aclose()
+        await client.aclose()
 
 
 @pytest.mark.anyio
 async def test_v6_oversized_upstream_response_is_502(inproc, stub_url, monkeypatch):
-    monkeypatch.setattr(inproc, "MAX_RESPONSE_BYTES", 100)      # 32MiB 대신 작은 상한으로 같은 길을 본다
-    inproc.app.state.client = httpx.AsyncClient(base_url=stub_url)
+    from gateway import relay
+    monkeypatch.setattr(relay, "MAX_RESPONSE_BYTES", 100)       # 32MiB 대신 작은 상한으로 같은 길을 본다
+    client = httpx.AsyncClient(base_url=stub_url)
+    install(inproc, inproc.state.settings, inproc.state.chain, client)
     try:
         async with _gw(inproc) as gw:
             r = await gw.post(CHAT, json=chat("hi"))
@@ -180,7 +186,7 @@ async def test_v6_oversized_upstream_response_is_502(inproc, stub_url, monkeypat
             ok = await gw.get("/v1/models")
             assert ok.status_code == 502                           # GET /v1/models도 같은 상한
     finally:
-        await inproc.app.state.client.aclose()
+        await client.aclose()
 
 
 # ---------- V7 오프로드 ----------

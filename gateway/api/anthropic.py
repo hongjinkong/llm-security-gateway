@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from typing import Any
 
 from fastapi.responses import JSONResponse, Response
 
 from gateway.api.base import Adapter, ApiError, Doc, TextRef, sse, str_ref, stream_response, walk_strings
+from gateway.streaming import ref
 
 PATH = "/v1/messages"
 ERROR_TYPES = {400: "invalid_request_error", 401: "authentication_error", 413: "invalid_request_error",
@@ -114,6 +116,12 @@ class MessagesAdapter(Adapter):
                 + sse("message_stop", {"type": "message_stop"}))
         return stream_response(body)
 
+    def usage_raw(self, obj: dict) -> Any:
+        # 스트림은 message_start에 입력·캐시, message_delta에 출력(누적)을 싣는다 — 펌프가 둘을 덮어 합친다
+        if obj.get("type") == "message_start" and isinstance(obj.get("message"), dict):
+            return obj["message"].get("usage")
+        return obj.get("usage")
+
     def stream_shape(self) -> "MessagesShape":
         return MessagesShape()
 
@@ -141,7 +149,7 @@ class MessagesShape:
         delta, idx = obj["delta"], obj.get("index", 0)
         key = {"text_delta": "text", "input_json_delta": "partial_json"}.get(delta.get("type"))
         if key and isinstance(delta.get(key), str):
-            return [(f"b{idx}", lambda d=delta, k=key: d[k], lambda v, d=delta, k=key: d.__setitem__(k, v))]
+            return [ref(f"b{idx}", delta, key)]
         return []
 
     def closes(self, obj: dict) -> Callable[[str], bool] | None:

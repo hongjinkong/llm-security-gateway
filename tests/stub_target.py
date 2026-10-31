@@ -5,6 +5,7 @@
 """
 import asyncio
 import json
+from collections import defaultdict
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.gzip import GZipMiddleware
@@ -16,6 +17,8 @@ app = FastAPI(title="stub target")
 
 # D-107 B: 게이트웨이는 토큰이 아니라 같은 모양의 대체값을 보낸다. "가려진 것을 봤다"는 **PII 모양의 값이 있는데 테스트의
 # 합성 원문이 아니다**로 판정한다. 테스트가 쓰는 합성 값의 조각 목록이다 — 새 값을 테스트에 들이면 여기에도 더한다.
+# D-120: usage 매핑 확인용(캐시 항목 포함)
+CHAT_USAGE = {"prompt_tokens": 3, "completion_tokens": 5, "total_tokens": 8, "prompt_tokens_details": {"cached_tokens": 1}}
 RAW_MARKERS = ("2345-6789", "1234-5678", "1111-2222", "5566-7788", "9876-5432", "1122-3344", "123-4567", "1234563",
                "1234567", "1456782", "2345671", "4111-1111", "A1b2C3d4", "ABCDEFGHIJKLMNOP", "system@example.com",
                "rag@example.com", "kim@example.com", "kim.synthetic@example.com",
@@ -36,15 +39,20 @@ app.add_middleware(GZipMiddleware, minimum_size=100)
 
 # D-086: 상류가 **실제로 받은** chat 본문. 응답은 게이트웨이가 복원하므로 응답만으로는
 # "원문이 상류로 가지 않았다"를 증명할 수 없다. 이 기록이 그 증거다(테스트 전용 프로세스 메모리).
-RECEIVED: list[str] = []
+# D-118: 테스트는 이 앱 하나를 스택마다 다른 포트에 띄운다(같은 프로세스) — 기록은 서버 포트별이다.
+RECEIVED: defaultdict[int, list[str]] = defaultdict(list)
 # D-109: 상류에 닿은 모든 요청의 (메서드, 경로). 허용 목록 밖의 경로가 상류에 연결되지 않았다는 증거다.
-HITS: list[list[str]] = []
+HITS: defaultdict[int, list[list[str]]] = defaultdict(list)
+
+
+def _port(request: Request) -> int:
+    return request.scope["server"][1]
 
 
 @app.middleware("http")
 async def record_hits(request: Request, call_next):
     if not request.url.path.startswith("/__stub/"):
-        HITS.append([request.method, request.url.path])
+        HITS[_port(request)].append([request.method, request.url.path])
     return await call_next(request)
 
 
@@ -54,13 +62,13 @@ async def root():
 
 
 @app.get("/__stub/received")
-async def received():
-    return {"bodies": RECEIVED}
+async def received(request: Request):
+    return {"bodies": RECEIVED[_port(request)]}
 
 
 @app.get("/__stub/hits")
-async def hits():
-    return {"hits": HITS}
+async def hits(request: Request):
+    return {"hits": HITS[_port(request)]}
 
 
 @app.get("/v1/models")
@@ -86,11 +94,10 @@ def _message_text(message: dict) -> str:
 
 
 @app.post("/v1/chat/completions")
-@app.post("/v1beta/openai/chat/completions")   # D-086 경로 매핑 확인용 (Gemini 모양)
 async def openai_chat(request: Request):
     """OpenAI 호환 입구의 테스트 타겟. 모델을 흉내낼 뿐 공격 시나리오는 만들지 않는다.
     model 이름으로 상류 오류를 흉내낸다: stub-401 / stub-429 / stub-slow(2초 지연)."""
-    RECEIVED.append((await request.body()).decode("utf-8", errors="replace"))
+    RECEIVED[_port(request)].append((await request.body()).decode("utf-8", errors="replace"))
     payload = await request.json()
     model = payload.get("model") if isinstance(payload, dict) else None
     if model == "stub-401":
@@ -141,6 +148,10 @@ async def openai_chat(request: Request):
                     yield chunk({"tool_calls": [{"index": 0, "function": {"arguments": args[i:i + size]}}]})
                 await asyncio.sleep(0)          # 조각마다 전송 기회를 준다 — 한 덩어리로 뭉치지 않게
             yield chunk({}, "tool_calls" if tool else "stop")
+            if isinstance(payload.get("stream_options"), dict) and payload["stream_options"].get("include_usage") is True:
+                # D-120: OpenAI처럼 usage만 담은 마지막 조각(choices는 빈 배열)
+                yield "data: " + json.dumps({"id": "chatcmpl-stub", "object": "chat.completion.chunk", "created": 0, "model": model,
+                                             "choices": [], "usage": CHAT_USAGE}, separators=(",", ":")) + "\n\n"
             yield "data: [DONE]\n\n"
         return StreamingResponse(events(), media_type="text/event-stream")
     if model == "stub-toolcall":
@@ -171,7 +182,7 @@ async def openai_chat(request: Request):
             "message": {"role": "assistant", "content": answer},
             "finish_reason": "stop",
         }],
-        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        "usage": CHAT_USAGE,
         "gateway_test": {
             "user_masked_seen": any(role == "user" and masked(text) for role, text in texts),
             "system_raw_seen": any(role == "system" and "system@example.com" in text
@@ -233,7 +244,7 @@ def _anthropic_texts(messages: list) -> tuple[str, list[str], list[str], list[st
 
 @app.post("/v1/messages")
 async def anthropic_messages(request: Request):
-    RECEIVED.append((await request.body()).decode("utf-8", errors="replace"))
+    RECEIVED[_port(request)].append((await request.body()).decode("utf-8", errors="replace"))
     payload = await request.json()
     model = payload.get("model") if isinstance(payload, dict) else None
     if model == "stub-401":
@@ -268,7 +279,8 @@ async def anthropic_messages(request: Request):
         async def events():
             yield _sse("message_start", {"type": "message_start", "message": {
                 "id": "msg_stub", "type": "message", "role": "assistant", "model": model, "content": [],
-                "stop_reason": None, "stop_sequence": None, "usage": {"input_tokens": 1, "output_tokens": 0}}})
+                "stop_reason": None, "stop_sequence": None,
+                "usage": {"input_tokens": 1, "output_tokens": 0, "cache_read_input_tokens": 2, "cache_creation_input_tokens": 4}}})
             t0 = 0
             if thinking is not None:                    # D-112: thinking 델타와 서명 델타
                 t0 = 1
@@ -339,7 +351,7 @@ def _responses_texts(inp: object) -> tuple[str, list[str], list[str]]:
 
 @app.post("/v1/responses")
 async def openai_responses(request: Request):
-    RECEIVED.append((await request.body()).decode("utf-8", errors="replace"))
+    RECEIVED[_port(request)].append((await request.body()).decode("utf-8", errors="replace"))
     payload = await request.json()
     model = payload.get("model") if isinstance(payload, dict) else None
     if model == "stub-401":

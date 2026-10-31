@@ -13,8 +13,9 @@
 켜져 있으면 그것은 게이트웨이 키라 상류(제3자)에 보내지 않는다. 상류 키가 없는 통과 모드에서는 클라이언트 자신의
 공급자 계정을 가리키는 `openai-organization`·`openai-project`도 넘긴다.
 
-해시를 저장하지 않고 평문을 비교하는 이유: 상류 키도 같은 환경변수에 평문으로 있으므로 위협 모델이 같다. 비교는 `hmac.compare_digest`.
-키 생성: `python -m gateway keygen`.
+D-119: 클라이언트 키는 SHA-256으로만 든다 — 설정 파일 `[[clients]] key_sha256`, 환경변수의 평문 키는 읽을 때 해시한다(settings.py).
+비교는 낸 키의 해시와 모든 항목을 `hmac.compare_digest`로. 공급자 키는 상류마다 다를 수 있어 `upstream_headers`가 받는다.
+키 생성: `python -m gateway keygen`(설정 파일용은 `--hash`).
 """
 from __future__ import annotations
 
@@ -22,6 +23,11 @@ import hashlib
 import hmac
 import secrets
 from collections.abc import Iterable, Mapping
+from typing import Generic, TypeVar
+
+from gateway.messages import ConfigError
+
+C = TypeVar("C")
 
 AUTH_HEADERS = frozenset({"authorization", "x-api-key"})
 # 상류로 넘기는 요청 헤더(D-109). 그 밖(cookie·x-forwarded-*·hop-by-hop·host·content-length·accept-encoding·SDK 계측 헤더)은 전부 뗀다.
@@ -46,7 +52,7 @@ def parse_client_keys(spec: str) -> dict[str, str]:
             name, key = "", item
         key, name = key.strip(), name.strip()
         if not key:
-            raise ValueError("GATEWAY_CLIENT_KEYS: 빈 키가 있다 (형식: 이름=키,이름2=키2)")
+            raise ConfigError("empty_client_key")
         out[key] = name or hashlib.sha256(key.encode()).hexdigest()[:8]
     return out
 
@@ -60,36 +66,37 @@ def presented_key(headers: Mapping[str, str]) -> str | None:
     return key.strip() or None
 
 
-class Auth:
-    def __init__(self, client_keys: dict[str, str] | None, upstream_key: str | None = None) -> None:
-        self.client_keys = client_keys            # None = 무인증(GATEWAY_AUTH=off)
-        self.upstream_key = upstream_key or None
+class Auth(Generic[C]):
+    def __init__(self, clients: Mapping[str, C] | None) -> None:
+        self.clients = clients                    # 키의 SHA-256 → 클라이언트. None = 무인증(GATEWAY_AUTH=off)
 
     @property
     def enabled(self) -> bool:
-        return self.client_keys is not None
+        return self.clients is not None
 
-    def client_of(self, headers: Mapping[str, str]) -> str | None:
-        """낸 키가 맞으면 클라이언트 이름, 아니면 None. 무인증이면 None(그래도 통과시킨다)."""
-        if not self.enabled:
+    def client_of(self, headers: Mapping[str, str]) -> C | None:
+        """낸 키가 맞으면 그 클라이언트, 아니면 None. 무인증이면 None(그래도 통과시킨다)."""
+        if self.clients is None:                  # 무인증
             return None
         key = presented_key(headers)
         if key is None:
             return None
-        for known, name in self.client_keys.items():
-            if hmac.compare_digest(known.encode(), key.encode()):
-                return name
-        return None
+        digest = hashlib.sha256(key.encode()).hexdigest().encode()
+        found = None
+        for known, client in self.clients.items():   # 맞는 것을 찾아도 끝까지 본다 — 비교 횟수가 키 순서를 드러내지 않게
+            if hmac.compare_digest(known.encode(), digest):
+                found = client
+        return found
 
-    def upstream_headers(self, path: str, pairs: Iterable[tuple[str, str]]) -> list[tuple[str, str]]:
-        """상류로 보낼 헤더(D-109). 허용 목록만 넘기고, 상류 키가 있으면 상류 형식으로 단다."""
+    def upstream_headers(self, path: str, pairs: Iterable[tuple[str, str]], upstream_key: str | None) -> list[tuple[str, str]]:
+        """상류로 보낼 헤더(D-109). 허용 목록만 넘기고, 그 상류의 공급자 키가 있으면 상류 형식으로 단다(D-119 상류마다)."""
         pairs = list(pairs)
-        if not self.upstream_key:
+        if not upstream_key:
             allowed = PASS_HEADERS | PASSTHROUGH_HEADERS | (frozenset() if self.enabled else AUTH_HEADERS)
             return [(k, v) for k, v in pairs if k.lower() in allowed]
         kept = [(k, v) for k, v in pairs if k.lower() in PASS_HEADERS]
         if path.startswith("/v1/messages") or any(k.lower() == "anthropic-version" for k, _ in pairs):
-            kept.append(("x-api-key", self.upstream_key))
+            kept.append(("x-api-key", upstream_key))
         else:
-            kept.append(("authorization", f"Bearer {self.upstream_key}"))
+            kept.append(("authorization", f"Bearer {upstream_key}"))
         return kept

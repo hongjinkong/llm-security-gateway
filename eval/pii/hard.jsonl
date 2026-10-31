@@ -25,3 +25,16 @@
 {"id": "hard-neg-25", "set": "neg", "group": "hard", "text": "버전 2.10.1234 배포", "spans": [], "note": "점이 든 버전"}
 {"id": "hard-neg-26", "set": "neg", "group": "hard", "text": "좌표 37.5665, 126.9780 근처", "spans": [], "note": "좌표"}
 {"id": "hard-neg-27", "set": "neg", "group": "hard", "text": "사번 20231234, 학번 2019123456", "spans": [], "note": "사번·학번"}
+{"id": "hard-pos-28", "set": "pos", "group": "driver/hard", "text": "운전면허 서울 07-111111-10 갱신", "spans": [{"kind": "driver", "start": 5, "end": 20}], "ctx": true, "note": "지역명 꼴(2014-07 이전 발급) — 지원하지 않는다"}
+{"id": "hard-pos-29", "set": "pos", "group": "driver/hard", "text": "면허번호 112012345678 확인", "spans": [{"kind": "driver", "start": 5, "end": 17}], "ctx": true, "note": "구분자 없는 12자리 — 지원하지 않는다"}
+{"id": "hard-pos-30", "set": "pos", "group": "brn/hard", "text": "사업자번호 1234567891 조회", "spans": [{"kind": "brn", "start": 6, "end": 16}], "ctx": true, "note": "구분자 없는 10자리 — 지원하지 않는다"}
+{"id": "hard-pos-31", "set": "pos", "group": "account/hard", "text": "계좌 110123456789로 입금해 주세요", "spans": [{"kind": "account", "start": 3, "end": 15}], "ctx": true, "note": "구분자 없는 계좌 — 지원하지 않는다"}
+{"id": "hard-pos-32", "set": "pos", "group": "account/hard", "text": "신한 110 123 456789", "spans": [{"kind": "account", "start": 3, "end": 17}], "ctx": true, "note": "띄어 쓴 계좌 — 지원하지 않는다"}
+{"id": "hard-pos-33", "set": "pos", "group": "passport/hard", "text": "여권번호 m12345678", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true, "note": "소문자 여권 — 지원하지 않는다"}
+{"id": "hard-pos-34", "set": "pos", "group": "phone/hard", "text": "안심번호 0507-1234-5678로 연락", "spans": [{"kind": "phone", "start": 5, "end": 19}], "ctx": true, "note": "050 안심번호 — 지원하지 않는다"}
+{"id": "hard-pos-35", "set": "pos", "group": "crn/hard", "text": "법인등록번호 110111-1234569", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true, "note": "주민 꼴 법인번호 + '법인' 문맥 — 법인으로 본다"}
+{"id": "hard-pos-36", "set": "pos", "group": "crn/hard", "text": "(주)한빛 110111-1234569", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true, "note": "주민 꼴 법인번호, '법인' 문맥 없음 — 주민번호로 가린다"}
+{"id": "hard-pos-37", "set": "pos", "group": "phone/hard", "text": "인터넷 전화 070-1234-5678", "spans": [{"kind": "phone", "start": 7, "end": 20}], "ctx": true, "note": "070(D-117에서 더함)"}
+{"id": "hard-neg-38", "set": "neg", "group": "hard", "text": "패키지 2.4.1.3 설치 완료", "spans": [], "note": "4묶음 버전, 버전 문맥어 없음 — IPv4로 오인"}
+{"id": "hard-neg-39", "set": "neg", "group": "hard", "text": "서버 192.168.0.10:8080 재시작", "spans": [], "note": "사설 IP"}
+{"id": "hard-neg-40", "set": "neg", "group": "hard", "text": "정산 배치 D20261030 완료", "spans": [], "note": "D + 날짜 — 문맥 없는 구형 여권 꼴(감사만)"}

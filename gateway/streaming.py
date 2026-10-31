@@ -18,11 +18,16 @@ import codecs
 import json
 import re
 from collections.abc import Callable
-from typing import Protocol
+from typing import Any, Protocol
 
 from gateway.vault import json_escape, map_strings
 
 Ref = tuple[str, Callable[[], str | None], Callable[[str], None]]      # (채널, 읽기, 쓰기)
+
+
+def ref(channel: str, obj: dict, key: str) -> Ref:
+    """obj[key]를 읽고 쓰는 채널 참조."""
+    return channel, lambda: obj[key], lambda v: obj.__setitem__(key, v)
 BLOCK_END = re.compile(r"\r?\n\r?\n")
 DATA_RE = re.compile(r"^data: ?", re.M)
 
@@ -43,7 +48,8 @@ class StreamRestorer:
     """`feed(bytes) -> bytes`를 조각마다, `finish() -> bytes`를 스트림 끝에 한 번 부른다."""
 
     def __init__(self, shape: Shape, restore: Callable[..., tuple[str, int]],
-                 hold: Callable[[str], int]) -> None:
+                 hold: Callable[[str], int], usage: Callable[[dict], Any] | None = None,
+                 drop: Callable[[dict], bool] | None = None) -> None:
         self._shape = shape
         self._restore = restore                 # (텍스트, escape=None) → (복원된 텍스트, 복원 건수)
         self._hold = hold                       # 텍스트 → 대체값의 앞부분일 수 있는 꼬리 길이
@@ -52,6 +58,8 @@ class StreamRestorer:
         self._pending: dict[str, str] = {}      # 채널 → 보류 중인 꼬리
         self._visible: list[str] = []          # 복원 대상 채널로 내보낸 텍스트(사고 과정 밖) — 감사의 잔여 대체값을 여기서 센다(D-112)
         self.restored = 0
+        self._usage, self._drop = usage, drop   # 이벤트의 usage 읽기, 내보내지 않을 이벤트(D-120 — Chat의 usage 조각)
+        self.usage_raw: dict = {}               # 이벤트들의 usage를 차례로 덮어 합친 것(Messages: message_start + message_delta)
 
     # --- 공개 --------------------------------------------------------------
     def feed(self, data: bytes) -> bytes:
@@ -102,6 +110,10 @@ class StreamRestorer:
             return block
         if not isinstance(obj, dict):
             return block
+        if self._usage is not None and isinstance(raw := self._usage(obj), dict):
+            self.usage_raw.update(raw)
+        if self._drop is not None and self._drop(obj):
+            return ""                           # 게이트웨이가 요청한 usage 조각 — 클라이언트는 요청하지 않았다(D-120)
 
         changed = False
         for channel, get, put in self._shape.deltas(obj):
@@ -184,12 +196,11 @@ class ChatShape:
             if not isinstance(delta, dict):
                 continue
             if isinstance(delta.get("content"), str):
-                refs.append((f"c{idx}", lambda d=delta: d["content"], lambda v, d=delta: d.__setitem__("content", v)))
+                refs.append(ref(f"c{idx}", delta, "content"))
             for call in delta.get("tool_calls") or []:
                 fn = call.get("function") if isinstance(call, dict) else None
                 if isinstance(fn, dict) and isinstance(fn.get("arguments"), str):
-                    refs.append((f"t{idx}.{call.get('index', 0)}",
-                                 lambda f=fn: f["arguments"], lambda v, f=fn: f.__setitem__("arguments", v)))
+                    refs.append(ref(f"t{idx}.{call.get('index', 0)}", fn, "arguments"))
         return refs
 
     def closes(self, obj: dict) -> Callable[[str], bool] | None:

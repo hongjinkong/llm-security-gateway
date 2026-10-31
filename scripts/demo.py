@@ -55,7 +55,7 @@ def main() -> int:
             procs.append(serve("gateway.main:app", gp, {
                 "TARGET_URL": f"http://127.0.0.1:{tp}",
                 "GATEWAY_LOG_PATH": str(Path(tmp) / "gateway.jsonl"),
-                "GATEWAY_DETECTORS": "injection_rule_turn,pii_mask",
+                "GATEWAY_INJECTION": "block",                       # 이번 턴 차단 + PII 마스킹(기본)
                 "GATEWAY_MAX_BODY_BYTES": "4096",
                 "GATEWAY_CLIENT_KEYS": "demo=demo-key",
                 "GATEWAY_SURROGATE_KEY": secrets.token_urlsafe(32),  # 결정적 대체값 키(D-111) — 실행마다 새로

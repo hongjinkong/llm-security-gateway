@@ -1,6 +1,6 @@
 """D-086: 외부 공급자 연결 전, 상류 계약을 스텁으로 고정한다 (B3 준비 — 실제 공급자 호출 없음).
 
-  1 경로 매핑      GATEWAY_CHAT_UPSTREAM_PATH는 chat completions만 바꾼다. 기본값 = 기존 동작
+  1 경로          상류 경로는 받은 경로 그대로(GATEWAY_CHAT_UPSTREAM_PATH는 D-118에서 지웠다 — 상류별 설정은 PLAN 12단계)
   2 상류 오류      401·429는 상태·본문·헤더 그대로. 연결 실패 502·타임아웃 504는 OpenAI 형식
   3 원문 미전송    상류가 **받은 본문**에 user 원문 PII가 없다 (응답 복원만으로는 증명 못 한다)
   4 혼입 없음      다른 세션의 토큰 문자열로 남의 원본을 꺼낼 수 없다
@@ -17,7 +17,6 @@ from gateway.detectors.patterns import find_all
 import pytest
 
 PATH = "/v1/chat/completions"
-GEMINI_PATH = "/v1beta/openai/chat/completions"
 KEY = "sk-test-DO-NOT-LOG-0123456789"
 HEADERS = {"Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
 PII = {  # 전부 합성값
@@ -54,23 +53,13 @@ def secured(make_stack):
     return make_stack(GATEWAY_DETECTORS="injection_rule,pii_mask")
 
 
-# ---------------------------------------------------------------- 1 경로 매핑
+# ---------------------------------------------------------------- 1 경로
 
-def test_default_upstream_path_is_unchanged(secured):
-    r = httpx.post(f"{secured.gateway}{PATH}", headers=HEADERS, json=chat("안녕하세요"))
-    assert r.status_code == 200 and r.json()["gateway_test"]["path"] == PATH
-    assert secured.info()["chat_upstream_path"] == PATH
-
-
-def test_chat_path_mapping_changes_only_chat(make_stack):
-    s = make_stack(GATEWAY_CHAT_UPSTREAM_PATH=GEMINI_PATH)
+def test_upstream_path_is_the_received_path_and_the_removed_mapping_has_no_effect(make_stack):
+    s = make_stack(GATEWAY_CHAT_UPSTREAM_PATH="/v1beta/openai/chat/completions")     # D-118: 지운 설정
     r = httpx.post(f"{s.gateway}{PATH}", headers=HEADERS, json=chat("안녕하세요"))
-    assert r.status_code == 200 and r.json()["gateway_test"]["path"] == GEMINI_PATH
-
-
-def test_mapping_without_leading_slash_fails_startup(make_stack):
-    with pytest.raises(RuntimeError):
-        make_stack(GATEWAY_CHAT_UPSTREAM_PATH="v1beta/openai/chat/completions")
+    assert r.status_code == 200 and r.json()["gateway_test"]["path"] == PATH
+    assert "chat_upstream_path" not in s.info()
 
 
 # ---------------------------------------------------------------- 2 상류 오류

@@ -274,9 +274,10 @@ def test_residual_counts_surrogates_left_after_restore():
 
 
 @pytest.mark.anyio
-async def test_response_hook_is_silent_without_issued_values(masker):
-    """발급한 대체값이 없는 세션의 응답은 손대지 않고 기록도 남기지 않는다."""
-    assert await masker.on_response("nosuch-session", "인사팀(010-1111-2222)으로") is None
+async def test_response_hook_without_issued_values_only_observes(masker):
+    """발급한 대체값이 없는 세션의 응답은 손대지 않는다. 새로 나온 PII가 없으면 기록도 없고, 있으면 건수만 남긴다(D-120)."""
+    assert await masker.on_response("nosuch-session", "연차는 15일입니다") is None
+    assert await masker.on_response("nosuch-session", "인사팀(010-1111-2222)으로") == ("인사팀(010-1111-2222)으로", {"new": 1})
 
 
 # ---------- D-099: 다시 쓰이지 않는 세션은 응답 뒤 바로 버린다 ----------
@@ -301,21 +302,26 @@ async def test_gateway_releases_every_request_session(tmp_path):
     D-107 A: sessionId가 있는 옛 경로 요청도 응답 뒤 바로 비운다 — 대화 간 상태를 두지 않는다."""
     import httpx
 
-    from gateway import main
     from gateway.audit import AuditLog
     from gateway.auth import Auth
+    from gateway.main import create_app
+    from gateway.ratelimit import RateLimiter
+    from gateway.settings import Settings, build_chain
     from tests import stub_target
 
-    chain = main.build_chain(["pii_mask"])
+    settings = Settings(auth_off=True, detectors=("pii_mask",))
+    chain = build_chain(settings)
     vault = chain.detectors[0].vault
-    main.app.state.chain = chain
-    main.app.state.auth = Auth(None)
-    main.app.state.audit = AuditLog(tmp_path / "gateway.jsonl")
-    main.app.state.ratelimit = main.RateLimiter(0)
-    main.app.state.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=stub_target.app),
-                                              base_url="http://stub")
+    from tests.conftest import install
+
+    app = create_app(settings)
+    upstream = httpx.AsyncClient(transport=httpx.ASGITransport(app=stub_target.app), base_url="http://stub")
+    install(app, settings, chain, upstream)
+    app.state.auth = Auth(None)
+    app.state.audit = AuditLog(tmp_path / "gateway.jsonl")
+    app.state.ratelimit = RateLimiter(0)
     try:
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app),
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),
                                      base_url="http://gw") as gw:
             r = await gw.post("/v1/chat/completions", json={"model": "m", "messages": [
                 {"role": "user", "content": f"제 번호는 {PHONE}입니다"}]})
@@ -323,5 +329,5 @@ async def test_gateway_releases_every_request_session(tmp_path):
             assert PHONE in r.json()["choices"][0]["message"]["content"], "복원이 먼저 끝나야 한다"
             assert vault.session_count == 0, "sessionId 없는 요청의 원문이 볼트에 남았다"
     finally:
-        await main.app.state.client.aclose()
-        main.app.state.audit.close()
+        await upstream.aclose()
+        app.state.audit.close()

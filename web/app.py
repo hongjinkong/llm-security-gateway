@@ -31,7 +31,8 @@ from tests.conftest import free_port, serve  # noqa: E402
 
 STATIC = Path(__file__).resolve().parent / "static"
 PATH = "/v1/chat/completions"
-ON_DETECTORS = "injection_rule_turn,pii_mask"
+# 두 팔의 제품 설정(D-118) — 끈 팔은 검사기 없음, 켠 팔은 이번 턴 인젝션 차단 + PII 마스킹(검사기 injection_rule_turn·pii_mask)
+ARMS = (("off", {"GATEWAY_INJECTION": "off", "GATEWAY_PII": "off"}), ("on", {"GATEWAY_INJECTION": "block", "GATEWAY_PII": "mask"}))
 CLIENT_KEY = os.environ.get("WEB_CLIENT_KEY", "demo-key")          # 두 게이트웨이의 클라이언트 키(D-107 A)
 ADMIN_KEY = "demo-admin"                            # 두 게이트웨이의 관리 키(D-109) — /__gateway/info로 검사기 구성을 읽는다
 MAX_BODY = "4096"                                   # 장면 6(413)을 보여 주기 위한 작은 상한 — demo.py와 같다
@@ -70,13 +71,13 @@ async def lifespan(app: FastAPI):
     tmp = tempfile.TemporaryDirectory(prefix="web-demo-")
     procs, arms = [], {}
     try:
-        for arm, detectors in (("off", ""), ("on", ON_DETECTORS)):
+        for arm, modes in ARMS:
             stub_port = free_port()
             procs.append(serve("tests.stub_target:app", stub_port))
             stub = f"http://127.0.0.1:{stub_port}"
             target = arm_target(arm, stub)
             gw_port, log = free_port(), Path(tmp.name) / f"{arm}.jsonl"
-            env = {"TARGET_URL": target, "GATEWAY_DETECTORS": detectors, "GATEWAY_CLIENT_KEYS": f"web={CLIENT_KEY}",
+            env = {"TARGET_URL": target, **modes, "GATEWAY_CLIENT_KEYS": f"web={CLIENT_KEY}",
                    "GATEWAY_SURROGATE_KEY": secrets.token_urlsafe(32),     # 실행마다 새 대체값 키(D-111)
                    "GATEWAY_LOG_PATH": str(log), "GATEWAY_MAX_BODY_BYTES": MAX_BODY, "GATEWAY_ADMIN_KEY": ADMIN_KEY}
             if target != stub:

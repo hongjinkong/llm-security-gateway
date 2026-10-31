@@ -42,7 +42,7 @@ from gateway.detectors.patterns import Finding, digits, find_all, normalize
 HOLD_CAP = 16 * 1024
 SHORT = 128
 PURGE_EVERY = 1.0      # 만료 정리 간격(초). 발급·복원마다 세션 전체를 훑으면 세션 수 × 발급 수가 된다(D-110)
-DIGIT_KINDS = frozenset({"phone", "card", "rrn"})
+DIGIT_KINDS = frozenset({"phone", "card", "rrn", "frn", "crn", "brn", "driver", "account"})   # 복원 키가 숫자열인 종류
 
 
 ESCAPED_WS_RE = re.compile(r"\\[nrt]|\s")
@@ -297,13 +297,19 @@ class TokenVault:
         return "".join(out), count
 
     @staticmethod
-    def _hits(entry: _Session, text: str) -> list[Finding]:
-        return [f for f in find_all(text) if norm_key(f.kind, text[f.start:f.end]) in entry.by_key]
+    def _hits(entry: _Session, text: str, found: list[Finding] | None = None) -> list[Finding]:
+        """text 안의 대체값. `found`는 호출자가 이미 한 탐지(text의 find_all) — 한 번만 훑게(D-120)."""
+        return [f for f in (find_all(text) if found is None else found) if norm_key(f.kind, text[f.start:f.end]) in entry.by_key]
 
-    def residual(self, session: str, text: str) -> int:
+    def residual(self, session: str, text: str, found: list[Finding] | None = None) -> int:
         """복원 뒤에도 남은 대체값 수. 0이어야 정상이며 감사 로그로 감시한다."""
         entry = self._live(session)
-        return len(self._hits(entry, text)) if entry else 0
+        return len(self._hits(entry, text, found)) if entry else 0
+
+    def known(self, session: str) -> frozenset[str]:
+        """이 세션이 가린 원문과 발급한 대체값의 복원 키(norm_key) — 응답의 '새 PII'에서 뺀다(D-120)."""
+        entry = self._live(session)
+        return frozenset(entry.taken) if entry else frozenset()
 
     def hold(self, session: str, text: str) -> int:
         """스트리밍용: text의 꼬리 중 대체값의 앞부분일 수 있는 가장 긴 길이(없으면 0, 최대 이 세션의 가장 긴 대체값 길이).
@@ -320,7 +326,8 @@ class TokenVault:
         for i in range(len(window)):
             tail = window[i:]
             if tail[0].isdigit() or tail[0] == "+":
-                if all(c.isdigit() or c in "+-.() \t" for c in tail) and digits(tail) in entry.prefixes \
+                # 숫자 종류는 숫자열로, IPv4는 점이 든 그대로(`203.47`) 앞부분을 본다(D-117)
+                if all(c.isdigit() or c in "+-.() \t" for c in tail) and (digits(tail) in entry.prefixes or tail in entry.prefixes) \
                         or tail == "+" and "+" in entry.prefixes:
                     best = len(tail)
                     break
@@ -336,13 +343,13 @@ class TokenVault:
                     best = max(best, len(window) - pos[len(norm) - k])
         return best
 
-    def suspect(self, session: str, text: str) -> int:
+    def suspect(self, session: str, text: str, found: list[Finding] | None = None) -> int:
         """복원 뒤 사용자에게 보이는 text의 의심 잔여(D-113): 남은 대체값 수 + 대체값이 통째로는 없는데 그 식별 조각
         (전화·카드의 끝 4자리, 이메일 로컬파트)이 원래 값에는 없이 나타난 대체값 수. 조각은 한 번 훑어 집합으로 본다."""
         entry = self._live(session)
         if entry is None:
             return 0
-        hits = self._hits(entry, text)
+        hits = self._hits(entry, text, found)
         present = {norm_key(f.kind, text[f.start:f.end]) for f in hits}
         quads = {m.group(0)[i:i + 4] for m in DIGIT_RUN_RE.finditer(text) for i in range(len(m.group(0)) - 3)}
         words = {w.lower() for w in WORD_RE.findall(text)}

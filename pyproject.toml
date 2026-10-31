@@ -18,13 +18,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "ruff==0.17.3"]
+dev = ["pytest==9.1.1", "ruff==0.17.3", "mypy==2.4.1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["gateway"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# uvloop 0.22의 run_in_executor가 3.14에서 내는 사용 중단 경고(D-118 — 게이트웨이를 테스트 프로세스 안에 띄우며 보이게 됐다). 우리 코드가 아니다.
+filterwarnings = ["ignore:'asyncio.iscoroutinefunction' is deprecated:DeprecationWarning"]
 
 [tool.ruff]
 target-version = "py312"
@@ -33,3 +35,9 @@ target-version = "py312"
 select = ["E", "F"]
 # 줄 길이는 보지 않는다 — 한국어 주석이 긴 줄이 많고, 서식 전체를 바꾸지 않는다(D-108).
 ignore = ["E501"]
+
+[tool.mypy]
+# 관대한 설정(D-118): 제품 코드만, 타입을 단 함수만 본다. 엄격 옵션은 켜지 않는다.
+files = ["gateway"]
+python_version = "3.12"
+ignore_missing_imports = true

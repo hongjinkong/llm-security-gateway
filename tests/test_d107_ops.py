@@ -69,14 +69,14 @@ def test_d1_block_and_off_modes(make_stack_default):
     assert health(block)["detectors"] == ["injection_rule_turn", "pii_mask"]
     r = httpx.post(block.gateway + CHAT, json=chat(ATTACK), headers=KEY)
     assert r.json()["gateway_blocked"] is True
-    off = make_stack_default(GATEWAY_INJECTION="off", GATEWAY_PII="detect", GATEWAY_INJECTION_SCOPE="all")
+    off = make_stack_default(GATEWAY_INJECTION="off", GATEWAY_PII="detect")
     assert health(off)["detectors"] == ["pii"]
     r = httpx.post(off.gateway + CHAT, json=chat(f"{ATTACK} {PHONE}"), headers=KEY)
     assert r.status_code == 200 and PHONE in httpx.get(off.target + "/__stub/received").json()["bodies"][-1]
     none = make_stack_default(GATEWAY_INJECTION="off", GATEWAY_PII="off")
     assert health(none)["detectors"] == []
-    scope_all = make_stack_default(GATEWAY_INJECTION="block", GATEWAY_INJECTION_SCOPE="all")
-    assert health(scope_all)["detectors"] == ["injection_rule", "pii_mask"]
+    gone = make_stack_default(GATEWAY_INJECTION="block", GATEWAY_INJECTION_SCOPE="all")   # D-118: 지운 설정 — 효과가 없다
+    assert health(gone)["detectors"] == ["injection_rule_turn", "pii_mask"]
 
 
 def test_d1_bad_value_does_not_boot(make_stack_default):
@@ -112,7 +112,7 @@ def test_e1_stdout_log_is_jsonl(tmp_path):
     tp, gp = free_port(), free_port()
     stub = serve("tests.stub_target:app", tp)
     env = {**os.environ, "TARGET_URL": f"http://127.0.0.1:{tp}", "GATEWAY_LOG_PATH": "-", "GATEWAY_AUTH": "off",
-           "GATEWAY_DETECTORS": ""}
+           "GATEWAY_INJECTION": "off", "GATEWAY_PII": "off"}
     out = tmp_path / "stdout.txt"
     with out.open("wb") as fh:
         gw = subprocess.Popen([sys.executable, "-m", "uvicorn", "gateway.main:app", "--port", str(gp), "--log-level", "warning"],

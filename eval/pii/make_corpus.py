@@ -4,6 +4,8 @@
   python3 eval/pii/make_corpus.py     # corpus.jsonl·hard.jsonl을 다시 쓴다 — 같은 코드면 바이트까지 같다(tests/test_pii_corpus.py)
 
 corpus.jsonl  양성 500(종류마다 100, 문장 하나에 값 하나) + 음성 1,000(숫자가 빽빽한 업무 문장 10묶음 × 100, 개인정보 없음).
+              D-117: 그 뒤에 다른 시드로 양성 700(새 종류마다 100)·음성 200(업무 코드·네트워크)을 붙였다 — 앞의 1,500줄은 바이트까지 그대로다.
+              새 종류의 양성은 탐지가 지원하는 꼴(하이픈 묶음 등)이고, 지원하지 않는 꼴은 hard.jsonl에 있다.
 hard.jsonl    손으로 고른 어려운 사례. 지금 탐지가 틀리는 꼴도 일부러 넣었다 — 게이트에 넣지 않는다.
 한 줄: {"id", "set": "pos"|"neg", "group", "text", "spans": [{"kind", "start", "end"}]} + 양성은 "ctx"(값 옆에 그 종류를 가리키는 말이 있는가),
 hard는 "note". 양성 꼴은 탐지 정규식이 아니라 실제 번호 체계(발급사 범위·지역번호·키 형식)에서 골랐다.
@@ -18,6 +20,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SEED = 20261030
+SEED_D117 = SEED + 117
 D = string.digits
 ALNUM = string.ascii_letters + string.digits
 B64URL = ALNUM + "-_"
@@ -46,17 +49,19 @@ def luhn_digit(body: str) -> str:
 RRN_W = (2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5)
 
 
-def rrn(r: random.Random, valid: bool) -> str:
-    """내국인 주민번호 13자리. 성별 자리 1~4, 날짜는 실제 있는 날. valid면 구 체계 검증식을 맞추고, 아니면 일부러 어긋낸다(2020-10 이후 번호)."""
+def rrn(r: random.Random, valid: bool, genders: tuple[str, str] = ("12", "34"), base: int = 11) -> str:
+    """내국인 주민번호 13자리. 성별 자리 1~4, 날짜는 실제 있는 날. valid면 구 체계 검증식을 맞추고, 아니면 일부러 어긋낸다(2020-10 이후 번호).
+    외국인등록번호(D-117)는 성별 5~8, 검증식은 (13 − 합 mod 11) mod 10이다."""
     year = r.randrange(1940, 2024)
-    head = f"{year % 100:02d}{r.randrange(1, 13):02d}{r.randrange(1, 29):02d}{r.choice('12' if year < 2000 else '34')}{rand(r, D, 5)}"
-    check = (11 - sum(int(a) * w for a, w in zip(head, RRN_W)) % 11) % 10
+    head = f"{year % 100:02d}{r.randrange(1, 13):02d}{r.randrange(1, 29):02d}{r.choice(genders[year >= 2000])}{rand(r, D, 5)}"
+    check = (base - sum(int(a) * w for a, w in zip(head, RRN_W)) % 11) % 10
     return head + str(check if valid else (check + r.randrange(1, 10)) % 10)
 
 
-def rrn_value(r: random.Random) -> tuple[str, str]:
+def rrn_value(r: random.Random, foreign: bool = False) -> tuple[str, str]:
     valid = r.random() < 0.5
-    d, fmt = rrn(r, valid), r.choices(("hyphen", "nosep", "space"), (60, 25, 15))[0]
+    d = rrn(r, valid, ("56", "78"), 13) if foreign else rrn(r, valid)
+    fmt = r.choices(("hyphen", "nosep", "space"), (60, 25, 15))[0]
     sep = {"hyphen": "-", "nosep": "", "space": " "}[fmt]
     return f"{'ok' if valid else 'fail'}-{fmt}", d[:6] + sep + d[6:]
 
@@ -193,12 +198,12 @@ def put(template: str, value: str) -> tuple[str, int, int]:
     return template.replace("{v}", value, 1), start, start + len(value)
 
 
-def positives(r: random.Random) -> list[dict]:
+def positives(r: random.Random, values: dict = VALUES, templates: dict = TEMPLATES) -> list[dict]:
     out = []
-    for kind, make in VALUES.items():
+    for kind, make in values.items():
         for i in range(1, 101):
             sub, value = make(r)
-            template, ctx = r.choice(TEMPLATES["pem" if sub == "pem" else kind])
+            template, ctx = r.choice(templates["pem" if sub == "pem" else kind])
             text, start, end = put(template, value)
             out.append({"id": f"pos-{kind}-{i:03d}", "set": "pos", "group": f"{kind}/{sub}", "text": text,
                         "spans": [{"kind": kind, "start": start, "end": end}], "ctx": ctx})
@@ -284,9 +289,118 @@ NEGATIVES = {
 }
 
 
-def negatives(r: random.Random) -> list[dict]:
+def negatives(r: random.Random, groups: dict = NEGATIVES) -> list[dict]:
     return [{"id": f"neg-{group}-{i:03d}", "set": "neg", "group": group, "text": r.choice(makers)(r), "spans": []}
-            for group, makers in NEGATIVES.items() for i in range(1, 101)]
+            for group, makers in groups.items() for i in range(1, 101)]
+
+
+# --- D-117: 새 종류 -------------------------------------------------------------
+def brn_digit(body: str) -> str:
+    """사업자등록번호 검증 숫자 — 1,3,7,1,3,7,1,3,5를 곱한 합 + 9번째×5의 십의 자리(국세청 공개 검증식)."""
+    total = sum(int(a) * w for a, w in zip(body, (1, 3, 7, 1, 3, 7, 1, 3, 5))) + int(body[8]) * 5 // 10
+    return str(-total % 10)
+
+
+def crn_digit(body: str) -> str:
+    """법인등록번호 검증 숫자 — 1·2를 번갈아 곱한 합(자리 나눔 없음)."""
+    return str(-sum(int(a) * w for a, w in zip(body, (1, 2) * 6)) % 10)
+
+
+def passport_value(r: random.Random) -> tuple[str, str]:
+    letter = r.choices("MSROD", (80, 8, 4, 4, 4))[0]
+    if r.random() < 0.5:                                   # 2021-12 차세대: 3자리 + 대문자 + 4자리
+        return "new", f"{letter}{rand(r, D, 3)}{r.choice(string.ascii_uppercase)}{rand(r, D, 4)}"
+    return "old", f"{letter}{rand(r, D, 8)}"
+
+
+DRIVER_REGIONS = tuple(str(x) for x in (*range(11, 24), 25, 26, 28))   # 운전면허 지역(2014-07부터 숫자, 광주는 전남 18)
+
+
+def driver_value(r: random.Random) -> tuple[str, str]:
+    return "hyphen", f"{r.choice(DRIVER_REGIONS)}-{r.randrange(100):02d}-{rand(r, D, 6)}-{rand(r, D, 2)}"
+
+
+BRN_TYPES = ("01", "05", "10", "13", "21", "26", "81", "82", "85", "86", "87", "88")   # 개인 과세·면세, 법인 본점·지점 등
+
+
+def brn_value(r: random.Random) -> tuple[str, str]:
+    body = f"{r.randrange(101, 900)}{r.choice(BRN_TYPES)}{rand(r, D, 4)}"
+    d = body + brn_digit(body)
+    return "hyphen", f"{d[:3]}-{d[3:5]}-{d[5:]}"
+
+
+CRN_OFFICES = ("1101", "1201", "1301", "1311", "1344", "1358", "1501", "1601", "1701", "1801", "2001", "2101", "2301", "2801")
+CRN_TYPES = ("11", "11", "11", "12", "13", "14", "21", "22", "71", "81")   # 주식회사가 대부분
+
+
+def crn_value(r: random.Random) -> tuple[str, str]:
+    """일련번호가 0으로 시작하는 옛 번호와 아닌 번호를 반씩 — 뒤쪽은 앞 6자리가 날짜 꼴이면 주민번호 꼴이 된다(서울 주식회사 `110111-1…`)."""
+    old = r.random() < 0.5
+    body = r.choice(CRN_OFFICES) + r.choice(CRN_TYPES) + ("0" if old else r.choice("123456789")) + rand(r, D, 5)
+    d = body + crn_digit(body)
+    return "serial0" if old else "serial1-9", f"{d[:6]}-{d[6:]}"
+
+
+ACCOUNT_BANKS = (  # (은행, 비중, 만들기) — 은행별 하이픈 꼴(나무위키 '계좌번호' 등, 2026-10)
+    ("kb", 20, lambda r: f"{rand(r, D, 6)}-{rand(r, D, 2)}-{rand(r, D, 6)}"),
+    ("shinhan", 15, lambda r: f"{r.choice(('110', '140'))}-{rand(r, D, 3)}-{rand(r, D, 6)}"),
+    ("woori", 12, lambda r: f"1002-{rand(r, D, 3)}-{rand(r, D, 6)}"),
+    ("hana", 10, lambda r: f"{num(r, 3)}-{rand(r, D, 6)}-{rand(r, D, 5)}"),
+    ("nh", 12, lambda r: f"{r.choice(('301', '302', '312', '351', '352', '356'))}-{rand(r, D, 4)}-{rand(r, D, 4)}-{rand(r, D, 2)}"),
+    ("ibk", 8, lambda r: f"{num(r, 3)}-{rand(r, D, 6)}-{rand(r, D, 2)}-{rand(r, D, 3)}"),
+    ("kakao", 12, lambda r: f"3333-{rand(r, D, 2)}-{rand(r, D, 7)}"),
+    ("toss", 6, lambda r: f"1000-{rand(r, D, 4)}-{rand(r, D, 4)}"),
+    ("kbank", 5, lambda r: f"100-{rand(r, D, 3)}-{rand(r, D, 6)}"),
+)
+IP_HEADS = (1, 14, 27, 39, 42, 49, 58, 59, 61, 106, 110, 112, 114, 115, 116, 118, 119, 121, 122, 123, 124, 125, 175, 180, 182,
+            183, 210, 211, 218, 220, 221, 222)     # 국내 통신사가 쓰는 공인 /8의 예 — 사설·예약 대역은 없다
+
+
+def ip(r: random.Random) -> str:
+    return f"{r.choice(IP_HEADS)}.{r.randrange(256)}.{r.randrange(256)}.{r.randrange(1, 255)}"
+
+
+TEMPLATES_D117 = {
+    "frn": (("외국인등록번호 {v} 확인했습니다.", True), ("등록번호: {v} (체류 자격 E-9)", True), ("Alien registration no. {v}", True),
+            ("외국인 근로자 {v} 4대 보험 신고", True), ("신청인 {v} / 국적 베트남", False), ("{v} 건은 출입국사무소 확인 후 처리", False)),
+    "passport": (("여권번호 {v}", True), ("여권 번호: {v} (만료 2031-05-02)", True), ("Passport No. {v}", True),
+                 ('{"passport_no": "{v}", "nationality": "KOR"}', True), ("여권({v}) 사본 첨부드립니다.", True),
+                 ("탑승객 KIM MINJI {v} 확인", False), ("{v} 체크인 완료", False), ("예약자 정보 — {v}, 1990-01-01", False)),
+    "driver": (("운전면허번호 {v}", True), ("면허번호: {v} (1종 보통)", True), ("렌터카 계약자 면허 {v} 확인", True),
+               ('{"license_no": "{v}"}', False), ("{v} 적성검사 기간 안내", False), ("본인 확인용 번호 {v}", False)),
+    "brn": (("사업자등록번호 {v}", True), ("사업자번호: {v} (간이과세자)", True), ("(주)한빛 | 대표 김민지 | 사업자등록번호 {v}", True),
+            ('{"biz_no": "{v}"}', False), ("{v} 앞으로 세금계산서 발행 부탁드립니다.", False), ("공급자 {v} 확인", False)),
+    "crn": (("법인등록번호 {v}", True), ("법인번호: {v}", True), ("(주)한빛 법인등록번호 {v} / 사업자등록번호는 별도", True),
+            ('{"corp_reg_no": "{v}"}', True), ("등기부등본상 번호 {v} 확인", False), ("(주)한빛 {v}", False)),
+    "account": (("입금 계좌: {v} (예금주 김민지)", True), ("환불 계좌 {v}로 보내 주세요.", True), ("계좌번호: {v}", True),
+                ('{"account_no": "{v}", "holder": "김민지"}', True), ("급여 이체 {v} 등록 완료", True),
+                ("{v} 확인 부탁드립니다.", False), ("번호 {v} 맞나요?", False), ("고객이 불러준 번호 {v}", False)),
+    "ipv4": (("접속 IP {v}에서 로그인 시도 5회", True), ("client_ip={v} status=401", True), ("X-Forwarded-For: {v}", True),
+             ('{"ip": "{v}", "country": "KR"}', True), ('{v} - - [30/Oct/2026:12:34:56 +0900] "GET /login HTTP/1.1" 200 512', False),
+             ("방화벽 차단 목록에 {v} 추가 요청", False), ("고객 접속지 {v} (서울)", False), ("ssh admin@{v} 접속이 안 돼요", False)),
+}
+VALUES_D117 = {"frn": lambda r: rrn_value(r, foreign=True), "passport": passport_value, "driver": driver_value, "brn": brn_value,
+               "crn": crn_value, "account": weighted(ACCOUNT_BANKS), "ipv4": lambda r: ("kr", ip(r))}
+NEGATIVES_D117 = {
+    "codes": (lambda r: f"정산 배치 D{ymd(r)} 완료, 건수 {r.randrange(10, 5000)}건",
+              lambda r: f"S/N {r.choice('MSRD')}{num(r, 8)} 장비 입고",
+              lambda r: f"접수번호 {num(r, 4)}-{rand(r, D, 4)}-{rand(r, D, 4)} 처리 중",
+              lambda r: f"관리번호 {num(r, 3)}-{rand(r, D, 3)}-{rand(r, D, 6)} 문서 보관",
+              lambda r: f"특허 출원번호 10-2026-{rand(r, D, 7)}",
+              lambda r: f"사건번호 2026가합{num(r, 5)} 변론기일 {r.randrange(1, 13)}월",
+              lambda r: f"문서번호 {r.choice(('인사', '총무', '재무'))}-2026-{num(r, 3)}",
+              lambda r: f"견적 Q-{ymd(r)}-{rand(r, D, 4)} 회신 부탁드립니다"),
+    "network": (lambda r: f"서버 192.168.{r.randrange(256)}.{r.randrange(1, 255)}:{r.randrange(1024, 65536)} 재시작했습니다",
+                lambda r: f"DB 연결 실패: 10.{r.randrange(256)}.{r.randrange(256)}.{r.randrange(1, 255)} (timeout {r.randrange(1, 60)}s)",
+                lambda r: f"docker0 172.17.0.{r.randrange(2, 255)} → 컨테이너 {rand(r, HEX, 12)}",
+                lambda r: f"curl http://127.0.0.1:{r.randrange(1024, 65536)}/health",
+                lambda r: f"보안 그룹 0.0.0.0/0 허용 규칙을 {ip(r).rsplit('.', 1)[0]}.0/24로 좁혀 주세요",
+                lambda r: f'AssemblyVersion("{r.randrange(1, 10)}.{r.randrange(10)}.{r.randrange(10)}.0")',
+                lambda r: f"펌웨어 {r.randrange(1, 10)}.{r.randrange(10)}.{r.randrange(10)}.{r.randrange(1, 30)} 업데이트 후 재부팅",
+                lambda r: f"SNMP OID 1.3.6.1.4.1.{num(r, 4)}.{r.randrange(1, 20)}.{r.randrange(1, 9)}",
+                lambda r: f"Windows 10.0.{r.randrange(19041, 26101)}.{r.randrange(1, 5000)} 빌드에서 재현",
+                lambda r: f"User-Agent: Mozilla/5.0 Chrome/{130 + r.randrange(10)}.0.0.0 Safari/537.36"),
+}
 
 
 # --- 어려운 사례(손으로 고름) ---------------------------------------------------------
@@ -320,6 +434,20 @@ HARD = (
     (None, "버전 2.10.1234 배포", None, "점이 든 버전"),
     (None, "좌표 37.5665, 126.9780 근처", None, "좌표"),
     (None, "사번 20231234, 학번 2019123456", None, "사번·학번"),
+    # D-117 — 지원하지 않는 꼴과 새 음성
+    ("driver", "운전면허 서울 07-111111-10 갱신", "서울 07-111111-10", "지역명 꼴(2014-07 이전 발급) — 지원하지 않는다"),
+    ("driver", "면허번호 112012345678 확인", "112012345678", "구분자 없는 12자리 — 지원하지 않는다"),
+    ("brn", "사업자번호 1234567891 조회", "1234567891", "구분자 없는 10자리 — 지원하지 않는다"),
+    ("account", "계좌 110123456789로 입금해 주세요", "110123456789", "구분자 없는 계좌 — 지원하지 않는다"),
+    ("account", "신한 110 123 456789", "110 123 456789", "띄어 쓴 계좌 — 지원하지 않는다"),
+    ("passport", "여권번호 m12345678", "m12345678", "소문자 여권 — 지원하지 않는다"),
+    ("phone", "안심번호 0507-1234-5678로 연락", "0507-1234-5678", "050 안심번호 — 지원하지 않는다"),
+    ("crn", "법인등록번호 110111-1234569", "110111-1234569", "주민 꼴 법인번호 + '법인' 문맥 — 법인으로 본다"),
+    ("crn", "(주)한빛 110111-1234569", "110111-1234569", "주민 꼴 법인번호, '법인' 문맥 없음 — 주민번호로 가린다"),
+    ("phone", "인터넷 전화 070-1234-5678", "070-1234-5678", "070(D-117에서 더함)"),
+    (None, "패키지 2.4.1.3 설치 완료", None, "4묶음 버전, 버전 문맥어 없음 — IPv4로 오인"),
+    (None, "서버 192.168.0.10:8080 재시작", None, "사설 IP"),
+    (None, "정산 배치 D20261030 완료", None, "D + 날짜 — 문맥 없는 구형 여권 꼴(감사만)"),
 )
 
 
@@ -345,6 +473,9 @@ def render() -> tuple[str, str]:
     r = random.Random(SEED)
     items = positives(r) + negatives(r)
     assert sum(x["set"] == "pos" for x in items) == 500 and sum(x["set"] == "neg" for x in items) == 1000
+    r = random.Random(SEED_D117)                   # D-117: 앞의 1,500줄을 건드리지 않게 다른 시드로 뒤에 붙인다
+    items += positives(r, VALUES_D117, TEMPLATES_D117) + negatives(r, NEGATIVES_D117)
+    assert sum(x["set"] == "pos" for x in items) == 1200 and sum(x["set"] == "neg" for x in items) == 1200
     return dumps(items), dumps(hard())
 
 

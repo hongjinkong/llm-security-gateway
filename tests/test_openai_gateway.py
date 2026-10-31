@@ -189,7 +189,7 @@ async def test_restore_keeps_openai_response_json_valid(value):
     restored, meta = await _mask_then_restore(value, _completion)
     content = json.loads(restored)["choices"][0]["message"]["content"]
     assert content == f"응답: 번호 {value} 확인"
-    assert meta == {"restored": 1, "residual_tokens": 0, "issued": 1, "suspect": 0}
+    assert meta == {"restored": 1, "residual_tokens": 0, "issued": 1, "suspect": 0, "new": 0}
 
 
 @pytest.mark.anyio

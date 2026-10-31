@@ -20,7 +20,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1]))
 from gateway.detectors.patterns import find_all  # noqa: E402
 
-KINDS = ("rrn", "card", "phone", "email", "secret")
+KINDS = ("rrn", "frn", "passport", "driver", "card", "phone", "email", "secret", "brn", "crn", "account", "ipv4")   # D-117: 새 종류 7개
 
 
 def load(path: Path) -> list[dict]:

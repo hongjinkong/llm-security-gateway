@@ -22,12 +22,12 @@
 **C. 한국 식별자**
 - [x] 8. PII 평가 코퍼스 + CI 오탐 게이트(기준선)
 - [x] 9. 정규화 + 오탐 축소
-- [ ] 10. 한국 식별자 확장
+- [x] 10. 한국 식별자 확장
 
 **D. 설정·운영**
-- [ ] 11. 설정 객체화 + 인프로세스 테스트 + mypy
-- [ ] 12. 설정 파일 + 상류 라우팅 + 클라이언트 정책
-- [ ] 13. 감사·관측·문구 카탈로그
+- [x] 11. 설정 객체화 + 인프로세스 테스트 + mypy
+- [x] 12. 설정 파일 + 상류 라우팅 + 클라이언트 정책
+- [x] 13. 감사·관측·문구 카탈로그
 - [ ] 14. 배포 패키지 + 제품 문서
 - [ ] 15. 부하·안정성
 
@@ -60,6 +60,10 @@
 | 2026-10-30 | 8 | D-115 | E1~E4·pytest 442·ruff 통과. 합성 코퍼스(양성 500·음성 1,000·어려운 사례 27) 기준선: 재현율 rrn·card·email·secret 100, phone 96(070 놓침), 오탐 card 117(IMEI 100/100)·rrn 6(국내 바코드·13자리 송장)·전체 123/1000. 게이트는 목표 또는 기준선. 계획과 다른 점: 카드의 Luhn 실패 군은 두지 않음(정답을 정할 수 없다), 10단계에 070 추가 | 9단계 |
 | 2026-10-30 | 9 | D-116 | N1~N8·pytest 473·ruff 통과, 데모·Anthropic SDK 재통과. 코퍼스 오탐 123 → 3(0.3%), 재현율 496 → 494(rrn 98 — 문맥 없는 약한 13자리는 감사만, 검증식 통과 55/55), 어려운 사례 양성 8 → 14/17. 계획과 다른 점: 발급사 목록에 Discover·Diners·국내 전용 9, rrn 재현율 목표는 검증식 통과 값에 | 10단계 |
 | 2026-10-30 | 8 보강 | D-115 | 커밋 `0daf559` 푸시가 GitHub push protection에 막힘 — 코퍼스의 합성 Slack 토큰 8건이 실제 형식. 생성기가 6자 묶음으로 다시 잘라 8줄만 바뀜, 점수·게이트 그대로. 그 커밋은 원격에 없으므로 고친 파일로 amend한 뒤 푸시 | 10단계 |
+| 2026-10-30 | 10 | D-117 | K1~K9·pytest 586·ruff 통과, 데모·Anthropic SDK 재통과, 코퍼스·점수 3.12=3.14. 새 종류 frn·passport·driver(가림)·brn·crn·account·ipv4(기본 감사만, `GATEWAY_PII_DETECT_KINDS`)와 070. 코퍼스 양성 1,200·음성 1,200(앞 1,500줄 그대로): 오탐 3(0.2%), phone 96 → 100, 문맥에 달린 passport 80·crn 89·account 64. 1MiB 0.19초(N8 글). 계획과 다른 점: 사업자·법인·IPv4도 기본 감사만, 구분자 없는 꼴·지역명 면허는 넣지 않음(탐지는 모양만 — 문맥으로만 찾으면 응답의 대체값을 못 되찾는다) | 11단계 |
+| 2026-10-30 | 11 | D-118 | C1~C6·pytest 599·ruff·mypy 통과, 데모·Anthropic SDK 재통과. `Settings.from_env`·`create_app`, main 660 → 260줄(settings·relay·audit로 나눔), `.env` 자동 로드 제거, `GATEWAY_INJECTION_SCOPE`·`GATEWAY_CHAT_UPSTREAM_PATH`·`GATEWAY_DETECTORS` 환경변수 제거, CI에 mypy. 테스트 69초 → 18초. 계획과 다른 점: ASGITransport 대신 스레드 uvicorn(스트리밍 그대로·테스트 호출부 무변경), 저수준 검사기 목록은 `Settings.detectors`로만 | 12단계 |
+| 2026-10-30 | 12 | D-119 | G1~G7·pytest 623·ruff·mypy 통과. `GATEWAY_CONFIG`(TOML): 클라이언트별 정책(인젝션·PII·허용 모델 403), API별 상류(`key_env`), 해시 키(`keygen --hash`), info·감사 줄의 `config`·`policy`. `scripts/check_sdks.py`로 OpenAI SDK 8/8·Anthropic SDK 6/6이 한 게이트웨이에서 함께 통과(상류 분리 확인). 계획과 다른 점: 상류 표 이름은 어댑터(chat·responses·messages), 파일의 상류는 `key_env` 없이는 키를 달지 않음 | 13단계 |
+| 2026-10-30 | 13 | D-120 | O1~O5·pytest 639·ruff·mypy 통과, 두 SDK(한 게이트웨이)·데모 재통과. 감사 줄 `model`·`usage`(세 API × 스트리밍, Chat 스트림은 include_usage 주입·조각 숨김), `pii_new`·`gateway_pii_new_total`(출력 방향 관측), 상류 헤더 `x-gateway-request-id`, 문구 카탈로그 `GATEWAY_LANG=ko|en`. 계획과 다른 점: client·api·config는 이미 있었음, API 오류 본문은 영어 그대로 | 14단계 |
 
 ## 사용자 할 일
 
@@ -71,7 +75,8 @@
 - [x] (7단계 전) 1~6단계를 커밋·푸시한다 — `4c1731c`, origin/main(2026-10-30 확인). D-111 §6 사전 등록이 커밋됐으므로 7단계를 할 수 있다.
 - [x] (7단계 전) `.env`에 `ANTHROPIC_API_KEY`가 있는지 확인 — 2026-10-30 세션이 있음을 확인(값은 출력하지 않음).
 - [ ] (1단계, 선택) 죽은 브랜치 `codex/*` 3개를 로컬·원격에서 삭제, GitHub 저장소 설명을 제품 설명으로 변경.
-- [ ] (9단계 뒤, 선택) OpenAI SDK 점검 — 점검용 venv에 SDK가 없어 세션이 돌리지 못했다: `! /tmp/sdkvenv/bin/pip install openai` 다음 `python3 scripts/check_openai_sdk.py --sdk-python /tmp/sdkvenv/bin/python`.
+- [x] (9단계 뒤, 선택) OpenAI SDK 점검 — 2026-10-30 세션이 처리했다(PyPI가 열려 있었다). 점검용 venv의 `python`은 3.9라 `/tmp/sdkvenv/bin/python -m pip install openai`로 깔아야 한다(`bin/pip`은 3.14 쪽). 8/8 통과.
+- [ ] (14단계 전, 선택) Docker Desktop을 켜 두고 `kubectl`을 설치해 둔다 — 14단계 완료 기준의 compose 기동·`kubectl apply --dry-run=client` 검증용. 없으면 세션은 그 둘을 건너뛰고 결정에 적는다.
 
 ## 결정 표
 
@@ -288,10 +293,10 @@
 ### 10. 한국 식별자 확장
 
 할 일
-- [ ] 새 종류와 대체값 생성기(모양·검증식 유지, 결정적 시드): 여권(구 M+8자리·신 M+3자리+영문 1자+4자리), 운전면허(지역 2-2-6-2), 사업자등록번호(3-2-5, 검증식), 법인등록번호(6-7, 검증식, 주민번호와 분리), 외국인등록번호(지금은 주민번호 성별 자리 5~8로 잡힘 → 별도 종류), 계좌번호(은행별 자릿수·하이픈 꼴 + 문맥어 창, 기본 detect), IPv4. 전화 패턴에 인터넷 전화 070(8단계 기준선에서 4/4 놓침).
-- [ ] 패턴·검증식은 Presidio의 KR 인식기(KR_RRN·KR_BRN·KR_FRN·KR_PASSPORT·KR_DRIVER_LICENSE, MIT)와 공개 검증식으로 대조하고 출처를 결정에 적는다.
-- [ ] 8단계 코퍼스에 새 종류의 양성·음성을 더하고 게이트를 통과시킨다.
-- [ ] README에 커버리지 표(종류·검증식·기본 모드·한계).
+- [x] 새 종류와 대체값 생성기(모양·검증식 유지, 결정적 시드): 여권(구 M+8자리·신 M+3자리+영문 1자+4자리), 운전면허(지역 2-2-6-2), 사업자등록번호(3-2-5, 검증식), 법인등록번호(6-7, 검증식, 주민번호와 분리), 외국인등록번호(지금은 주민번호 성별 자리 5~8로 잡힘 → 별도 종류), 계좌번호(은행별 자릿수·하이픈 꼴 + 문맥어 창, 기본 detect), IPv4. 전화 패턴에 인터넷 전화 070(8단계 기준선에서 4/4 놓침).
+- [x] 패턴·검증식은 Presidio의 KR 인식기(KR_RRN·KR_BRN·KR_FRN·KR_PASSPORT·KR_DRIVER_LICENSE, MIT)와 공개 검증식으로 대조하고 출처를 결정에 적는다.
+- [x] 8단계 코퍼스에 새 종류의 양성·음성을 더하고 게이트를 통과시킨다.
+- [x] README에 커버리지 표(종류·검증식·기본 모드·한계).
 
 완료 기준: 종류별 게이트 통과, 1MiB `find_all` 시간 기록(지금 약 0.1초), 전체 통과.
 
@@ -300,11 +305,11 @@
 ### 11. 설정 객체화 + 인프로세스 테스트 + mypy
 
 할 일
-- [ ] `gateway/main.py`의 import 시점 전역 설정을 `Settings`(dataclass, 환경변수를 한 번 읽음)와 `create_app(settings)`로 바꾼다. 모듈의 `app = create_app(Settings.from_env())`는 uvicorn용으로 남긴다. `.env` 자동 로드는 없애고 uvicorn `--env-file`을 쓴다.
-- [ ] `main.py`(약 600줄)를 라우팅·중계·관리 엔드포인트로 나눈다. 파일 수는 최소로.
-- [ ] 테스트에 `httpx.ASGITransport` 인프로세스 픽스처를 더하고, 서브프로세스는 스트리밍·기동 실패처럼 꼭 필요한 테스트에만 쓴다.
-- [ ] 낡은 설정을 지운다: `GATEWAY_INJECTION_SCOPE=all`(다중 턴 FPR 100%), `GATEWAY_CHAT_UPSTREAM_PATH`, 테스트만 쓰게 되면 `GATEWAY_DETECTORS`.
-- [ ] CI에 mypy(관대한 설정)를 더한다.
+- [x] `gateway/main.py`의 import 시점 전역 설정을 `Settings`(dataclass, 환경변수를 한 번 읽음)와 `create_app(settings)`로 바꾼다. 모듈의 `app = create_app(Settings.from_env())`는 uvicorn용으로 남긴다. `.env` 자동 로드는 없애고 uvicorn `--env-file`을 쓴다.
+- [x] `main.py`(약 600줄)를 라우팅·중계·관리 엔드포인트로 나눈다. 파일 수는 최소로.
+- [x] 테스트에 `httpx.ASGITransport` 인프로세스 픽스처를 더하고, 서브프로세스는 스트리밍·기동 실패처럼 꼭 필요한 테스트에만 쓴다. (D-118: ASGITransport 대신 스레드 uvicorn — 스트리밍이 실제 그대로이고 테스트 호출부가 바뀌지 않는다)
+- [x] 낡은 설정을 지운다: `GATEWAY_INJECTION_SCOPE=all`(다중 턴 FPR 100%), `GATEWAY_CHAT_UPSTREAM_PATH`, 테스트만 쓰게 되면 `GATEWAY_DETECTORS`.
+- [x] CI에 mypy(관대한 설정)를 더한다.
 
 완료 기준: 전체 통과, 테스트 시간 전후 기록, mypy 통과.
 
@@ -313,11 +318,11 @@
 ### 12. 설정 파일 + 상류 라우팅 + 클라이언트 정책
 
 할 일
-- [ ] `GATEWAY_CONFIG` 파일(TOML, 표준 라이브러리 `tomllib`): `[[clients]]` name·key_sha256·policy, `[policies.<이름>]` pii_mode·pii_kinds·pii_roles·injection·allowed_models, `[upstreams.<api>]` base_url·key_env·timeout. 환경변수만으로도 지금처럼 뜬다.
-- [ ] 클라이언트 키는 sha256으로 저장·비교한다(`keygen --hash`).
-- [ ] 어댑터별 상류: OpenAI(Chat·Responses)와 Anthropic(Messages)을 한 게이트웨이에서 동시에. `TARGET_URL`은 둘 다의 기본값으로 하위 호환.
-- [ ] `allowed_models` 밖의 모델은 403(어댑터 오류 형식).
-- [ ] 설정 버전(파일 sha256 앞 12자)을 info와 감사 줄에.
+- [x] `GATEWAY_CONFIG` 파일(TOML, 표준 라이브러리 `tomllib`): `[[clients]]` name·key_sha256·policy, `[policies.<이름>]` pii_mode·pii_kinds·pii_roles·injection·allowed_models, `[upstreams.<api>]` base_url·key_env·timeout. 환경변수만으로도 지금처럼 뜬다.
+- [x] 클라이언트 키는 sha256으로 저장·비교한다(`keygen --hash`).
+- [x] 어댑터별 상류: OpenAI(Chat·Responses)와 Anthropic(Messages)을 한 게이트웨이에서 동시에. `TARGET_URL`은 둘 다의 기본값으로 하위 호환.
+- [x] `allowed_models` 밖의 모델은 403(어댑터 오류 형식).
+- [x] 설정 버전(파일 sha256 앞 12자)을 info와 감사 줄에.
 
 완료 기준: `scripts/check_openai_sdk.py`와 `scripts/check_anthropic_sdk.py`가 스텁 상류로 한 게이트웨이에서 함께 통과, 해시 키 인증 테스트, 모델 차단 테스트, 전체 통과.
 
@@ -328,10 +333,10 @@
 ### 13. 감사·관측·문구 카탈로그
 
 할 일
-- [ ] 감사 줄에 client·api·model·usage(입력·출력·캐시 토큰)·config_version. 스트리밍 usage는 Anthropic `message_start`·`message_delta`에서 읽는다. OpenAI는 `stream_options.include_usage`를 넣어 받고, 클라이언트가 요청하지 않았으면 usage 전용 조각을 클라이언트 스트림에서 뺀다.
-- [ ] 출력 방향 관측: 복원 뒤 응답에서 우리가 발급하지 않은 PII·비밀 건수 `new_in_response`(감사·지표). 가리지는 않는다.
-- [ ] 사용자·운영자에게 가는 문구(차단 문구·REDACTED_TURN·설정 오류)를 카탈로그로 모은다. `GATEWAY_LANG=ko`(기본)·`en`.
-- [ ] 상류가 사내 서비스일 때를 위해 게이트웨이 요청 ID를 `x-gateway-request-id`로 상류에 넘긴다.
+- [x] 감사 줄에 client·api·model·usage(입력·출력·캐시 토큰)·config_version. 스트리밍 usage는 Anthropic `message_start`·`message_delta`에서 읽는다. OpenAI는 `stream_options.include_usage`를 넣어 받고, 클라이언트가 요청하지 않았으면 usage 전용 조각을 클라이언트 스트림에서 뺀다.
+- [x] 출력 방향 관측: 복원 뒤 응답에서 우리가 발급하지 않은 PII·비밀 건수 `new_in_response`(감사·지표). 가리지는 않는다.
+- [x] 사용자·운영자에게 가는 문구(차단 문구·REDACTED_TURN·설정 오류)를 카탈로그로 모은다. `GATEWAY_LANG=ko`(기본)·`en`.
+- [x] 상류가 사내 서비스일 때를 위해 게이트웨이 요청 ID를 `x-gateway-request-id`로 상류에 넘긴다.
 
 완료 기준: 스트리밍·비스트리밍 둘 다 usage가 감사 줄에 있다, 카탈로그 en·ko 테스트, 전체 통과.
 

@@ -48,17 +48,19 @@ def test_detects_benign_set_pii(text, expect):
     "2026-08-07 회의는 09:00부터입니다.",
     "인사팀 내선번호는 3300번입니다.",
     "사번 20210233으로 조회해 주세요.",
-    "계좌 110-234-567890으로 급여를 받고 있습니다.",      # SCOPE 밖 + 전화번호 오인 금지
-    "계좌 302-1122-3344-55로 퇴직금은 며칠 이내에 지급되나요?",  # 앞부분만 잘라 전화번호로 보면 안 됨
     "동호회 지원금은 인당 분기에 5만원입니다.",
 ])
 def test_no_false_positive(text):
     assert find_all(text) == []
 
 
-def test_account_number_is_out_of_scope_not_a_bug():
-    """계좌번호는 SCOPE 4.2에 없다. 미탐지가 정상이며 README 한계로 명시한다."""
-    assert kinds("계좌 302-1122-3344-55로 보내주세요") == []
+@pytest.mark.parametrize("text", [
+    "계좌 110-234-567890으로 급여를 받고 있습니다.",      # 전화번호 오인 금지
+    "계좌 302-1122-3344-55로 퇴직금은 며칠 이내에 지급되나요?",  # 앞부분만 잘라 전화번호로 보면 안 됨
+])
+def test_account_number_is_an_account_not_a_phone(text):
+    """D-117부터 계좌번호는 종류다(은행별 하이픈 꼴, 기본은 감사만). 예전에는 미탐지가 정상이었다(SCOPE 4.2)."""
+    assert kinds(text) == ["account"]
 
 
 # ---------- 주민번호 등급 ----------
@@ -302,4 +304,4 @@ async def test_credential_is_masked_and_restored_in_openai_path():
     surrogate = sent[f.start:f.end]
     assert secret not in sent and f.kind == "secret" and surrogate.startswith("sk-")
     restored, meta = await det.on_response("s1", f"키 {surrogate}를 확인하세요")
-    assert secret in restored and meta == {"restored": 1, "residual_tokens": 0, "issued": 1, "suspect": 0}
+    assert secret in restored and meta == {"restored": 1, "residual_tokens": 0, "issued": 1, "suspect": 0, "new": 0}

@@ -1498,3 +1498,903 @@
 {"id": "neg-money-098", "set": "neg", "group": "money", "text": "결제 금액 7,100,268원", "spans": []}
 {"id": "neg-money-099", "set": "neg", "group": "money", "text": "부가세 포함 합계 ₩61,456,558", "spans": []}
 {"id": "neg-money-100", "set": "neg", "group": "money", "text": "수량 198개, 단가 654,131원", "spans": []}
+{"id": "pos-frn-001", "set": "pos", "group": "frn/fail-nosep", "text": "7611186596075 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 13}], "ctx": false}
+{"id": "pos-frn-002", "set": "pos", "group": "frn/fail-hyphen", "text": "961115-6314690 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-003", "set": "pos", "group": "frn/ok-nosep", "text": "Alien registration no. 2204017041744", "spans": [{"kind": "frn", "start": 23, "end": 36}], "ctx": true}
+{"id": "pos-frn-004", "set": "pos", "group": "frn/ok-nosep", "text": "신청인 1810087817509 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 17}], "ctx": false}
+{"id": "pos-frn-005", "set": "pos", "group": "frn/fail-hyphen", "text": "480724-6206261 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-006", "set": "pos", "group": "frn/fail-nosep", "text": "신청인 2203127403860 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 17}], "ctx": false}
+{"id": "pos-frn-007", "set": "pos", "group": "frn/fail-hyphen", "text": "외국인 근로자 500704-5753913 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-008", "set": "pos", "group": "frn/ok-nosep", "text": "신청인 9308146257679 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 17}], "ctx": false}
+{"id": "pos-frn-009", "set": "pos", "group": "frn/ok-nosep", "text": "6711055114346 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 13}], "ctx": false}
+{"id": "pos-frn-010", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 400720-5936683 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-011", "set": "pos", "group": "frn/fail-hyphen", "text": "Alien registration no. 411114-6353088", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-012", "set": "pos", "group": "frn/fail-nosep", "text": "외국인등록번호 1805098240269 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-013", "set": "pos", "group": "frn/fail-hyphen", "text": "신청인 620917-6487160 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-014", "set": "pos", "group": "frn/ok-hyphen", "text": "외국인 근로자 530818-6770488 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-015", "set": "pos", "group": "frn/ok-nosep", "text": "4803245479668 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 13}], "ctx": false}
+{"id": "pos-frn-016", "set": "pos", "group": "frn/ok-hyphen", "text": "Alien registration no. 200819-8385953", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-017", "set": "pos", "group": "frn/ok-nosep", "text": "6404265210628 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 13}], "ctx": false}
+{"id": "pos-frn-018", "set": "pos", "group": "frn/fail-hyphen", "text": "등록번호: 550224-6936976 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-019", "set": "pos", "group": "frn/fail-space", "text": "외국인 근로자 701109 6259647 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-020", "set": "pos", "group": "frn/ok-nosep", "text": "외국인등록번호 9911275970992 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-021", "set": "pos", "group": "frn/fail-hyphen", "text": "520811-6309499 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-022", "set": "pos", "group": "frn/ok-hyphen", "text": "외국인 근로자 650109-5559513 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-023", "set": "pos", "group": "frn/ok-nosep", "text": "외국인등록번호 1005068972773 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-024", "set": "pos", "group": "frn/fail-hyphen", "text": "신청인 150316-8051694 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-025", "set": "pos", "group": "frn/fail-nosep", "text": "Alien registration no. 1305148805641", "spans": [{"kind": "frn", "start": 23, "end": 36}], "ctx": true}
+{"id": "pos-frn-026", "set": "pos", "group": "frn/ok-hyphen", "text": "Alien registration no. 550114-6865378", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-027", "set": "pos", "group": "frn/fail-nosep", "text": "외국인 근로자 9012176690705 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-028", "set": "pos", "group": "frn/ok-hyphen", "text": "Alien registration no. 821023-5847043", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-029", "set": "pos", "group": "frn/ok-hyphen", "text": "외국인 근로자 200415-7534479 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-030", "set": "pos", "group": "frn/fail-nosep", "text": "외국인 근로자 8103086788155 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-031", "set": "pos", "group": "frn/ok-hyphen", "text": "Alien registration no. 660306-6376485", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-032", "set": "pos", "group": "frn/ok-hyphen", "text": "외국인 근로자 730921-5026834 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-033", "set": "pos", "group": "frn/ok-nosep", "text": "7111206150973 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 13}], "ctx": false}
+{"id": "pos-frn-034", "set": "pos", "group": "frn/fail-hyphen", "text": "등록번호: 150717-8827304 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-035", "set": "pos", "group": "frn/ok-nosep", "text": "외국인 근로자 8011235701984 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-036", "set": "pos", "group": "frn/fail-hyphen", "text": "외국인등록번호 620208-6836194 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-037", "set": "pos", "group": "frn/ok-hyphen", "text": "910926-6092771 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-038", "set": "pos", "group": "frn/fail-hyphen", "text": "신청인 430113-5764252 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-039", "set": "pos", "group": "frn/fail-nosep", "text": "1006257065260 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 13}], "ctx": false}
+{"id": "pos-frn-040", "set": "pos", "group": "frn/fail-nosep", "text": "Alien registration no. 1610127311880", "spans": [{"kind": "frn", "start": 23, "end": 36}], "ctx": true}
+{"id": "pos-frn-041", "set": "pos", "group": "frn/fail-hyphen", "text": "신청인 081114-8751322 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-042", "set": "pos", "group": "frn/fail-space", "text": "450413 6908109 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-043", "set": "pos", "group": "frn/ok-hyphen", "text": "등록번호: 430620-5147354 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-044", "set": "pos", "group": "frn/ok-space", "text": "신청인 470903 5883886 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-045", "set": "pos", "group": "frn/fail-nosep", "text": "외국인 근로자 4311205653967 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-046", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 220317-7241023 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-047", "set": "pos", "group": "frn/ok-space", "text": "외국인등록번호 501216 6219753 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-048", "set": "pos", "group": "frn/ok-nosep", "text": "외국인등록번호 9004155011265 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-049", "set": "pos", "group": "frn/ok-hyphen", "text": "961208-5190507 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-050", "set": "pos", "group": "frn/fail-hyphen", "text": "650623-6522093 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-051", "set": "pos", "group": "frn/ok-hyphen", "text": "등록번호: 090125-8009104 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-052", "set": "pos", "group": "frn/ok-hyphen", "text": "외국인등록번호 530913-6347992 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-053", "set": "pos", "group": "frn/fail-hyphen", "text": "Alien registration no. 090903-8951136", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-054", "set": "pos", "group": "frn/fail-nosep", "text": "등록번호: 6302256342593 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 19}], "ctx": true}
+{"id": "pos-frn-055", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 420410-5433339 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-056", "set": "pos", "group": "frn/ok-nosep", "text": "신청인 7708025541436 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 17}], "ctx": false}
+{"id": "pos-frn-057", "set": "pos", "group": "frn/fail-hyphen", "text": "등록번호: 940709-5620659 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-058", "set": "pos", "group": "frn/fail-hyphen", "text": "등록번호: 970608-6462609 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-059", "set": "pos", "group": "frn/fail-hyphen", "text": "신청인 090514-7976317 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-060", "set": "pos", "group": "frn/fail-hyphen", "text": "등록번호: 840313-6648175 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-061", "set": "pos", "group": "frn/ok-space", "text": "등록번호: 911013 6491928 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-062", "set": "pos", "group": "frn/ok-hyphen", "text": "외국인 근로자 200914-7287555 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-063", "set": "pos", "group": "frn/ok-hyphen", "text": "600317-6490799 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-064", "set": "pos", "group": "frn/fail-hyphen", "text": "신청인 640301-5848289 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-065", "set": "pos", "group": "frn/fail-hyphen", "text": "외국인 근로자 660820-6814794 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-066", "set": "pos", "group": "frn/ok-space", "text": "신청인 650906 6969373 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-067", "set": "pos", "group": "frn/fail-hyphen", "text": "등록번호: 990201-6706258 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-068", "set": "pos", "group": "frn/ok-space", "text": "Alien registration no. 410402 5644612", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-069", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 211226-8675870 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-070", "set": "pos", "group": "frn/ok-hyphen", "text": "외국인 근로자 710913-6034892 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-071", "set": "pos", "group": "frn/fail-hyphen", "text": "신청인 040409-7476843 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-072", "set": "pos", "group": "frn/ok-hyphen", "text": "Alien registration no. 940117-5828984", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-073", "set": "pos", "group": "frn/fail-space", "text": "신청인 940716 5142019 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-074", "set": "pos", "group": "frn/ok-hyphen", "text": "Alien registration no. 030612-8894451", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-075", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 880609-5574976 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-076", "set": "pos", "group": "frn/ok-hyphen", "text": "외국인 근로자 710627-6626795 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-077", "set": "pos", "group": "frn/ok-hyphen", "text": "등록번호: 740101-5632706 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-078", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 550918-6833286 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-079", "set": "pos", "group": "frn/fail-hyphen", "text": "외국인등록번호 560425-6313874 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-080", "set": "pos", "group": "frn/ok-nosep", "text": "외국인등록번호 8911046812708 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-frn-081", "set": "pos", "group": "frn/ok-hyphen", "text": "760110-6542993 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-082", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 860611-6582856 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-083", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 951028-6207674 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-084", "set": "pos", "group": "frn/fail-hyphen", "text": "760627-6929269 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-085", "set": "pos", "group": "frn/ok-space", "text": "460917 6201950 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-086", "set": "pos", "group": "frn/ok-hyphen", "text": "등록번호: 051225-8729453 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-087", "set": "pos", "group": "frn/ok-hyphen", "text": "Alien registration no. 130909-8107361", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-088", "set": "pos", "group": "frn/ok-hyphen", "text": "등록번호: 520108-5270520 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-089", "set": "pos", "group": "frn/ok-space", "text": "등록번호: 840127 5379473 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-090", "set": "pos", "group": "frn/fail-hyphen", "text": "외국인 근로자 920417-6491328 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-091", "set": "pos", "group": "frn/fail-space", "text": "등록번호: 980922 6154283 (체류 자격 E-9)", "spans": [{"kind": "frn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-frn-092", "set": "pos", "group": "frn/fail-hyphen", "text": "Alien registration no. 120324-8546697", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-093", "set": "pos", "group": "frn/ok-hyphen", "text": "신청인 861217-6698013 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 18}], "ctx": false}
+{"id": "pos-frn-094", "set": "pos", "group": "frn/fail-space", "text": "외국인 근로자 660913 6947060 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-095", "set": "pos", "group": "frn/fail-hyphen", "text": "외국인 근로자 461209-6668417 4대 보험 신고", "spans": [{"kind": "frn", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-frn-096", "set": "pos", "group": "frn/fail-hyphen", "text": "Alien registration no. 941201-5448475", "spans": [{"kind": "frn", "start": 23, "end": 37}], "ctx": true}
+{"id": "pos-frn-097", "set": "pos", "group": "frn/ok-hyphen", "text": "150707-7022955 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-098", "set": "pos", "group": "frn/ok-hyphen", "text": "700107-5642302 건은 출입국사무소 확인 후 처리", "spans": [{"kind": "frn", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-frn-099", "set": "pos", "group": "frn/ok-nosep", "text": "신청인 1306218375649 / 국적 베트남", "spans": [{"kind": "frn", "start": 4, "end": 17}], "ctx": false}
+{"id": "pos-frn-100", "set": "pos", "group": "frn/ok-nosep", "text": "외국인등록번호 4506235531590 확인했습니다.", "spans": [{"kind": "frn", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-passport-001", "set": "pos", "group": "passport/new", "text": "예약자 정보 — M431W3658, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-002", "set": "pos", "group": "passport/new", "text": "여권번호 O758S9399", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-003", "set": "pos", "group": "passport/new", "text": "{\"passport_no\": \"M642X2847\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-004", "set": "pos", "group": "passport/old", "text": "M69493043 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-005", "set": "pos", "group": "passport/new", "text": "Passport No. M594D0720", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-006", "set": "pos", "group": "passport/old", "text": "예약자 정보 — M89075379, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-007", "set": "pos", "group": "passport/new", "text": "탑승객 KIM MINJI M785V9210 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-008", "set": "pos", "group": "passport/old", "text": "탑승객 KIM MINJI M34799331 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-009", "set": "pos", "group": "passport/new", "text": "탑승객 KIM MINJI M865Z9988 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-010", "set": "pos", "group": "passport/new", "text": "여권 번호: M375O5647 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-011", "set": "pos", "group": "passport/old", "text": "여권번호 M62163590", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-012", "set": "pos", "group": "passport/new", "text": "여권번호 M635V1428", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-013", "set": "pos", "group": "passport/old", "text": "탑승객 KIM MINJI M38706067 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-014", "set": "pos", "group": "passport/old", "text": "탑승객 KIM MINJI D13418377 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-015", "set": "pos", "group": "passport/old", "text": "M44017708 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-016", "set": "pos", "group": "passport/old", "text": "Passport No. M17702219", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-017", "set": "pos", "group": "passport/old", "text": "Passport No. M16923699", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-018", "set": "pos", "group": "passport/new", "text": "M975K2895 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-019", "set": "pos", "group": "passport/old", "text": "M43489882 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-020", "set": "pos", "group": "passport/old", "text": "여권 번호: M90445422 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-021", "set": "pos", "group": "passport/old", "text": "예약자 정보 — M98543181, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-022", "set": "pos", "group": "passport/old", "text": "{\"passport_no\": \"R20901045\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-023", "set": "pos", "group": "passport/new", "text": "예약자 정보 — R794Y9560, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-024", "set": "pos", "group": "passport/new", "text": "여권번호 M434V6759", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-025", "set": "pos", "group": "passport/old", "text": "여권번호 M35403330", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-026", "set": "pos", "group": "passport/old", "text": "M56339490 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-027", "set": "pos", "group": "passport/new", "text": "Passport No. M482F0675", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-028", "set": "pos", "group": "passport/new", "text": "M849K8747 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-029", "set": "pos", "group": "passport/old", "text": "탑승객 KIM MINJI R27298479 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-030", "set": "pos", "group": "passport/old", "text": "여권 번호: M18170469 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-031", "set": "pos", "group": "passport/new", "text": "여권 번호: M911A0697 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-032", "set": "pos", "group": "passport/new", "text": "탑승객 KIM MINJI M313J7438 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-033", "set": "pos", "group": "passport/new", "text": "여권(M223Z5984) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-034", "set": "pos", "group": "passport/new", "text": "S587B6625 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-035", "set": "pos", "group": "passport/new", "text": "예약자 정보 — M052X8362, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-036", "set": "pos", "group": "passport/new", "text": "Passport No. M070Y1835", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-037", "set": "pos", "group": "passport/new", "text": "Passport No. M355C1674", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-038", "set": "pos", "group": "passport/old", "text": "Passport No. M47370859", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-039", "set": "pos", "group": "passport/old", "text": "{\"passport_no\": \"M67991882\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-040", "set": "pos", "group": "passport/old", "text": "M67430773 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-041", "set": "pos", "group": "passport/old", "text": "{\"passport_no\": \"M50174454\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-042", "set": "pos", "group": "passport/old", "text": "예약자 정보 — M13529728, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-043", "set": "pos", "group": "passport/old", "text": "{\"passport_no\": \"M86257513\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-044", "set": "pos", "group": "passport/new", "text": "탑승객 KIM MINJI M997J8587 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-045", "set": "pos", "group": "passport/new", "text": "예약자 정보 — S428I6187, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-046", "set": "pos", "group": "passport/old", "text": "여권 번호: M56908534 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-047", "set": "pos", "group": "passport/old", "text": "S11031841 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-048", "set": "pos", "group": "passport/new", "text": "여권번호 M479D7975", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-049", "set": "pos", "group": "passport/new", "text": "{\"passport_no\": \"M956J8695\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-050", "set": "pos", "group": "passport/new", "text": "탑승객 KIM MINJI M995B0910 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-051", "set": "pos", "group": "passport/new", "text": "여권(M618O8777) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-052", "set": "pos", "group": "passport/new", "text": "여권번호 R693U3606", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-053", "set": "pos", "group": "passport/old", "text": "여권(M11249392) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-054", "set": "pos", "group": "passport/old", "text": "Passport No. M49731565", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-055", "set": "pos", "group": "passport/old", "text": "여권 번호: S05716411 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-056", "set": "pos", "group": "passport/old", "text": "D02625123 체크인 완료", "spans": [{"kind": "passport", "start": 0, "end": 9}], "ctx": false}
+{"id": "pos-passport-057", "set": "pos", "group": "passport/new", "text": "{\"passport_no\": \"M101U8237\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-058", "set": "pos", "group": "passport/new", "text": "여권 번호: M579L0298 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-059", "set": "pos", "group": "passport/old", "text": "예약자 정보 — M34151569, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-060", "set": "pos", "group": "passport/new", "text": "Passport No. M450N1913", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-061", "set": "pos", "group": "passport/old", "text": "여권(M11509350) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-062", "set": "pos", "group": "passport/old", "text": "여권(M85273521) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-063", "set": "pos", "group": "passport/old", "text": "여권(M54053343) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-064", "set": "pos", "group": "passport/old", "text": "여권(M65489234) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-065", "set": "pos", "group": "passport/old", "text": "{\"passport_no\": \"M16862967\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-066", "set": "pos", "group": "passport/old", "text": "여권번호 D11519543", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-067", "set": "pos", "group": "passport/old", "text": "{\"passport_no\": \"S62436460\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-068", "set": "pos", "group": "passport/old", "text": "{\"passport_no\": \"M21525470\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-069", "set": "pos", "group": "passport/new", "text": "여권번호 M328K7956", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-070", "set": "pos", "group": "passport/new", "text": "여권번호 M016B8182", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-071", "set": "pos", "group": "passport/old", "text": "여권번호 M65238308", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-072", "set": "pos", "group": "passport/new", "text": "여권 번호: M400F1542 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-073", "set": "pos", "group": "passport/old", "text": "탑승객 KIM MINJI M51525169 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-074", "set": "pos", "group": "passport/new", "text": "예약자 정보 — M793I3583, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-075", "set": "pos", "group": "passport/old", "text": "여권번호 M76754584", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-076", "set": "pos", "group": "passport/old", "text": "여권 번호: M69676448 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-077", "set": "pos", "group": "passport/old", "text": "Passport No. M17200436", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-078", "set": "pos", "group": "passport/old", "text": "Passport No. M67658477", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-079", "set": "pos", "group": "passport/new", "text": "여권 번호: O334I0673 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-080", "set": "pos", "group": "passport/old", "text": "여권 번호: M11771445 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-081", "set": "pos", "group": "passport/new", "text": "탑승객 KIM MINJI O656E1781 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-082", "set": "pos", "group": "passport/old", "text": "예약자 정보 — M29431074, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-083", "set": "pos", "group": "passport/old", "text": "여권번호 M37297068", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-084", "set": "pos", "group": "passport/new", "text": "{\"passport_no\": \"M314E8270\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-085", "set": "pos", "group": "passport/new", "text": "여권번호 O861P1998", "spans": [{"kind": "passport", "start": 5, "end": 14}], "ctx": true}
+{"id": "pos-passport-086", "set": "pos", "group": "passport/old", "text": "예약자 정보 — M06094772, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-087", "set": "pos", "group": "passport/new", "text": "Passport No. M437L8387", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-088", "set": "pos", "group": "passport/new", "text": "{\"passport_no\": \"M417D6286\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-089", "set": "pos", "group": "passport/old", "text": "여권(M79601185) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-090", "set": "pos", "group": "passport/new", "text": "Passport No. S288K4015", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-passport-091", "set": "pos", "group": "passport/old", "text": "여권(O85077959) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-092", "set": "pos", "group": "passport/old", "text": "예약자 정보 — O35753122, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-093", "set": "pos", "group": "passport/new", "text": "{\"passport_no\": \"R350B3154\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-094", "set": "pos", "group": "passport/old", "text": "예약자 정보 — M89858711, 1990-01-01", "spans": [{"kind": "passport", "start": 9, "end": 18}], "ctx": false}
+{"id": "pos-passport-095", "set": "pos", "group": "passport/new", "text": "여권(M702I4525) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-096", "set": "pos", "group": "passport/new", "text": "탑승객 KIM MINJI D180I8303 확인", "spans": [{"kind": "passport", "start": 14, "end": 23}], "ctx": false}
+{"id": "pos-passport-097", "set": "pos", "group": "passport/old", "text": "{\"passport_no\": \"O94510923\", \"nationality\": \"KOR\"}", "spans": [{"kind": "passport", "start": 17, "end": 26}], "ctx": true}
+{"id": "pos-passport-098", "set": "pos", "group": "passport/new", "text": "여권 번호: M021Z1099 (만료 2031-05-02)", "spans": [{"kind": "passport", "start": 7, "end": 16}], "ctx": true}
+{"id": "pos-passport-099", "set": "pos", "group": "passport/new", "text": "여권(M186D3378) 사본 첨부드립니다.", "spans": [{"kind": "passport", "start": 3, "end": 12}], "ctx": true}
+{"id": "pos-passport-100", "set": "pos", "group": "passport/new", "text": "Passport No. M719E9829", "spans": [{"kind": "passport", "start": 13, "end": 22}], "ctx": true}
+{"id": "pos-driver-001", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 19-65-810456-67 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-002", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 16-94-576031-74 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-003", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 15-98-000066-23", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-004", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 18-95-767737-14", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-005", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 16-48-546067-55 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-006", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 21-16-157704-17", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-007", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 20-06-526635-35 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-008", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 14-56-821445-33 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-009", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 11-39-371842-53 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-010", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 28-58-293648-87 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-011", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 13-03-141067-19 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-012", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"23-43-628186-70\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-driver-013", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 11-04-642912-29", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-014", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 19-53-651214-70", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-015", "set": "pos", "group": "driver/hyphen", "text": "12-04-662640-42 적성검사 기간 안내", "spans": [{"kind": "driver", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-driver-016", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"26-23-852387-41\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-driver-017", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 26-30-508311-18", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-018", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 17-08-347051-73 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-019", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 12-84-248935-74", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-020", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 16-95-890875-69 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-021", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 23-65-853759-65 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-022", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"23-45-315982-37\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-driver-023", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 19-19-592062-94 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-024", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 20-60-295751-15", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-025", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 18-49-469899-68 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-026", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 11-53-714476-29 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-027", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 23-85-170994-18 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-028", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 17-03-579316-37", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-029", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 16-53-376799-38 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-030", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"21-42-738027-37\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-driver-031", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 13-78-797182-77 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-032", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 15-61-982632-30 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-033", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 16-91-321184-69 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-034", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 13-70-058585-84 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-035", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 11-71-300386-93", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-036", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 14-77-624369-98", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-037", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"18-30-351988-46\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-driver-038", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 20-74-100039-47 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-039", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 18-11-659911-37", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-040", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 16-26-274268-88 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-041", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 28-78-126806-15 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-042", "set": "pos", "group": "driver/hyphen", "text": "23-67-968624-77 적성검사 기간 안내", "spans": [{"kind": "driver", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-driver-043", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 18-90-946143-17", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-044", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"16-75-833122-07\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-driver-045", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 21-88-813235-92", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-046", "set": "pos", "group": "driver/hyphen", "text": "28-73-649566-66 적성검사 기간 안내", "spans": [{"kind": "driver", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-driver-047", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 21-55-074356-85", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-048", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 20-16-195131-43", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-049", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 18-74-105122-48 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-050", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 16-27-943569-53 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-051", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 18-53-494015-24 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-052", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 28-04-451681-24 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-053", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 26-87-843054-64", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-054", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 13-79-675426-51 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-055", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 16-31-889741-41", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-056", "set": "pos", "group": "driver/hyphen", "text": "23-26-711428-45 적성검사 기간 안내", "spans": [{"kind": "driver", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-driver-057", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 15-69-486969-17", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-058", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 16-63-163271-98", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-059", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"17-18-505589-00\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-driver-060", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 28-12-987327-97 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-061", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 22-70-275331-45 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-062", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 13-63-239869-26 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-063", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 25-74-938586-75 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-064", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 25-20-280444-87 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-065", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 21-31-355552-33", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-066", "set": "pos", "group": "driver/hyphen", "text": "28-84-610014-00 적성검사 기간 안내", "spans": [{"kind": "driver", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-driver-067", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 23-13-978309-15 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-068", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 14-28-079825-66", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-069", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 19-93-186044-21 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-070", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 18-40-919894-17", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-071", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 20-02-568112-42", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-072", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 26-07-639089-63", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-073", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 16-63-601169-41 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-074", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 22-56-905002-96", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-075", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 23-09-637620-62 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-076", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 17-64-190450-16", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-077", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 20-44-807485-28", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-078", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 17-17-780330-83", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-079", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 28-91-351847-53 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-080", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 18-48-687385-52 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-081", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 21-61-256280-30 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-082", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 25-10-396640-23", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-083", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 20-38-236473-41 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-084", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 13-80-627353-12 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-085", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 19-43-547645-00", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-086", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 15-22-608137-57", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-087", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 16-15-082065-06", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-088", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 26-95-689159-85 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-089", "set": "pos", "group": "driver/hyphen", "text": "19-28-466965-85 적성검사 기간 안내", "spans": [{"kind": "driver", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-driver-090", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"13-54-073692-84\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-driver-091", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 15-32-194746-85", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-092", "set": "pos", "group": "driver/hyphen", "text": "16-90-861925-78 적성검사 기간 안내", "spans": [{"kind": "driver", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-driver-093", "set": "pos", "group": "driver/hyphen", "text": "면허번호: 12-32-837382-32 (1종 보통)", "spans": [{"kind": "driver", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-driver-094", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 21-28-316241-54", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-095", "set": "pos", "group": "driver/hyphen", "text": "본인 확인용 번호 12-58-106157-61", "spans": [{"kind": "driver", "start": 10, "end": 25}], "ctx": false}
+{"id": "pos-driver-096", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 12-43-917804-71", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-097", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 25-73-342067-90", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-098", "set": "pos", "group": "driver/hyphen", "text": "렌터카 계약자 면허 28-58-451132-63 확인", "spans": [{"kind": "driver", "start": 11, "end": 26}], "ctx": true}
+{"id": "pos-driver-099", "set": "pos", "group": "driver/hyphen", "text": "운전면허번호 13-30-172567-75", "spans": [{"kind": "driver", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-driver-100", "set": "pos", "group": "driver/hyphen", "text": "{\"license_no\": \"18-19-281796-75\"}", "spans": [{"kind": "driver", "start": 16, "end": 31}], "ctx": false}
+{"id": "pos-brn-001", "set": "pos", "group": "brn/hyphen", "text": "252-10-61121 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-002", "set": "pos", "group": "brn/hyphen", "text": "공급자 737-87-24371 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-003", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 160-01-28836", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-004", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 696-87-83652", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-005", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 260-21-44376 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-006", "set": "pos", "group": "brn/hyphen", "text": "공급자 185-13-35339 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-007", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 382-05-02225", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-008", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 570-01-35567", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-009", "set": "pos", "group": "brn/hyphen", "text": "291-10-05819 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-010", "set": "pos", "group": "brn/hyphen", "text": "공급자 335-86-83838 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-011", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"133-88-53300\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-012", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 447-26-10798", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-013", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"376-87-38909\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-014", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 822-88-12578", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-015", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 363-05-51972 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-016", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 795-21-85868", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-017", "set": "pos", "group": "brn/hyphen", "text": "공급자 519-86-84283 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-018", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 611-01-59609", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-019", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 482-26-55575", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-020", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 565-82-40878", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-021", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 583-13-94416", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-022", "set": "pos", "group": "brn/hyphen", "text": "공급자 702-26-16781 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-023", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"504-88-18543\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-024", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"754-87-86799\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-025", "set": "pos", "group": "brn/hyphen", "text": "공급자 417-82-36702 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-026", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"530-86-31217\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-027", "set": "pos", "group": "brn/hyphen", "text": "850-87-11617 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-028", "set": "pos", "group": "brn/hyphen", "text": "724-88-44441 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-029", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"776-05-72173\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-030", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 834-81-96719 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-031", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 638-85-49616", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-032", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"401-86-73544\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-033", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 625-85-93455", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-034", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"157-85-27578\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-035", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 244-88-51878 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-036", "set": "pos", "group": "brn/hyphen", "text": "472-21-40013 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-037", "set": "pos", "group": "brn/hyphen", "text": "공급자 153-85-71316 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-038", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 205-13-30337", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-039", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 370-87-08805", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-040", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 839-26-17200", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-041", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"428-81-19138\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-042", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 462-21-12257", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-043", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 891-21-31108 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-044", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 207-82-12836", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-045", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 849-05-29014", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-046", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 562-86-64414", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-047", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"767-13-34073\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-048", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 279-01-32973", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-049", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 377-21-45329 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-050", "set": "pos", "group": "brn/hyphen", "text": "550-21-72741 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-051", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 459-13-52054 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-052", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 796-13-75335", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-053", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 831-86-01066 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-054", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 109-86-13034", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-055", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"655-88-22840\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-056", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 629-86-44778", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-057", "set": "pos", "group": "brn/hyphen", "text": "572-21-18617 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-058", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"125-05-56550\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-059", "set": "pos", "group": "brn/hyphen", "text": "397-10-12791 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-060", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 520-26-78996", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-061", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 324-87-99303", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-062", "set": "pos", "group": "brn/hyphen", "text": "455-05-85558 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-063", "set": "pos", "group": "brn/hyphen", "text": "공급자 891-21-22142 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-064", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 247-82-94364", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-065", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"171-81-67393\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-066", "set": "pos", "group": "brn/hyphen", "text": "공급자 695-26-73015 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-067", "set": "pos", "group": "brn/hyphen", "text": "899-13-36117 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-068", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 696-13-19222 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-069", "set": "pos", "group": "brn/hyphen", "text": "189-81-88462 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-070", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 839-01-86515", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-071", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 804-81-34143", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-072", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 137-13-74288", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-073", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 559-21-66760", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-074", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 260-21-17485 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-075", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 254-26-00475", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-076", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"696-88-94097\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-077", "set": "pos", "group": "brn/hyphen", "text": "329-13-44990 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-078", "set": "pos", "group": "brn/hyphen", "text": "655-10-95344 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-079", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"280-87-14931\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-080", "set": "pos", "group": "brn/hyphen", "text": "(주)한빛 | 대표 김민지 | 사업자등록번호 121-82-00453", "spans": [{"kind": "brn", "start": 25, "end": 37}], "ctx": true}
+{"id": "pos-brn-081", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"503-85-46195\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-082", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 317-05-12772 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-083", "set": "pos", "group": "brn/hyphen", "text": "250-88-11207 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-084", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 180-01-33347 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-085", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 466-88-70039", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-086", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"498-05-17983\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-087", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 527-87-24191", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-088", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 326-26-67257", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-089", "set": "pos", "group": "brn/hyphen", "text": "300-13-86887 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-090", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 634-01-17543", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-091", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 849-86-23703", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-brn-092", "set": "pos", "group": "brn/hyphen", "text": "공급자 248-13-15691 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-093", "set": "pos", "group": "brn/hyphen", "text": "300-21-85919 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-094", "set": "pos", "group": "brn/hyphen", "text": "467-81-74437 앞으로 세금계산서 발행 부탁드립니다.", "spans": [{"kind": "brn", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-brn-095", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 720-86-71146 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-096", "set": "pos", "group": "brn/hyphen", "text": "사업자번호: 840-88-42110 (간이과세자)", "spans": [{"kind": "brn", "start": 7, "end": 19}], "ctx": true}
+{"id": "pos-brn-097", "set": "pos", "group": "brn/hyphen", "text": "{\"biz_no\": \"545-86-92803\"}", "spans": [{"kind": "brn", "start": 12, "end": 24}], "ctx": false}
+{"id": "pos-brn-098", "set": "pos", "group": "brn/hyphen", "text": "공급자 465-26-91580 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-099", "set": "pos", "group": "brn/hyphen", "text": "공급자 845-86-68843 확인", "spans": [{"kind": "brn", "start": 4, "end": 16}], "ctx": false}
+{"id": "pos-brn-100", "set": "pos", "group": "brn/hyphen", "text": "사업자등록번호 870-82-50943", "spans": [{"kind": "brn", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-crn-001", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 134481-8818654", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-002", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 120112-9092882", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-003", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 150111-5691444", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-004", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 135871-0926994", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-005", "set": "pos", "group": "crn/serial1-9", "text": "법인등록번호 135813-3251580", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-006", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"230181-1792284\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-007", "set": "pos", "group": "crn/serial1-9", "text": "등기부등본상 번호 230111-8995838 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-008", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 110113-3368734", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-009", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 법인등록번호 150122-6669439 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-010", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 135811-6707740", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-011", "set": "pos", "group": "crn/serial1-9", "text": "법인등록번호 200113-1794817", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-012", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 법인등록번호 110111-0753495 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-013", "set": "pos", "group": "crn/serial0", "text": "등기부등본상 번호 230181-0858037 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-014", "set": "pos", "group": "crn/serial0", "text": "법인번호: 110181-0733870", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-015", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 법인등록번호 120181-4890632 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-016", "set": "pos", "group": "crn/serial0", "text": "법인번호: 150112-0165624", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-017", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"120112-4791512\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-018", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 법인등록번호 170181-3535776 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-019", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 법인등록번호 230111-6246746 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-020", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 210171-5220905", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-021", "set": "pos", "group": "crn/serial1-9", "text": "법인등록번호 134411-8383836", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-022", "set": "pos", "group": "crn/serial1-9", "text": "법인등록번호 280113-4249178", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-023", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"150114-0858639\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-024", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 법인등록번호 134481-0998751 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-025", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"134411-1935262\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-026", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"160111-0946107\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-027", "set": "pos", "group": "crn/serial0", "text": "법인번호: 135822-0997724", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-028", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 120114-8559251", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-029", "set": "pos", "group": "crn/serial0", "text": "법인등록번호 230114-0288920", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-030", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 150122-3945957", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-031", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"230111-0439264\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-032", "set": "pos", "group": "crn/serial1-9", "text": "법인등록번호 210111-3628595", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-033", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"134412-0405800\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-034", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 210121-9881203", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-035", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"280171-3822543\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-036", "set": "pos", "group": "crn/serial0", "text": "등기부등본상 번호 120113-0830461 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-037", "set": "pos", "group": "crn/serial0", "text": "법인등록번호 210181-0721585", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-038", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 230122-7512896", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-039", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"130113-2471576\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-040", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 180181-7207030", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-041", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 법인등록번호 210114-0782257 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-042", "set": "pos", "group": "crn/serial0", "text": "법인번호: 180181-0849293", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-043", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 170122-0011244", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-044", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 법인등록번호 120111-2228832 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-045", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 법인등록번호 200111-6901031 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-046", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"180122-0587459\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-047", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 134411-9683962", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-048", "set": "pos", "group": "crn/serial0", "text": "등기부등본상 번호 134411-0079681 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-049", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"130121-5784664\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-050", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 230111-8495408", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-051", "set": "pos", "group": "crn/serial1-9", "text": "등기부등본상 번호 130112-7601550 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-052", "set": "pos", "group": "crn/serial1-9", "text": "등기부등본상 번호 134411-7958854 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-053", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"130111-0711374\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-054", "set": "pos", "group": "crn/serial1-9", "text": "등기부등본상 번호 170111-8321036 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-055", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"134412-0595669\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-056", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 170114-0589909", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-057", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 110111-1561061", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-058", "set": "pos", "group": "crn/serial0", "text": "법인등록번호 134421-0063336", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-059", "set": "pos", "group": "crn/serial1-9", "text": "등기부등본상 번호 170114-6885757 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-060", "set": "pos", "group": "crn/serial0", "text": "등기부등본상 번호 200114-0975276 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-061", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 131181-6390380", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-062", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 135814-0636519", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-063", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 법인등록번호 230111-0883255 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-064", "set": "pos", "group": "crn/serial0", "text": "법인번호: 134414-0588917", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-065", "set": "pos", "group": "crn/serial1-9", "text": "법인등록번호 135822-9538652", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-066", "set": "pos", "group": "crn/serial0", "text": "법인등록번호 180181-0797773", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-067", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"130111-0456079\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-068", "set": "pos", "group": "crn/serial1-9", "text": "등기부등본상 번호 134413-4601543 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-069", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"110111-2507759\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-070", "set": "pos", "group": "crn/serial0", "text": "법인번호: 200122-0520511", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-071", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 180114-9036313", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-072", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 280112-5699598", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-073", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"134411-0737354\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-074", "set": "pos", "group": "crn/serial0", "text": "법인번호: 134471-0483547", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-075", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"280121-1588465\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-076", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"200121-0696257\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-077", "set": "pos", "group": "crn/serial1-9", "text": "법인등록번호 200181-3105837", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-crn-078", "set": "pos", "group": "crn/serial0", "text": "법인번호: 160111-0344997", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-079", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 131171-9827860", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-080", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"210171-0329588\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-081", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 135811-0075383", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-082", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 법인등록번호 230121-0965250 / 사업자등록번호는 별도", "spans": [{"kind": "crn", "start": 13, "end": 27}], "ctx": true}
+{"id": "pos-crn-083", "set": "pos", "group": "crn/serial0", "text": "등기부등본상 번호 131112-0153177 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-084", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 280111-2971040", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-085", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 210114-2993589", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-086", "set": "pos", "group": "crn/serial0", "text": "등기부등본상 번호 150171-0445163 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-087", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 120111-0512740", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-088", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 131111-0393387", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-089", "set": "pos", "group": "crn/serial0", "text": "등기부등본상 번호 110111-0457584 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-090", "set": "pos", "group": "crn/serial1-9", "text": "(주)한빛 120122-5357411", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-091", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"170112-8128795\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-092", "set": "pos", "group": "crn/serial1-9", "text": "{\"corp_reg_no\": \"131111-6865306\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-093", "set": "pos", "group": "crn/serial0", "text": "{\"corp_reg_no\": \"180111-0825886\"}", "spans": [{"kind": "crn", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-crn-094", "set": "pos", "group": "crn/serial1-9", "text": "법인번호: 130111-4617396", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-crn-095", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 135811-0705427", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-096", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 180171-0169783", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-097", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 134422-0482005", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-098", "set": "pos", "group": "crn/serial0", "text": "(주)한빛 110113-0299560", "spans": [{"kind": "crn", "start": 6, "end": 20}], "ctx": false}
+{"id": "pos-crn-099", "set": "pos", "group": "crn/serial1-9", "text": "등기부등본상 번호 170171-8944808 확인", "spans": [{"kind": "crn", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-crn-100", "set": "pos", "group": "crn/serial0", "text": "법인등록번호 130171-0902258", "spans": [{"kind": "crn", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-account-001", "set": "pos", "group": "account/woori", "text": "환불 계좌 1002-441-744052로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-002", "set": "pos", "group": "account/toss", "text": "환불 계좌 1000-0870-8657로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-003", "set": "pos", "group": "account/hana", "text": "고객이 불러준 번호 691-702390-96045", "spans": [{"kind": "account", "start": 11, "end": 27}], "ctx": false}
+{"id": "pos-account-004", "set": "pos", "group": "account/kakao", "text": "{\"account_no\": \"3333-44-8805843\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 31}], "ctx": true}
+{"id": "pos-account-005", "set": "pos", "group": "account/nh", "text": "환불 계좌 312-0378-8704-58로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-006", "set": "pos", "group": "account/hana", "text": "고객이 불러준 번호 512-222103-85623", "spans": [{"kind": "account", "start": 11, "end": 27}], "ctx": false}
+{"id": "pos-account-007", "set": "pos", "group": "account/shinhan", "text": "계좌번호: 110-584-788365", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-008", "set": "pos", "group": "account/hana", "text": "156-637984-09590 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 16}], "ctx": false}
+{"id": "pos-account-009", "set": "pos", "group": "account/kb", "text": "급여 이체 272014-15-147019 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-010", "set": "pos", "group": "account/ibk", "text": "입금 계좌: 774-233156-20-253 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 24}], "ctx": true}
+{"id": "pos-account-011", "set": "pos", "group": "account/nh", "text": "301-7285-7846-97 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 16}], "ctx": false}
+{"id": "pos-account-012", "set": "pos", "group": "account/kbank", "text": "100-358-024947 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-account-013", "set": "pos", "group": "account/kb", "text": "번호 813003-82-741838 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 19}], "ctx": false}
+{"id": "pos-account-014", "set": "pos", "group": "account/kb", "text": "환불 계좌 879879-04-256740로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-015", "set": "pos", "group": "account/woori", "text": "고객이 불러준 번호 1002-880-449521", "spans": [{"kind": "account", "start": 11, "end": 26}], "ctx": false}
+{"id": "pos-account-016", "set": "pos", "group": "account/hana", "text": "691-079522-52442 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 16}], "ctx": false}
+{"id": "pos-account-017", "set": "pos", "group": "account/kb", "text": "계좌번호: 369812-09-918799", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-018", "set": "pos", "group": "account/hana", "text": "번호 268-067489-34654 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 19}], "ctx": false}
+{"id": "pos-account-019", "set": "pos", "group": "account/toss", "text": "1000-0283-0569 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-account-020", "set": "pos", "group": "account/kb", "text": "계좌번호: 183676-51-790831", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-021", "set": "pos", "group": "account/nh", "text": "고객이 불러준 번호 356-4486-5370-99", "spans": [{"kind": "account", "start": 11, "end": 27}], "ctx": false}
+{"id": "pos-account-022", "set": "pos", "group": "account/kakao", "text": "고객이 불러준 번호 3333-94-7043895", "spans": [{"kind": "account", "start": 11, "end": 26}], "ctx": false}
+{"id": "pos-account-023", "set": "pos", "group": "account/kb", "text": "계좌번호: 198523-58-510951", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-024", "set": "pos", "group": "account/shinhan", "text": "입금 계좌: 110-420-096427 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-account-025", "set": "pos", "group": "account/woori", "text": "고객이 불러준 번호 1002-432-597158", "spans": [{"kind": "account", "start": 11, "end": 26}], "ctx": false}
+{"id": "pos-account-026", "set": "pos", "group": "account/shinhan", "text": "계좌번호: 110-664-882923", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-027", "set": "pos", "group": "account/kb", "text": "입금 계좌: 306008-47-075373 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 23}], "ctx": true}
+{"id": "pos-account-028", "set": "pos", "group": "account/kb", "text": "고객이 불러준 번호 482710-88-049568", "spans": [{"kind": "account", "start": 11, "end": 27}], "ctx": false}
+{"id": "pos-account-029", "set": "pos", "group": "account/shinhan", "text": "고객이 불러준 번호 140-869-161461", "spans": [{"kind": "account", "start": 11, "end": 25}], "ctx": false}
+{"id": "pos-account-030", "set": "pos", "group": "account/nh", "text": "{\"account_no\": \"302-6852-8485-31\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 32}], "ctx": true}
+{"id": "pos-account-031", "set": "pos", "group": "account/woori", "text": "급여 이체 1002-911-118018 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-032", "set": "pos", "group": "account/hana", "text": "급여 이체 770-525659-48703 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-033", "set": "pos", "group": "account/hana", "text": "급여 이체 119-899049-12895 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-034", "set": "pos", "group": "account/kb", "text": "고객이 불러준 번호 885356-53-239533", "spans": [{"kind": "account", "start": 11, "end": 27}], "ctx": false}
+{"id": "pos-account-035", "set": "pos", "group": "account/shinhan", "text": "번호 140-087-708070 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 17}], "ctx": false}
+{"id": "pos-account-036", "set": "pos", "group": "account/kakao", "text": "환불 계좌 3333-19-0530115로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-037", "set": "pos", "group": "account/woori", "text": "계좌번호: 1002-683-282873", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-038", "set": "pos", "group": "account/kb", "text": "환불 계좌 994869-04-546873로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-039", "set": "pos", "group": "account/shinhan", "text": "{\"account_no\": \"110-473-621987\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 30}], "ctx": true}
+{"id": "pos-account-040", "set": "pos", "group": "account/woori", "text": "계좌번호: 1002-867-894141", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-041", "set": "pos", "group": "account/shinhan", "text": "환불 계좌 110-359-550504로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-042", "set": "pos", "group": "account/kakao", "text": "번호 3333-13-7886812 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 18}], "ctx": false}
+{"id": "pos-account-043", "set": "pos", "group": "account/woori", "text": "입금 계좌: 1002-314-594945 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-account-044", "set": "pos", "group": "account/ibk", "text": "환불 계좌 808-358196-36-473로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 23}], "ctx": true}
+{"id": "pos-account-045", "set": "pos", "group": "account/hana", "text": "입금 계좌: 761-817399-82360 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 23}], "ctx": true}
+{"id": "pos-account-046", "set": "pos", "group": "account/kb", "text": "계좌번호: 207592-86-304326", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-047", "set": "pos", "group": "account/shinhan", "text": "{\"account_no\": \"110-680-064514\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 30}], "ctx": true}
+{"id": "pos-account-048", "set": "pos", "group": "account/kb", "text": "입금 계좌: 484880-22-881908 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 23}], "ctx": true}
+{"id": "pos-account-049", "set": "pos", "group": "account/woori", "text": "환불 계좌 1002-187-410472로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-050", "set": "pos", "group": "account/woori", "text": "{\"account_no\": \"1002-946-564730\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 31}], "ctx": true}
+{"id": "pos-account-051", "set": "pos", "group": "account/kakao", "text": "계좌번호: 3333-08-3768107", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-052", "set": "pos", "group": "account/kb", "text": "계좌번호: 985937-81-201161", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-053", "set": "pos", "group": "account/kb", "text": "{\"account_no\": \"336940-10-672822\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 32}], "ctx": true}
+{"id": "pos-account-054", "set": "pos", "group": "account/kb", "text": "계좌번호: 098322-18-305667", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-055", "set": "pos", "group": "account/toss", "text": "환불 계좌 1000-5613-2223로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-056", "set": "pos", "group": "account/kb", "text": "급여 이체 677232-78-916196 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-057", "set": "pos", "group": "account/ibk", "text": "872-064239-37-885 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 17}], "ctx": false}
+{"id": "pos-account-058", "set": "pos", "group": "account/kb", "text": "{\"account_no\": \"414082-86-102261\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 32}], "ctx": true}
+{"id": "pos-account-059", "set": "pos", "group": "account/nh", "text": "351-0527-6560-35 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 16}], "ctx": false}
+{"id": "pos-account-060", "set": "pos", "group": "account/kb", "text": "계좌번호: 071790-85-537889", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-061", "set": "pos", "group": "account/kb", "text": "{\"account_no\": \"583031-83-713140\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 32}], "ctx": true}
+{"id": "pos-account-062", "set": "pos", "group": "account/toss", "text": "계좌번호: 1000-7359-4820", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-063", "set": "pos", "group": "account/ibk", "text": "입금 계좌: 108-080945-08-223 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 24}], "ctx": true}
+{"id": "pos-account-064", "set": "pos", "group": "account/woori", "text": "입금 계좌: 1002-718-296366 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-account-065", "set": "pos", "group": "account/hana", "text": "계좌번호: 334-906480-71888", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-066", "set": "pos", "group": "account/toss", "text": "{\"account_no\": \"1000-9658-6522\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 30}], "ctx": true}
+{"id": "pos-account-067", "set": "pos", "group": "account/shinhan", "text": "급여 이체 140-615-876199 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-068", "set": "pos", "group": "account/nh", "text": "번호 301-3360-3732-28 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 19}], "ctx": false}
+{"id": "pos-account-069", "set": "pos", "group": "account/woori", "text": "번호 1002-941-176410 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 18}], "ctx": false}
+{"id": "pos-account-070", "set": "pos", "group": "account/nh", "text": "302-7719-6193-87 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 16}], "ctx": false}
+{"id": "pos-account-071", "set": "pos", "group": "account/kb", "text": "고객이 불러준 번호 365594-33-441112", "spans": [{"kind": "account", "start": 11, "end": 27}], "ctx": false}
+{"id": "pos-account-072", "set": "pos", "group": "account/shinhan", "text": "140-117-127863 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-account-073", "set": "pos", "group": "account/kb", "text": "입금 계좌: 850950-33-872031 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 23}], "ctx": true}
+{"id": "pos-account-074", "set": "pos", "group": "account/shinhan", "text": "번호 140-394-372318 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 17}], "ctx": false}
+{"id": "pos-account-075", "set": "pos", "group": "account/kb", "text": "입금 계좌: 480850-38-646079 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 23}], "ctx": true}
+{"id": "pos-account-076", "set": "pos", "group": "account/shinhan", "text": "환불 계좌 140-810-635719로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-077", "set": "pos", "group": "account/kb", "text": "급여 이체 649763-77-070129 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-078", "set": "pos", "group": "account/nh", "text": "급여 이체 356-7467-4484-47 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-079", "set": "pos", "group": "account/nh", "text": "급여 이체 351-4901-5257-39 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 22}], "ctx": true}
+{"id": "pos-account-080", "set": "pos", "group": "account/woori", "text": "입금 계좌: 1002-914-238240 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 22}], "ctx": true}
+{"id": "pos-account-081", "set": "pos", "group": "account/nh", "text": "302-2569-5431-22 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 16}], "ctx": false}
+{"id": "pos-account-082", "set": "pos", "group": "account/kb", "text": "{\"account_no\": \"567205-70-091905\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 32}], "ctx": true}
+{"id": "pos-account-083", "set": "pos", "group": "account/nh", "text": "고객이 불러준 번호 356-6627-1431-14", "spans": [{"kind": "account", "start": 11, "end": 27}], "ctx": false}
+{"id": "pos-account-084", "set": "pos", "group": "account/kb", "text": "번호 438266-74-867474 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 19}], "ctx": false}
+{"id": "pos-account-085", "set": "pos", "group": "account/toss", "text": "계좌번호: 1000-3834-1407", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-086", "set": "pos", "group": "account/shinhan", "text": "110-849-253428 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-account-087", "set": "pos", "group": "account/kb", "text": "{\"account_no\": \"262413-51-275646\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 32}], "ctx": true}
+{"id": "pos-account-088", "set": "pos", "group": "account/kakao", "text": "번호 3333-64-5123497 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 18}], "ctx": false}
+{"id": "pos-account-089", "set": "pos", "group": "account/shinhan", "text": "환불 계좌 110-753-708422로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-090", "set": "pos", "group": "account/nh", "text": "352-3524-3491-97 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 16}], "ctx": false}
+{"id": "pos-account-091", "set": "pos", "group": "account/kakao", "text": "급여 이체 3333-06-0041438 등록 완료", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-092", "set": "pos", "group": "account/woori", "text": "번호 1002-462-122139 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 18}], "ctx": false}
+{"id": "pos-account-093", "set": "pos", "group": "account/toss", "text": "계좌번호: 1000-7816-2390", "spans": [{"kind": "account", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-account-094", "set": "pos", "group": "account/kakao", "text": "환불 계좌 3333-83-5142995로 보내 주세요.", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-095", "set": "pos", "group": "account/nh", "text": "번호 351-9518-7180-41 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 19}], "ctx": false}
+{"id": "pos-account-096", "set": "pos", "group": "account/kakao", "text": "계좌번호: 3333-56-0894276", "spans": [{"kind": "account", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-account-097", "set": "pos", "group": "account/kb", "text": "387939-37-812900 확인 부탁드립니다.", "spans": [{"kind": "account", "start": 0, "end": 16}], "ctx": false}
+{"id": "pos-account-098", "set": "pos", "group": "account/toss", "text": "입금 계좌: 1000-3144-3864 (예금주 김민지)", "spans": [{"kind": "account", "start": 7, "end": 21}], "ctx": true}
+{"id": "pos-account-099", "set": "pos", "group": "account/kb", "text": "{\"account_no\": \"412246-14-962341\", \"holder\": \"김민지\"}", "spans": [{"kind": "account", "start": 16, "end": 32}], "ctx": true}
+{"id": "pos-account-100", "set": "pos", "group": "account/shinhan", "text": "번호 140-783-028060 맞나요?", "spans": [{"kind": "account", "start": 3, "end": 17}], "ctx": false}
+{"id": "pos-ipv4-001", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 106.143.73.67", "spans": [{"kind": "ipv4", "start": 17, "end": 30}], "ctx": true}
+{"id": "pos-ipv4-002", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 220.74.7.164 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 19}], "ctx": false}
+{"id": "pos-ipv4-003", "set": "pos", "group": "ipv4/kr", "text": "125.178.187.40 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-ipv4-004", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 180.20.247.104", "spans": [{"kind": "ipv4", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-ipv4-005", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@42.105.48.142 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": false}
+{"id": "pos-ipv4-006", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 175.222.228.113", "spans": [{"kind": "ipv4", "start": 17, "end": 32}], "ctx": true}
+{"id": "pos-ipv4-007", "set": "pos", "group": "ipv4/kr", "text": "client_ip=59.48.171.211 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": true}
+{"id": "pos-ipv4-008", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 121.60.168.87", "spans": [{"kind": "ipv4", "start": 17, "end": 30}], "ctx": true}
+{"id": "pos-ipv4-009", "set": "pos", "group": "ipv4/kr", "text": "client_ip=49.21.55.239 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 22}], "ctx": true}
+{"id": "pos-ipv4-010", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"125.161.71.239\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-ipv4-011", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 116.99.138.234 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 25}], "ctx": false}
+{"id": "pos-ipv4-012", "set": "pos", "group": "ipv4/kr", "text": "client_ip=116.212.65.49 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": true}
+{"id": "pos-ipv4-013", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 221.232.1.42 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 23}], "ctx": false}
+{"id": "pos-ipv4-014", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@221.54.132.37 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": false}
+{"id": "pos-ipv4-015", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@125.9.211.181 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": false}
+{"id": "pos-ipv4-016", "set": "pos", "group": "ipv4/kr", "text": "118.199.50.196 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-ipv4-017", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"121.216.216.241\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 23}], "ctx": true}
+{"id": "pos-ipv4-018", "set": "pos", "group": "ipv4/kr", "text": "client_ip=218.200.60.122 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 24}], "ctx": true}
+{"id": "pos-ipv4-019", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 210.188.74.148에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-ipv4-020", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"61.187.86.43\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-ipv4-021", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 221.28.230.67에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 19}], "ctx": true}
+{"id": "pos-ipv4-022", "set": "pos", "group": "ipv4/kr", "text": "client_ip=42.101.205.20 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": true}
+{"id": "pos-ipv4-023", "set": "pos", "group": "ipv4/kr", "text": "211.3.156.8 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 11}], "ctx": false}
+{"id": "pos-ipv4-024", "set": "pos", "group": "ipv4/kr", "text": "110.85.44.44 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 12}], "ctx": false}
+{"id": "pos-ipv4-025", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 175.211.47.249 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 21}], "ctx": false}
+{"id": "pos-ipv4-026", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 110.6.96.201 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 23}], "ctx": false}
+{"id": "pos-ipv4-027", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 121.178.113.235 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 26}], "ctx": false}
+{"id": "pos-ipv4-028", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 180.107.252.58", "spans": [{"kind": "ipv4", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-ipv4-029", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 42.102.58.153에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 19}], "ctx": true}
+{"id": "pos-ipv4-030", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"180.66.36.184\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-ipv4-031", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"112.72.35.144\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-ipv4-032", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 14.197.16.190에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 19}], "ctx": true}
+{"id": "pos-ipv4-033", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 106.255.252.40 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 25}], "ctx": false}
+{"id": "pos-ipv4-034", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 124.169.118.55 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 21}], "ctx": false}
+{"id": "pos-ipv4-035", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@116.139.51.145 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-ipv4-036", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 122.9.115.233 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 20}], "ctx": false}
+{"id": "pos-ipv4-037", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 123.234.45.74에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 19}], "ctx": true}
+{"id": "pos-ipv4-038", "set": "pos", "group": "ipv4/kr", "text": "client_ip=119.122.61.221 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 24}], "ctx": true}
+{"id": "pos-ipv4-039", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 119.201.123.131 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 22}], "ctx": false}
+{"id": "pos-ipv4-040", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 116.227.240.23 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 21}], "ctx": false}
+{"id": "pos-ipv4-041", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 27.66.190.53 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 19}], "ctx": false}
+{"id": "pos-ipv4-042", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 125.182.72.215 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 21}], "ctx": false}
+{"id": "pos-ipv4-043", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 110.13.194.187 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 25}], "ctx": false}
+{"id": "pos-ipv4-044", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 42.254.196.214 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 25}], "ctx": false}
+{"id": "pos-ipv4-045", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 182.125.21.178 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 21}], "ctx": false}
+{"id": "pos-ipv4-046", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 180.130.99.105", "spans": [{"kind": "ipv4", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-ipv4-047", "set": "pos", "group": "ipv4/kr", "text": "27.114.102.31 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 13}], "ctx": false}
+{"id": "pos-ipv4-048", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 124.219.215.27 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 25}], "ctx": false}
+{"id": "pos-ipv4-049", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"110.82.94.62\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-ipv4-050", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@112.2.146.143 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": false}
+{"id": "pos-ipv4-051", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 220.239.131.163 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 22}], "ctx": false}
+{"id": "pos-ipv4-052", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"116.1.161.104\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-ipv4-053", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 58.2.111.43에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 17}], "ctx": true}
+{"id": "pos-ipv4-054", "set": "pos", "group": "ipv4/kr", "text": "client_ip=222.130.188.132 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 25}], "ctx": true}
+{"id": "pos-ipv4-055", "set": "pos", "group": "ipv4/kr", "text": "123.193.110.98 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-ipv4-056", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 42.76.10.246", "spans": [{"kind": "ipv4", "start": 17, "end": 29}], "ctx": true}
+{"id": "pos-ipv4-057", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 123.92.158.88에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 19}], "ctx": true}
+{"id": "pos-ipv4-058", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@116.26.191.96 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": false}
+{"id": "pos-ipv4-059", "set": "pos", "group": "ipv4/kr", "text": "client_ip=42.226.233.36 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": true}
+{"id": "pos-ipv4-060", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 114.104.91.174 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 25}], "ctx": false}
+{"id": "pos-ipv4-061", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 39.189.137.114", "spans": [{"kind": "ipv4", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-ipv4-062", "set": "pos", "group": "ipv4/kr", "text": "218.205.62.241 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-ipv4-063", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"125.170.158.163\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 23}], "ctx": true}
+{"id": "pos-ipv4-064", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"112.82.193.91\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 21}], "ctx": true}
+{"id": "pos-ipv4-065", "set": "pos", "group": "ipv4/kr", "text": "49.157.191.139 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 14}], "ctx": false}
+{"id": "pos-ipv4-066", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 122.5.227.218 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 20}], "ctx": false}
+{"id": "pos-ipv4-067", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 210.183.2.207 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 24}], "ctx": false}
+{"id": "pos-ipv4-068", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 122.103.46.66 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 20}], "ctx": false}
+{"id": "pos-ipv4-069", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"218.213.51.148\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-ipv4-070", "set": "pos", "group": "ipv4/kr", "text": "client_ip=221.230.242.194 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 25}], "ctx": true}
+{"id": "pos-ipv4-071", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"124.220.27.9\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 20}], "ctx": true}
+{"id": "pos-ipv4-072", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 210.132.184.139에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-ipv4-073", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"124.180.85.159\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-ipv4-074", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@124.38.230.205 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-ipv4-075", "set": "pos", "group": "ipv4/kr", "text": "client_ip=124.19.240.113 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 24}], "ctx": true}
+{"id": "pos-ipv4-076", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 114.236.126.33", "spans": [{"kind": "ipv4", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-ipv4-077", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 182.177.122.65 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 21}], "ctx": false}
+{"id": "pos-ipv4-078", "set": "pos", "group": "ipv4/kr", "text": "221.101.167.247 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-ipv4-079", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"116.128.76.105\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-ipv4-080", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 180.129.180.32에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-ipv4-081", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 180.49.2.192에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 18}], "ctx": true}
+{"id": "pos-ipv4-082", "set": "pos", "group": "ipv4/kr", "text": "125.177.250.184 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 15}], "ctx": false}
+{"id": "pos-ipv4-083", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 115.245.152.3", "spans": [{"kind": "ipv4", "start": 17, "end": 30}], "ctx": true}
+{"id": "pos-ipv4-084", "set": "pos", "group": "ipv4/kr", "text": "client_ip=220.5.45.191 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 22}], "ctx": true}
+{"id": "pos-ipv4-085", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 220.185.145.119에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 21}], "ctx": true}
+{"id": "pos-ipv4-086", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 115.117.224.184 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 22}], "ctx": false}
+{"id": "pos-ipv4-087", "set": "pos", "group": "ipv4/kr", "text": "접속 IP 218.196.61.247에서 로그인 시도 5회", "spans": [{"kind": "ipv4", "start": 6, "end": 20}], "ctx": true}
+{"id": "pos-ipv4-088", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@119.64.153.119 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 24}], "ctx": false}
+{"id": "pos-ipv4-089", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 14.11.134.244", "spans": [{"kind": "ipv4", "start": 17, "end": 30}], "ctx": true}
+{"id": "pos-ipv4-090", "set": "pos", "group": "ipv4/kr", "text": "client_ip=110.62.34.238 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 23}], "ctx": true}
+{"id": "pos-ipv4-091", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"183.12.254.213\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 22}], "ctx": true}
+{"id": "pos-ipv4-092", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 180.4.239.73 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 23}], "ctx": false}
+{"id": "pos-ipv4-093", "set": "pos", "group": "ipv4/kr", "text": "X-Forwarded-For: 183.180.82.126", "spans": [{"kind": "ipv4", "start": 17, "end": 31}], "ctx": true}
+{"id": "pos-ipv4-094", "set": "pos", "group": "ipv4/kr", "text": "110.8.181.100 - - [30/Oct/2026:12:34:56 +0900] \"GET /login HTTP/1.1\" 200 512", "spans": [{"kind": "ipv4", "start": 0, "end": 13}], "ctx": false}
+{"id": "pos-ipv4-095", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 121.190.158.198 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 26}], "ctx": false}
+{"id": "pos-ipv4-096", "set": "pos", "group": "ipv4/kr", "text": "client_ip=125.130.160.55 status=401", "spans": [{"kind": "ipv4", "start": 10, "end": 24}], "ctx": true}
+{"id": "pos-ipv4-097", "set": "pos", "group": "ipv4/kr", "text": "ssh admin@180.75.20.13 접속이 안 돼요", "spans": [{"kind": "ipv4", "start": 10, "end": 22}], "ctx": false}
+{"id": "pos-ipv4-098", "set": "pos", "group": "ipv4/kr", "text": "방화벽 차단 목록에 39.223.247.44 추가 요청", "spans": [{"kind": "ipv4", "start": 11, "end": 24}], "ctx": false}
+{"id": "pos-ipv4-099", "set": "pos", "group": "ipv4/kr", "text": "고객 접속지 220.208.49.40 (서울)", "spans": [{"kind": "ipv4", "start": 7, "end": 20}], "ctx": false}
+{"id": "pos-ipv4-100", "set": "pos", "group": "ipv4/kr", "text": "{\"ip\": \"14.19.42.136\", \"country\": \"KR\"}", "spans": [{"kind": "ipv4", "start": 8, "end": 20}], "ctx": true}
+{"id": "neg-codes-001", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-8469728", "spans": []}
+{"id": "neg-codes-002", "set": "neg", "group": "codes", "text": "관리번호 509-987-697396 문서 보관", "spans": []}
+{"id": "neg-codes-003", "set": "neg", "group": "codes", "text": "S/N S83208332 장비 입고", "spans": []}
+{"id": "neg-codes-004", "set": "neg", "group": "codes", "text": "관리번호 257-449-158843 문서 보관", "spans": []}
+{"id": "neg-codes-005", "set": "neg", "group": "codes", "text": "문서번호 인사-2026-732", "spans": []}
+{"id": "neg-codes-006", "set": "neg", "group": "codes", "text": "견적 Q-20261118-6992 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-007", "set": "neg", "group": "codes", "text": "S/N S26780820 장비 입고", "spans": []}
+{"id": "neg-codes-008", "set": "neg", "group": "codes", "text": "정산 배치 D20260501 완료, 건수 2175건", "spans": []}
+{"id": "neg-codes-009", "set": "neg", "group": "codes", "text": "사건번호 2026가합73217 변론기일 8월", "spans": []}
+{"id": "neg-codes-010", "set": "neg", "group": "codes", "text": "S/N D61955379 장비 입고", "spans": []}
+{"id": "neg-codes-011", "set": "neg", "group": "codes", "text": "문서번호 총무-2026-790", "spans": []}
+{"id": "neg-codes-012", "set": "neg", "group": "codes", "text": "견적 Q-20260211-3370 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-013", "set": "neg", "group": "codes", "text": "S/N M86539212 장비 입고", "spans": []}
+{"id": "neg-codes-014", "set": "neg", "group": "codes", "text": "S/N S11251073 장비 입고", "spans": []}
+{"id": "neg-codes-015", "set": "neg", "group": "codes", "text": "견적 Q-20260401-5177 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-016", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-3172849", "spans": []}
+{"id": "neg-codes-017", "set": "neg", "group": "codes", "text": "사건번호 2026가합82275 변론기일 3월", "spans": []}
+{"id": "neg-codes-018", "set": "neg", "group": "codes", "text": "사건번호 2026가합16456 변론기일 10월", "spans": []}
+{"id": "neg-codes-019", "set": "neg", "group": "codes", "text": "사건번호 2026가합60726 변론기일 11월", "spans": []}
+{"id": "neg-codes-020", "set": "neg", "group": "codes", "text": "관리번호 894-271-690326 문서 보관", "spans": []}
+{"id": "neg-codes-021", "set": "neg", "group": "codes", "text": "견적 Q-20260205-8650 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-022", "set": "neg", "group": "codes", "text": "S/N R24969563 장비 입고", "spans": []}
+{"id": "neg-codes-023", "set": "neg", "group": "codes", "text": "견적 Q-20260618-4575 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-024", "set": "neg", "group": "codes", "text": "견적 Q-20261004-5602 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-025", "set": "neg", "group": "codes", "text": "접수번호 7241-0914-0842 처리 중", "spans": []}
+{"id": "neg-codes-026", "set": "neg", "group": "codes", "text": "사건번호 2026가합39245 변론기일 9월", "spans": []}
+{"id": "neg-codes-027", "set": "neg", "group": "codes", "text": "견적 Q-20260724-1670 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-028", "set": "neg", "group": "codes", "text": "관리번호 139-399-480628 문서 보관", "spans": []}
+{"id": "neg-codes-029", "set": "neg", "group": "codes", "text": "사건번호 2026가합91167 변론기일 2월", "spans": []}
+{"id": "neg-codes-030", "set": "neg", "group": "codes", "text": "정산 배치 D20260216 완료, 건수 2160건", "spans": []}
+{"id": "neg-codes-031", "set": "neg", "group": "codes", "text": "사건번호 2026가합16042 변론기일 7월", "spans": []}
+{"id": "neg-codes-032", "set": "neg", "group": "codes", "text": "S/N D99668677 장비 입고", "spans": []}
+{"id": "neg-codes-033", "set": "neg", "group": "codes", "text": "사건번호 2026가합92905 변론기일 3월", "spans": []}
+{"id": "neg-codes-034", "set": "neg", "group": "codes", "text": "정산 배치 D20260215 완료, 건수 1566건", "spans": []}
+{"id": "neg-codes-035", "set": "neg", "group": "codes", "text": "관리번호 331-436-225203 문서 보관", "spans": []}
+{"id": "neg-codes-036", "set": "neg", "group": "codes", "text": "관리번호 864-183-134324 문서 보관", "spans": []}
+{"id": "neg-codes-037", "set": "neg", "group": "codes", "text": "문서번호 재무-2026-460", "spans": []}
+{"id": "neg-codes-038", "set": "neg", "group": "codes", "text": "문서번호 재무-2026-631", "spans": []}
+{"id": "neg-codes-039", "set": "neg", "group": "codes", "text": "관리번호 925-636-037320 문서 보관", "spans": []}
+{"id": "neg-codes-040", "set": "neg", "group": "codes", "text": "사건번호 2026가합68016 변론기일 2월", "spans": []}
+{"id": "neg-codes-041", "set": "neg", "group": "codes", "text": "견적 Q-20260906-3805 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-042", "set": "neg", "group": "codes", "text": "접수번호 4282-6576-0878 처리 중", "spans": []}
+{"id": "neg-codes-043", "set": "neg", "group": "codes", "text": "접수번호 9251-1205-5608 처리 중", "spans": []}
+{"id": "neg-codes-044", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-5979268", "spans": []}
+{"id": "neg-codes-045", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-1564043", "spans": []}
+{"id": "neg-codes-046", "set": "neg", "group": "codes", "text": "관리번호 731-619-002695 문서 보관", "spans": []}
+{"id": "neg-codes-047", "set": "neg", "group": "codes", "text": "S/N M84278509 장비 입고", "spans": []}
+{"id": "neg-codes-048", "set": "neg", "group": "codes", "text": "접수번호 1271-7660-2558 처리 중", "spans": []}
+{"id": "neg-codes-049", "set": "neg", "group": "codes", "text": "정산 배치 D20261110 완료, 건수 919건", "spans": []}
+{"id": "neg-codes-050", "set": "neg", "group": "codes", "text": "사건번호 2026가합92364 변론기일 3월", "spans": []}
+{"id": "neg-codes-051", "set": "neg", "group": "codes", "text": "사건번호 2026가합83388 변론기일 9월", "spans": []}
+{"id": "neg-codes-052", "set": "neg", "group": "codes", "text": "접수번호 7160-5145-7509 처리 중", "spans": []}
+{"id": "neg-codes-053", "set": "neg", "group": "codes", "text": "관리번호 959-686-973976 문서 보관", "spans": []}
+{"id": "neg-codes-054", "set": "neg", "group": "codes", "text": "사건번호 2026가합84938 변론기일 3월", "spans": []}
+{"id": "neg-codes-055", "set": "neg", "group": "codes", "text": "접수번호 8608-8955-0804 처리 중", "spans": []}
+{"id": "neg-codes-056", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-9793271", "spans": []}
+{"id": "neg-codes-057", "set": "neg", "group": "codes", "text": "사건번호 2026가합18476 변론기일 8월", "spans": []}
+{"id": "neg-codes-058", "set": "neg", "group": "codes", "text": "접수번호 7515-1282-0589 처리 중", "spans": []}
+{"id": "neg-codes-059", "set": "neg", "group": "codes", "text": "견적 Q-20260912-0404 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-060", "set": "neg", "group": "codes", "text": "정산 배치 D20260505 완료, 건수 1692건", "spans": []}
+{"id": "neg-codes-061", "set": "neg", "group": "codes", "text": "접수번호 6919-0138-2843 처리 중", "spans": []}
+{"id": "neg-codes-062", "set": "neg", "group": "codes", "text": "사건번호 2026가합29931 변론기일 11월", "spans": []}
+{"id": "neg-codes-063", "set": "neg", "group": "codes", "text": "S/N R32978803 장비 입고", "spans": []}
+{"id": "neg-codes-064", "set": "neg", "group": "codes", "text": "S/N R39715618 장비 입고", "spans": []}
+{"id": "neg-codes-065", "set": "neg", "group": "codes", "text": "관리번호 712-997-507842 문서 보관", "spans": []}
+{"id": "neg-codes-066", "set": "neg", "group": "codes", "text": "정산 배치 D20260221 완료, 건수 266건", "spans": []}
+{"id": "neg-codes-067", "set": "neg", "group": "codes", "text": "정산 배치 D20260726 완료, 건수 3407건", "spans": []}
+{"id": "neg-codes-068", "set": "neg", "group": "codes", "text": "사건번호 2026가합88574 변론기일 8월", "spans": []}
+{"id": "neg-codes-069", "set": "neg", "group": "codes", "text": "문서번호 인사-2026-983", "spans": []}
+{"id": "neg-codes-070", "set": "neg", "group": "codes", "text": "사건번호 2026가합43661 변론기일 9월", "spans": []}
+{"id": "neg-codes-071", "set": "neg", "group": "codes", "text": "문서번호 재무-2026-437", "spans": []}
+{"id": "neg-codes-072", "set": "neg", "group": "codes", "text": "S/N D77735580 장비 입고", "spans": []}
+{"id": "neg-codes-073", "set": "neg", "group": "codes", "text": "S/N M52263486 장비 입고", "spans": []}
+{"id": "neg-codes-074", "set": "neg", "group": "codes", "text": "접수번호 4093-6600-5852 처리 중", "spans": []}
+{"id": "neg-codes-075", "set": "neg", "group": "codes", "text": "견적 Q-20260222-6541 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-076", "set": "neg", "group": "codes", "text": "접수번호 2608-6551-6505 처리 중", "spans": []}
+{"id": "neg-codes-077", "set": "neg", "group": "codes", "text": "정산 배치 D20261225 완료, 건수 2019건", "spans": []}
+{"id": "neg-codes-078", "set": "neg", "group": "codes", "text": "사건번호 2026가합56473 변론기일 4월", "spans": []}
+{"id": "neg-codes-079", "set": "neg", "group": "codes", "text": "접수번호 8245-2054-1052 처리 중", "spans": []}
+{"id": "neg-codes-080", "set": "neg", "group": "codes", "text": "문서번호 인사-2026-575", "spans": []}
+{"id": "neg-codes-081", "set": "neg", "group": "codes", "text": "정산 배치 D20261120 완료, 건수 2626건", "spans": []}
+{"id": "neg-codes-082", "set": "neg", "group": "codes", "text": "관리번호 117-122-387975 문서 보관", "spans": []}
+{"id": "neg-codes-083", "set": "neg", "group": "codes", "text": "접수번호 6673-4027-5097 처리 중", "spans": []}
+{"id": "neg-codes-084", "set": "neg", "group": "codes", "text": "관리번호 578-251-566535 문서 보관", "spans": []}
+{"id": "neg-codes-085", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-9271540", "spans": []}
+{"id": "neg-codes-086", "set": "neg", "group": "codes", "text": "정산 배치 D20260225 완료, 건수 3096건", "spans": []}
+{"id": "neg-codes-087", "set": "neg", "group": "codes", "text": "문서번호 인사-2026-443", "spans": []}
+{"id": "neg-codes-088", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-0491735", "spans": []}
+{"id": "neg-codes-089", "set": "neg", "group": "codes", "text": "사건번호 2026가합57093 변론기일 11월", "spans": []}
+{"id": "neg-codes-090", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-6377057", "spans": []}
+{"id": "neg-codes-091", "set": "neg", "group": "codes", "text": "사건번호 2026가합80857 변론기일 12월", "spans": []}
+{"id": "neg-codes-092", "set": "neg", "group": "codes", "text": "정산 배치 D20260709 완료, 건수 2008건", "spans": []}
+{"id": "neg-codes-093", "set": "neg", "group": "codes", "text": "견적 Q-20260309-7127 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-094", "set": "neg", "group": "codes", "text": "관리번호 137-090-218197 문서 보관", "spans": []}
+{"id": "neg-codes-095", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-1996759", "spans": []}
+{"id": "neg-codes-096", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-0790496", "spans": []}
+{"id": "neg-codes-097", "set": "neg", "group": "codes", "text": "정산 배치 D20260708 완료, 건수 779건", "spans": []}
+{"id": "neg-codes-098", "set": "neg", "group": "codes", "text": "문서번호 인사-2026-117", "spans": []}
+{"id": "neg-codes-099", "set": "neg", "group": "codes", "text": "견적 Q-20260622-8434 회신 부탁드립니다", "spans": []}
+{"id": "neg-codes-100", "set": "neg", "group": "codes", "text": "특허 출원번호 10-2026-2480869", "spans": []}
+{"id": "neg-network-001", "set": "neg", "group": "network", "text": "curl http://127.0.0.1:51882/health", "spans": []}
+{"id": "neg-network-002", "set": "neg", "group": "network", "text": "Windows 10.0.20858.3919 빌드에서 재현", "spans": []}
+{"id": "neg-network-003", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.20.224.49 (timeout 9s)", "spans": []}
+{"id": "neg-network-004", "set": "neg", "group": "network", "text": "펌웨어 2.2.3.18 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-005", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.154.103.172 (timeout 59s)", "spans": []}
+{"id": "neg-network-006", "set": "neg", "group": "network", "text": "AssemblyVersion(\"6.5.5.0\")", "spans": []}
+{"id": "neg-network-007", "set": "neg", "group": "network", "text": "AssemblyVersion(\"6.4.6.0\")", "spans": []}
+{"id": "neg-network-008", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.108.102.100 (timeout 16s)", "spans": []}
+{"id": "neg-network-009", "set": "neg", "group": "network", "text": "docker0 172.17.0.122 → 컨테이너 bade17060fe0", "spans": []}
+{"id": "neg-network-010", "set": "neg", "group": "network", "text": "docker0 172.17.0.235 → 컨테이너 a7c6c60f3c23", "spans": []}
+{"id": "neg-network-011", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 14.234.133.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-012", "set": "neg", "group": "network", "text": "서버 192.168.239.135:24359 재시작했습니다", "spans": []}
+{"id": "neg-network-013", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 58.230.113.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-014", "set": "neg", "group": "network", "text": "AssemblyVersion(\"1.0.0.0\")", "spans": []}
+{"id": "neg-network-015", "set": "neg", "group": "network", "text": "서버 192.168.59.179:17326 재시작했습니다", "spans": []}
+{"id": "neg-network-016", "set": "neg", "group": "network", "text": "펌웨어 3.9.6.22 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-017", "set": "neg", "group": "network", "text": "AssemblyVersion(\"8.7.0.0\")", "spans": []}
+{"id": "neg-network-018", "set": "neg", "group": "network", "text": "docker0 172.17.0.96 → 컨테이너 5e39f5017302", "spans": []}
+{"id": "neg-network-019", "set": "neg", "group": "network", "text": "SNMP OID 1.3.6.1.4.1.5540.5.8", "spans": []}
+{"id": "neg-network-020", "set": "neg", "group": "network", "text": "펌웨어 8.8.5.22 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-021", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.213.190.57 (timeout 20s)", "spans": []}
+{"id": "neg-network-022", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/132.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-023", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/135.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-024", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.59.26.203 (timeout 33s)", "spans": []}
+{"id": "neg-network-025", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/139.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-026", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/132.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-027", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.74.173.21 (timeout 41s)", "spans": []}
+{"id": "neg-network-028", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 42.215.156.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-029", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/134.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-030", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.111.205.26 (timeout 44s)", "spans": []}
+{"id": "neg-network-031", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 61.241.59.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-032", "set": "neg", "group": "network", "text": "curl http://127.0.0.1:32714/health", "spans": []}
+{"id": "neg-network-033", "set": "neg", "group": "network", "text": "펌웨어 7.8.5.9 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-034", "set": "neg", "group": "network", "text": "docker0 172.17.0.223 → 컨테이너 fd285924779a", "spans": []}
+{"id": "neg-network-035", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/139.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-036", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 119.204.11.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-037", "set": "neg", "group": "network", "text": "Windows 10.0.24115.4200 빌드에서 재현", "spans": []}
+{"id": "neg-network-038", "set": "neg", "group": "network", "text": "AssemblyVersion(\"6.3.4.0\")", "spans": []}
+{"id": "neg-network-039", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 114.105.196.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-040", "set": "neg", "group": "network", "text": "서버 192.168.193.15:55215 재시작했습니다", "spans": []}
+{"id": "neg-network-041", "set": "neg", "group": "network", "text": "펌웨어 4.5.1.4 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-042", "set": "neg", "group": "network", "text": "서버 192.168.135.124:61984 재시작했습니다", "spans": []}
+{"id": "neg-network-043", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/132.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-044", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/137.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-045", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 27.254.225.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-046", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 39.194.230.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-047", "set": "neg", "group": "network", "text": "서버 192.168.160.77:24388 재시작했습니다", "spans": []}
+{"id": "neg-network-048", "set": "neg", "group": "network", "text": "서버 192.168.127.101:1839 재시작했습니다", "spans": []}
+{"id": "neg-network-049", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.48.3.151 (timeout 12s)", "spans": []}
+{"id": "neg-network-050", "set": "neg", "group": "network", "text": "펌웨어 1.5.1.10 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-051", "set": "neg", "group": "network", "text": "SNMP OID 1.3.6.1.4.1.2137.11.8", "spans": []}
+{"id": "neg-network-052", "set": "neg", "group": "network", "text": "AssemblyVersion(\"8.1.6.0\")", "spans": []}
+{"id": "neg-network-053", "set": "neg", "group": "network", "text": "curl http://127.0.0.1:15258/health", "spans": []}
+{"id": "neg-network-054", "set": "neg", "group": "network", "text": "펌웨어 2.8.7.14 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-055", "set": "neg", "group": "network", "text": "펌웨어 9.0.8.19 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-056", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 211.13.200.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-057", "set": "neg", "group": "network", "text": "Windows 10.0.24676.4136 빌드에서 재현", "spans": []}
+{"id": "neg-network-058", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-059", "set": "neg", "group": "network", "text": "docker0 172.17.0.216 → 컨테이너 016709fdd15b", "spans": []}
+{"id": "neg-network-060", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.22.28.180 (timeout 39s)", "spans": []}
+{"id": "neg-network-061", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.137.141.23 (timeout 59s)", "spans": []}
+{"id": "neg-network-062", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.253.228.160 (timeout 18s)", "spans": []}
+{"id": "neg-network-063", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.146.24.150 (timeout 22s)", "spans": []}
+{"id": "neg-network-064", "set": "neg", "group": "network", "text": "서버 192.168.78.28:45268 재시작했습니다", "spans": []}
+{"id": "neg-network-065", "set": "neg", "group": "network", "text": "서버 192.168.63.252:15440 재시작했습니다", "spans": []}
+{"id": "neg-network-066", "set": "neg", "group": "network", "text": "AssemblyVersion(\"3.7.2.0\")", "spans": []}
+{"id": "neg-network-067", "set": "neg", "group": "network", "text": "AssemblyVersion(\"1.1.1.0\")", "spans": []}
+{"id": "neg-network-068", "set": "neg", "group": "network", "text": "AssemblyVersion(\"9.5.8.0\")", "spans": []}
+{"id": "neg-network-069", "set": "neg", "group": "network", "text": "Windows 10.0.20414.1659 빌드에서 재현", "spans": []}
+{"id": "neg-network-070", "set": "neg", "group": "network", "text": "펌웨어 5.2.6.26 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-071", "set": "neg", "group": "network", "text": "AssemblyVersion(\"1.4.5.0\")", "spans": []}
+{"id": "neg-network-072", "set": "neg", "group": "network", "text": "펌웨어 9.4.5.7 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-073", "set": "neg", "group": "network", "text": "서버 192.168.44.123:10422 재시작했습니다", "spans": []}
+{"id": "neg-network-074", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.6.97.235 (timeout 46s)", "spans": []}
+{"id": "neg-network-075", "set": "neg", "group": "network", "text": "docker0 172.17.0.87 → 컨테이너 1ed0741cdfa6", "spans": []}
+{"id": "neg-network-076", "set": "neg", "group": "network", "text": "서버 192.168.115.132:34957 재시작했습니다", "spans": []}
+{"id": "neg-network-077", "set": "neg", "group": "network", "text": "DB 연결 실패: 10.6.192.62 (timeout 43s)", "spans": []}
+{"id": "neg-network-078", "set": "neg", "group": "network", "text": "SNMP OID 1.3.6.1.4.1.3174.17.3", "spans": []}
+{"id": "neg-network-079", "set": "neg", "group": "network", "text": "docker0 172.17.0.28 → 컨테이너 c0d1b2540889", "spans": []}
+{"id": "neg-network-080", "set": "neg", "group": "network", "text": "docker0 172.17.0.245 → 컨테이너 f5cd64a1553a", "spans": []}
+{"id": "neg-network-081", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/130.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-082", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/133.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-083", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/136.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-084", "set": "neg", "group": "network", "text": "AssemblyVersion(\"4.6.3.0\")", "spans": []}
+{"id": "neg-network-085", "set": "neg", "group": "network", "text": "docker0 172.17.0.189 → 컨테이너 abc83cb911ea", "spans": []}
+{"id": "neg-network-086", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 27.209.145.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-087", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 121.155.134.0/24로 좁혀 주세요", "spans": []}
+{"id": "neg-network-088", "set": "neg", "group": "network", "text": "펌웨어 3.2.3.20 업데이트 후 재부팅", "spans": []}
+{"id": "neg-network-089", "set": "neg", "group": "network", "text": "SNMP OID 1.3.6.1.4.1.7385.2.2", "spans": []}
+{"id": "neg-network-090", "set": "neg", "group": "network", "text": "AssemblyVersion(\"5.8.1.0\")", "spans": []}
+{"id": "neg-network-091", "set": "neg", "group": "network", "text": "SNMP OID 1.3.6.1.4.1.1902.9.1", "spans": []}
+{"id": "neg-network-092", "set": "neg", "group": "network", "text": "AssemblyVersion(\"7.7.7.0\")", "spans": []}
+{"id": "neg-network-093", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/139.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-094", "set": "neg", "group": "network", "text": "docker0 172.17.0.197 → 컨테이너 a3494214ed18", "spans": []}
+{"id": "neg-network-095", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/131.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-096", "set": "neg", "group": "network", "text": "SNMP OID 1.3.6.1.4.1.1179.15.2", "spans": []}
+{"id": "neg-network-097", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/133.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-098", "set": "neg", "group": "network", "text": "서버 192.168.143.183:44293 재시작했습니다", "spans": []}
+{"id": "neg-network-099", "set": "neg", "group": "network", "text": "User-Agent: Mozilla/5.0 Chrome/135.0.0.0 Safari/537.36", "spans": []}
+{"id": "neg-network-100", "set": "neg", "group": "network", "text": "보안 그룹 0.0.0.0/0 허용 규칙을 122.102.20.0/24로 좁혀 주세요", "spans": []}

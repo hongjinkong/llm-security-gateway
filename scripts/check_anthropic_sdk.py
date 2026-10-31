@@ -59,7 +59,10 @@ sys.exit(0 if ok else 1)
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sdk-python", required=True, help="anthropic 패키지가 깔린 파이썬 실행 파일")
+    ap.add_argument("--gateway", help="이미 떠 있는 게이트웨이(클라이언트 키 test-key)에 붙인다 — 스텁·게이트웨이를 띄우지 않는다(D-119, scripts/check_sdks.py)")
     a = ap.parse_args()
+    if a.gateway:
+        return subprocess.run([a.sdk_python, "-c", CLIENT, a.gateway.rstrip("/")]).returncode
     with tempfile.TemporaryDirectory() as tmp:
         tp, gp = free_port(), free_port()
         procs = [serve("tests.stub_target:app", tp)]

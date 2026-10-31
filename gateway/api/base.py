@@ -81,6 +81,17 @@ class Adapter:
     def upstream_path(self) -> str:
         return self.path
 
+    def with_stream_usage(self, body: bytes) -> tuple[bytes, bool]:
+        """스트리밍 상류 요청을 usage를 받도록 손질한다(D-120). (본문, 클라이언트 스트림에서 usage 조각을 뺄지). 기본은 그대로 — 스트림이 usage를 준다."""
+        return body, False
+
+    def usage_raw(self, obj: dict) -> Any:
+        """응답 객체나 스트림 이벤트에 실린 공급자 usage(D-120). 없으면 None."""
+        return obj.get("usage")
+
+    def usage(self, raw: Any) -> dict | None:
+        return normalize_usage(raw, self.name)
+
     # --- 응답 ---------------------------------------------------------------
     def error(self, status: int, message: str, type_: str, code: str, param: str | None = None) -> JSONResponse:
         raise NotImplementedError
@@ -94,6 +105,24 @@ class Adapter:
 
 def now() -> int:
     return int(time.time())
+
+
+def _tokens(v: object) -> int:
+    return v if isinstance(v, int) and not isinstance(v, bool) else 0
+
+
+def normalize_usage(u: object, api: str) -> dict | None:
+    """공급자 usage → 감사 줄의 `{"input", "output", "cache_read", "cache_write"}`(D-120). 주지 않은 항목은 0."""
+    if not isinstance(u, dict):
+        return None
+    if api == "messages":
+        return {"input": _tokens(u.get("input_tokens")), "output": _tokens(u.get("output_tokens")),
+                "cache_read": _tokens(u.get("cache_read_input_tokens")), "cache_write": _tokens(u.get("cache_creation_input_tokens"))}
+    chat = api == "chat"
+    details = u.get("prompt_tokens_details" if chat else "input_tokens_details")
+    return {"input": _tokens(u.get("prompt_tokens" if chat else "input_tokens")),
+            "output": _tokens(u.get("completion_tokens" if chat else "output_tokens")),
+            "cache_read": _tokens(details.get("cached_tokens")) if isinstance(details, dict) else 0, "cache_write": 0}
 
 
 def sse(event: str | None, obj: dict) -> str:

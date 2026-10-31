@@ -3,9 +3,9 @@
   mode="detect"  탐지만 한다. 판정은 항상 ALLOW. (검사기 이름 `pii`)
   mode="mask"    찾은 값을 같은 모양의 대체값으로 치환한다(D-107 B, surrogate.py). 판정은 TRANSFORM. (검사기 이름 `pii_mask`)
 
-탐지 대상은 정형 식별자 4종(주민번호·카드·전화·이메일)과 형식이 확실한 자격 증명(`secret`,
-D-099)이다. 자격 증명도 같은 볼트·같은 토큰 형식으로 가리고 응답에서 되돌린다 — 사용자가
-붙여 넣은 키는 외부 AI로 나가지 않고, 사용자 자신에게는 그대로 돌아온다.
+탐지 대상은 정형 식별자(주민번호·카드·전화·이메일, D-117에서 외국인등록번호·여권·운전면허·사업자·법인·계좌·IPv4)와
+형식이 확실한 자격 증명(`secret`, D-099)이다. 자격 증명도 같은 볼트·같은 대체값으로 가리고 응답에서 되돌린다 — 사용자가
+붙여 넣은 키는 외부 AI로 나가지 않고, 사용자 자신에게는 그대로 돌아온다. 사업자·법인·계좌·IPv4는 기본으로 감사에만 남긴다(D-117).
 
 차단(BLOCK)은 쓰지 않는다. SCOPE 2절의 위협은 "외부 API 로그에 민감정보 잔존"이고
 마스킹으로 이미 해소된다. 또 FPR 5% 예산은 5단계 인젝션 탐지기와 나눠 써야 한다.
@@ -25,12 +25,14 @@ D-099)이다. 자격 증명도 같은 볼트·같은 토큰 형식으로 가리�
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
+from typing import Any
 
 from gateway.api.base import ApiError
 from gateway.detectors.base import Detector, Inspection, Verdict
 from gateway.openai_api import PII_ROLES
-from gateway.vault import TokenVault, map_strings, strings
+from gateway.vault import TokenVault, map_strings, norm_key, strings
 
 # 탐지 패턴·검증식·겹침 해소는 patterns.py에 있다(D-107 B). 이름은 여기서도 그대로 쓴다(테스트·변이 검사 호환).
 from gateway.detectors.patterns import (  # noqa: E402,F401
@@ -65,7 +67,7 @@ def _counts(found: list[Finding]) -> dict[str, int]:
 
 def _meta(found: list[Finding], masking: bool) -> dict:
     """mask 모드의 `pii`는 가린 것만 센다(지표 gateway_pii_masked_total). 가리지 않은 탐지(D-116)는 `unmasked`에 따로."""
-    meta = {"pii": _counts([f for f in found if f.mask or not masking]),
+    meta: dict[str, Any] = {"pii": _counts([f for f in found if f.mask or not masking]),
             "findings": [f.as_dict() for f in found[:FINDINGS_LIMIT]]}
     left = [f for f in found if not f.mask]
     if masking and left:
@@ -75,7 +77,10 @@ def _meta(found: list[Finding], masking: bool) -> dict:
     return meta
 
 
-ALL_KINDS = ("rrn", "card", "phone", "email", "secret")
+ALL_KINDS = ("rrn", "frn", "passport", "driver", "card", "phone", "email", "secret", "brn", "crn", "account", "ipv4")
+# 탐지해 감사에만 남기고 가리지 않는 종류의 기본값(D-117, GATEWAY_PII_DETECT_KINDS) — 계좌는 꼴이 은행마다 다르고 검증식이 없다,
+# 사업자·법인 번호는 공개 의무가 있는 사업체 식별자, IPv4는 개발 대화의 서버 주소가 대부분이라 가리면 질문의 뜻이 바뀐다.
+DETECT_ONLY = ("account", "brn", "crn", "ipv4")
 # 이보다 긴 검사 텍스트의 정규식 탐지는 스레드에서 돈다 — 이벤트 루프가 다른 요청을 계속 받는다(D-110). 볼트 조작은 루프에 둔다.
 OFFLOAD_CHARS = 16 * 1024
 
@@ -83,7 +88,7 @@ OFFLOAD_CHARS = 16 * 1024
 class PIIDetector(Detector):
     def __init__(self, mode: str = "detect", kinds: tuple[str, ...] = ALL_KINDS,
                  vault: TokenVault | None = None, max_findings: int = 5000,
-                 roles: frozenset[str] = PII_ROLES) -> None:
+                 roles: frozenset[str] = PII_ROLES, detect_kinds: tuple[str, ...] = DETECT_ONLY) -> None:
         if mode not in ("detect", "mask"):
             raise ValueError(f"mode는 detect 또는 mask여야 한다: {mode!r}")
         self.mode = mode
@@ -92,6 +97,7 @@ class PIIDetector(Detector):
         self.vault = vault or TokenVault()
         self.max_findings = max_findings     # mask 모드에서 한 요청의 탐지 상한(D-110, GATEWAY_MAX_FINDINGS)
         self.roles = roles                   # 가리는 역할(D-112, GATEWAY_PII_ROLES)
+        self.detect_kinds = frozenset(detect_kinds)   # 가리지 않고 감사에만 남기는 종류(D-117)
 
     async def inspect(self, insp: Inspection) -> Verdict:
         """어댑터가 준 텍스트(D-107 C) 중 user·assistant 텍스트(도구 호출 인자 포함)만 제자리에서 가린다. 직렬화는 체인이 한다.
@@ -101,7 +107,8 @@ class PIIDetector(Detector):
         texts = [r.get() for r in refs]
 
         def scan() -> list[list[Finding]]:
-            return [[f for f in find_all(t) if f.kind in self.kinds] for t in texts]
+            return [[dataclasses.replace(f, mask=False) if f.kind in self.detect_kinds else f
+                     for f in find_all(t) if f.kind in self.kinds] for t in texts]
 
         per_ref = await asyncio.to_thread(scan) if sum(map(len, texts)) > OFFLOAD_CHARS else scan()
         found = [f for local in per_ref for f in local]
@@ -128,25 +135,35 @@ class PIIDetector(Detector):
         사용자는 자기가 보낸 값을 그대로 돌려받아야 한다. 토큰이 그대로 노출되면
         EVAL 3.2의 '부분 저하'로 집계되어 FPR을 밀어올린다.
         """
-        if self.mode != "mask" or not self.vault.issued(session):
-            return None
+        issued = self.mode == "mask" and self.vault.issued(session)
         try:
             obj = json.loads(text)
         except ValueError:
             obj = None
         if not isinstance(obj, (dict, list)):          # JSON이 아니면 텍스트 전체를 복원한다
-            restored, n = self.vault.restore(session, text)
+            restored, n = self.vault.restore(session, text) if issued else (text, 0)
             visible = restored
         else:
             # 문자열 값마다 복원하고 한 번 직렬화한다. 도구 인자는 안쪽 JSON 이스케이프로(D-113), thinking·reasoning은 건너뛴다(D-112).
-            n = map_strings(obj, lambda value, escape: self.vault.restore(session, value, escape))
+            n = map_strings(obj, lambda value, escape: self.vault.restore(session, value, escape)) if issued else 0
             restored = json.dumps(obj, ensure_ascii=False) if n else text
-            visible = "\n".join(strings(obj))             # 잔여·의심은 사용자에게 복원된 채로 보이는 텍스트에서만 센다
-        residual = self.vault.residual(session, visible)
+            visible = "\n".join(strings(obj))             # 잔여·의심·새 PII는 사용자에게 복원된 채로 보이는 텍스트에서만 센다
+        stats = self.response_stats(session, visible)
+        if not issued:                                  # 가린 것이 없으면 출력 방향 관측만(D-120)
+            return (text, {"new": stats["new"]}) if stats["new"] else None
         # residual > 0 이면 복원에 실패한 대체값이 사용자에게 가짜 값으로 나간다는 뜻이다(D-107 B — 토큰과 달리 눈에 안 띈다).
         # 조용히 넘기지 않고 로그에 남겨 운영·측정 때 잡히게 한다. 발급 수(issued)와 함께 비율을 본다.
-        return restored, {"restored": n, "residual_tokens": residual, "issued": self.vault.issued(session),
-                          "suspect": self.vault.suspect(session, visible)}
+        return restored, {"restored": n, "issued": self.vault.issued(session), **stats}
+
+    def response_stats(self, session: str, visible: str) -> dict[str, int]:
+        """사용자에게 보이는 응답 텍스트의 잔여 대체값·의심 잔여(D-113)와 새 PII(D-120) — 탐지 한 번으로.
+        새 PII = 이 정책이 가리는 종류의 가리는 탐지 중, 이 요청에서 가린 원문·발급한 대체값이 아닌 것."""
+        found = find_all(visible)
+        ours = self.vault.known(session)
+        new = sum(1 for f in found if f.mask and f.kind in self.kinds and f.kind not in self.detect_kinds
+                  and norm_key(f.kind, visible[f.start:f.end]) not in ours)
+        return {"residual_tokens": self.vault.residual(session, visible, found),
+                "suspect": self.vault.suspect(session, visible, found), "new": new}
 
     async def release(self, session: str) -> None:
         """다시 쓰일 일이 없는 세션의 원문을 지운다(D-099). TTL까지 기다리지 않는다."""

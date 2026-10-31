@@ -167,12 +167,13 @@ class InjectionRuleDetector(Detector):
                     그대로 가는 것도 이것으로 막는다.
     """
 
-    def __init__(self, scope: str = "all", mode: str = "block") -> None:
+    def __init__(self, scope: str = "all", mode: str = "block", redacted: str = REDACTED_TURN) -> None:
         if scope not in SCOPES:
             raise ValueError(f"scope는 {SCOPES} 중 하나여야 한다: {scope!r}")
         if mode not in MODES:
             raise ValueError(f"mode는 {MODES} 중 하나여야 한다: {mode!r}")
         self.scope, self.mode = scope, mode
+        self.redacted = redacted          # 가린 이력의 자리표시 — GATEWAY_LANG의 문구(D-120)
         # observe(D-107 D, 기본값): 룰 적중을 감사에만 남기고 막지도 가리지도 않는다 — 오차단이 실사용 UX를 망치는 손해가
         # 뻔한 문구를 놓치는 손해보다 크다. 운영자가 관측 로그를 보고 block으로 켠다. 검사 범위는 observe에서 전체다.
         self.name = "injection_observe" if mode == "observe" else ("injection_rule" if scope == "all" else "injection_rule_turn")
@@ -214,7 +215,7 @@ class InjectionRuleDetector(Detector):
             found = await _match("\n".join(r.get() for r in parts))
             if found:
                 for r in parts:
-                    doc.put(r, REDACTED_TURN)             # 텍스트만 자리표시로 — 이미지 같은 다른 파트는 그대로
+                    doc.put(r, self.redacted)             # 텍스트만 자리표시로 — 이미지 같은 다른 파트는 그대로
                 masked += 1
                 hits.extend(found)
         if not masked:

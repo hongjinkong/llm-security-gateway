@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from typing import Any
 
 from fastapi.responses import JSONResponse, Response
 
 from gateway.api.base import Adapter, ApiError, Doc, TextRef, now, sse, str_ref, stream_response
 from gateway.api.chat import openai_error
+from gateway.streaming import ref
 
 PATH = "/v1/responses"
 TEXT_PARTS = {"input_text", "output_text", "text"}
@@ -118,6 +120,11 @@ class ResponsesAdapter(Adapter):
                 + ev("response.incomplete", response=resp))
         return stream_response(body)
 
+    def usage_raw(self, obj: dict) -> Any:
+        if obj.get("type") == "response.completed" and isinstance(obj.get("response"), dict):   # 스트림의 마지막 이벤트
+            return obj["response"].get("usage")
+        return obj.get("usage")
+
     def stream_shape(self) -> "ResponsesShape":
         return ResponsesShape()
 
@@ -145,7 +152,7 @@ class ResponsesShape:
         else:
             return []
         self.last[ch] = obj
-        return [(ch, lambda o=obj: o["delta"], lambda v, o=obj: o.__setitem__("delta", v))]
+        return [ref(ch, obj, "delta")]
 
     def closes(self, obj: dict) -> Callable[[str], bool] | None:
         t = obj.get("type")

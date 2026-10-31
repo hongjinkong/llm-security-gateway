@@ -6,6 +6,8 @@ import json
 import httpx
 import pytest
 
+from tests.chain_app import REGISTRY as TEST_REGISTRY
+
 CHAT = "/v1/chat/completions"
 HDR = {"Authorization": "Bearer k", "Content-Type": "application/json"}
 
@@ -20,12 +22,12 @@ def answer(r: httpx.Response) -> str:
 
 @pytest.fixture(scope="module")
 def noop_stack(make_stack):
-    return make_stack("tests.chain_app:app", GATEWAY_DETECTORS="noop")
+    return make_stack(TEST_REGISTRY, GATEWAY_DETECTORS="noop")
 
 
 @pytest.fixture(scope="module")
 def rules_stack(make_stack):
-    return make_stack("tests.chain_app:app", GATEWAY_DETECTORS="test_mask,test_block")
+    return make_stack(TEST_REGISTRY, GATEWAY_DETECTORS="test_mask,test_block")
 
 
 def test_noop_chain_does_not_change_response(noop_stack):

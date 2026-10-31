@@ -185,6 +185,6 @@ def test_쿼리는_타겟으로는_그대로_전달된다(query_stack):
     ("t=a=b", ["t"]),                        # 값에 '='가 있어도 이름만
 ])
 def test_쿼리_키_추출(query, expect):
-    from gateway.main import _query_keys
+    from gateway.audit import query_keys as _query_keys
     assert _query_keys(query) == expect
 

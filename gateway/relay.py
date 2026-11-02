@@ -21,7 +21,7 @@ from starlette.types import Receive, Scope, Send
 from gateway.api import ApiError, Doc, error_format_for
 from gateway.api.base import Adapter
 from gateway.audit import pii_fields, record
-from gateway.chain import DetectorChain, Step
+from gateway.chain import ChainResult, DetectorChain, Step
 from gateway.detectors.base import Inspection
 from gateway.detectors.pii import PIIDetector
 from gateway.messages import t
@@ -143,9 +143,13 @@ async def relay(request: Request, body: bytes, doc: Doc, chain: DetectorChain, s
             session=session,
             doc=doc,
         ))
-    except ApiError as exc:       # 탐지 상한(413, D-110) — 상류에 보내지 않는다
+    except ApiError as exc:       # 탐지 상한(413, D-110)·탐지 사이드카 실패(503 detect_unavailable, D-126) — 상류에 보내지 않는다
         request.state.upstream_error = exc.code
-        return adapter.error(exc.status, str(exc), exc.type_, exc.code, exc.param)
+        if exc.meta:              # 거절한 검사기의 메타(ner_error·ner_ms) — 체인이 끝나지 않아 chain_result가 없으므로 한 단계짜리 결과로 감사 줄에 남긴다
+            meta = dict(exc.meta)
+            request.state.chain_result = ChainResult(body=body, steps=[Step(str(meta.pop("detector", "?")), "reject", 0.0, exc.code, meta)])
+        response: Response = adapter.error(exc.status, str(exc), exc.type_, exc.code, exc.param)
+        return busy(response) if exc.status == 503 else response
     except VaultFull:             # 볼트 세션 상한 — 진행 중인 세션을 밀어내지 않고 새 요청을 거절한다(D-110)
         request.state.upstream_error = "gateway_busy"
         return busy(adapter.error(503, "gateway is at capacity", "overloaded_error", "gateway_busy"))

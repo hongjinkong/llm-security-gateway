@@ -8,6 +8,7 @@
 #   브라우저로 http://127.0.0.1:8080/__gateway/dashboard  # 운영 대시보드(읽기 전용) — 관리 키 local-admin-key
 #
 # 인젝션 차단까지 보려면 GATEWAY_INJECTION=block, 호스트 포트가 겹치면 HOST_PORT=18080 STUB_HOST_PORT=18000을 앞에 붙인다.
+# 이름·주소 가림(D-126)도 켜져 있다 — 서비스 detect(탐지 사이드카)가 함께 뜬다. 첫 빌드는 모델 143MB를 받는다(detect/Dockerfile). 게이트웨이는 detect가 건강해진 뒤 뜬다.
 name: llm-security-gateway
 
 services:
@@ -23,10 +24,16 @@ services:
       GATEWAY_SURROGATE_KEY: local-trial-surrogate-key-not-a-secret
       GATEWAY_ADMIN_KEY: local-admin-key
       GATEWAY_INJECTION: ${GATEWAY_INJECTION:-observe}
+      # 체험 정책은 정규식 12종 + 이름·주소(org는 기본 감사만이라 넣지 않는다). 기본값(이름·주소 꺼짐)으로 돌리려면 이 두 줄을 지운다
+      GATEWAY_PII_KINDS: rrn,frn,passport,driver,card,phone,email,secret,brn,crn,account,ipv4,person,address
+      GATEWAY_DETECT_URL: http://detect:8081
     ports:
       - "127.0.0.1:${HOST_PORT:-8080}:8080"
     depends_on:
-      - stub
+      stub:
+        condition: service_started
+      detect:
+        condition: service_healthy
 
   # 스텁은 게이트웨이 이미지(fastapi·uvicorn·탐지 패턴이 있다)에 tests/stub_target.py 하나를 얹어 띄운다
   stub:
@@ -39,3 +46,11 @@ services:
       - "127.0.0.1:${STUB_HOST_PORT:-8000}:8000"
     healthcheck:
       disable: true
+
+  # 탐지 사이드카(D-125·D-126) — 한국어 NER(ONNX). 포트는 밖으로 열지 않는다(인증이 없다). 헬스체크는 이미지의 것(/health, 시작 유예 30초)
+  detect:
+    build:
+      context: ..
+      dockerfile: detect/Dockerfile
+    image: llm-security-gateway-detect:local
+    read_only: true

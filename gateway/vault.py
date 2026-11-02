@@ -20,6 +20,8 @@
 복원된다(숫자 종류는 숫자열, 이메일은 소문자, 자격 증명은 그대로가 키다). 탐지 건수에 선형이라 대체값이 수만 개여도 느려지지 않는다(D-102 #1).
 실패 양상이 바뀐 것을 적어 둔다: 토큰은 실패가 눈에 보였고(`[PII:`가 남음) 대체값은 조용히 가짜 값이 남는다. 그래서
 감사에 `issued`·`restored`·`residual_tokens`(복원 뒤에도 남은 대체값 수)를 남긴다.
+이름·주소·직장(D-126, 탐지 사이드카의 NER 종류)은 모양이 없어 정규식으로 되찾을 수 없다 — 세션이 발급한 문자열 대체값으로 정규식을 만들어(공백은 공백 묶음,
+긴 것부터, 한글 이름은 앞이 한글 음절이 아닐 때만) `_hits`가 정규식 탐지와 함께 쓴다. 복원·residual·suspect·스트림 보류(`hold`)가 그대로 돈다.
 """
 from __future__ import annotations
 
@@ -35,7 +37,7 @@ from typing import Any
 from dataclasses import dataclass, field
 
 from gateway import surrogate
-from gateway.detectors.patterns import Finding, digits, find_all, normalize
+from gateway.detectors.patterns import NER_KINDS, Finding, _merge_free, digits, find_all, normalize
 
 # 스트림 보류(D-110): 상한은 그 세션이 발급한 가장 긴 대체값 길이, 그 상한의 상한이 HOLD_CAP이다. 그보다 긴 대체값은 조각에 걸리면
 # 복원하지 못한다 — 감사의 residual로 보인다. SHORT 이하의 비자격 증명은 진접두사 집합으로, 자격 증명과 더 긴 것은 KMP로 꼬리를 본다.
@@ -57,6 +59,8 @@ def norm_key(kind: str, text: str) -> str:
         return digits(text)
     if kind == "email":
         return text.lower()
+    if kind in NER_KINDS:                 # 이름·주소·직장(D-126): 공백·이스케이프된 공백을 빼고 소문자 — 모델이 띄어쓰기를 바꿔 써도 같은 키
+        return ESCAPED_WS_RE.sub("", text).lower()
     return ESCAPED_WS_RE.sub("", text)
 
 
@@ -190,11 +194,40 @@ class _Session:
     prefixes: set[str] = field(default_factory=set)                      # SHORT 이하 대체값의 모든 진접두사(정규화) — 스트림 꼬리 보류용
     long: list[tuple[str, list[int]]] = field(default_factory=list)     # SHORT보다 긴 대체값의 (정규화 키, KMP 실패 함수)
     longest: int = 0                                                     # 발급한 가장 긴 대체값 길이 — 스트림 보류 상한
+    ner: list[tuple[str, str]] = field(default_factory=list)            # 문자열로 되찾는 종류(D-126)의 (대체값, 종류) — 정규식을 만든다
+    ner_kind: dict[str, str] = field(default_factory=dict)              # norm_key(대체값) → 종류
+    ner_re: re.Pattern[str] | None = None                                # ner로 만든 정규식(발급이 늘면 다시 만든다)
     touched: float = field(default_factory=time.monotonic)
 
     @property
     def issued(self) -> int:
         return len(self.by_value)
+
+
+WS_OR_ESCAPED = r"(?:\s|\\[nrt])+"        # 공백 묶음, 또는 JSON 인자 채널의 `\n` 같은 이스케이프
+
+
+def _literal(word: str) -> str:
+    """정규식 리터럴 — ASCII 글자는 대소문자 둘 다(`[Aa]`), 나머지는 이스케이프. IGNORECASE 플래그를 쓰지 않는다: 플래그는 한글 단언마다 case-fold 표를 돌려
+    대안 수에 비례해 느리고(5,000건 컴파일 3초), 'ı'·'İ' 같은 글자를 ASCII i와 겹쳐 norm_key와 어긋났다(D-126 리뷰)."""
+    return "".join(f"[{c.upper()}{c.lower()}]" if c.isascii() and c.isalpha() else re.escape(c) for c in word)
+
+
+def _ner_pattern(entry: _Session) -> re.Pattern[str]:
+    """세션이 발급한 문자열 대체값을 찾는 정규식(D-126) — 긴 것부터(짧은 것이 긴 것의 앞부분일 때), 공백은 WS_OR_ESCAPED.
+    경계 단언은 대안마다가 아니라 **무리마다 한 번**이다(대안마다 두면 컴파일·탐색이 대안 수에 비례해 수 초가 된다 — 5,000건 4KB 복원 3초 → 20ms대):
+    한글 이름은 앞이 한글 음절이 아닐 때만(낱말 속 글자 셋이 우연히 이름과 같을 때), 라틴 글자·숫자로 시작·끝나는 대체값은 앞뒤가 영숫자가 아닐 때만
+    ('dilemma' 속 'emma'를 이름으로 되돌리지 않게). 무리의 순서는 가장 긴 대체값이 든 무리부터다."""
+    groups: dict[tuple[str, str], list[str]] = {}
+    for token, kind in sorted(entry.ner, key=lambda x: -len(x[0])):
+        if not token:
+            continue
+        first, last = token[0], token[-1]
+        before = (r"(?<![가-힣])" if kind == "person" and "가" <= first <= "힣"
+                  else r"(?<![A-Za-z0-9])" if first.isascii() and first.isalnum() else "")
+        after = r"(?![A-Za-z0-9])" if last.isascii() and last.isalnum() else ""
+        groups.setdefault((before, after), []).append(WS_OR_ESCAPED.join(_literal(w) for w in token.split()))
+    return re.compile("|".join(f"{before}(?:{'|'.join(alts)}){after}" for (before, after), alts in groups.items()))
 
 
 class TokenVault:
@@ -240,9 +273,10 @@ class TokenVault:
         return random.Random(int.from_bytes(hmac.new(self._key, msg.encode("utf-8"), hashlib.sha256).digest(), "big"))
 
     # --- 공개 API -----------------------------------------------------------
-    def token_for(self, session: str, kind: str, value: str) -> str:
+    def token_for(self, session: str, kind: str, value: str, avoid: str = "") -> str:
         """원본 값의 대체값. 같은 세션·같은 값은 같은 대체값. 대체값은 정규화한 값의 모양으로 만들고(상류는 ASCII 모양을 본다),
-        복원은 원문 그대로(전각·제로폭 포함)를 돌려준다(D-116)."""
+        복원은 원문 그대로(전각·제로폭 포함)를 돌려준다(D-116). `avoid`는 이 요청의 텍스트를 **소문자로** 만든 것(D-126) — 이름·주소·직장의 대체값이 거기 이미
+        있는 글자열이면(놓친 실제 이름, 대소문자 무관) 다음 시도로 만든다. 정규식 종류는 보지 않는다(탐지한 값끼리의 충돌은 `taken`이 막고, 텍스트 전체 검색은 건수 × 크기다)."""
         entry = self._get(session)
         key = (kind, value)
         if key not in entry.by_value:
@@ -254,7 +288,7 @@ class TokenVault:
             for attempt in range(20):
                 token = surrogate.make(kind, plain, self._rng(kind, own, attempt))
                 nk = norm_key(kind, token)
-                if token != plain and nk not in entry.taken:
+                if token != plain and nk not in entry.taken and not (avoid and kind in NER_KINDS and token.lower() in avoid):
                     break
             else:   # pragma: no cover — 20번 연속 충돌은 생성 규칙이 고장 난 것이다
                 raise RuntimeError("대체값을 만들지 못했다")
@@ -269,6 +303,10 @@ class TokenVault:
                 entry.long.append((nk, _failure(nk)))
             if len(token) <= HOLD_CAP:
                 entry.longest = max(entry.longest, len(token))
+            if kind in NER_KINDS:                                      # 문자열로 되찾는다(D-126) — 정규식을 다음 _hits에서 다시 만든다
+                entry.ner.append((token, kind))
+                entry.ner_kind[nk] = kind
+                entry.ner_re = None
         return entry.by_value[key]
 
     def restore(self, session: str, text: str,
@@ -298,8 +336,19 @@ class TokenVault:
 
     @staticmethod
     def _hits(entry: _Session, text: str, found: list[Finding] | None = None) -> list[Finding]:
-        """text 안의 대체값. `found`는 호출자가 이미 한 탐지(text의 find_all) — 한 번만 훑게(D-120)."""
-        return [f for f in (find_all(text) if found is None else found) if norm_key(f.kind, text[f.start:f.end]) in entry.by_key]
+        """text 안의 대체값. `found`는 호출자가 이미 한 탐지(text의 find_all) — 한 번만 훑게(D-120).
+        이름·주소·직장의 대체값(D-126)은 세션의 정규식으로 찾아 더한다 — 정규식 종류의 대체값과 겹치면 정규식 종류가 우선이다."""
+        hits = [f for f in (find_all(text) if found is None else found) if norm_key(f.kind, text[f.start:f.end]) in entry.by_key]
+        if not entry.ner:
+            return hits
+        if entry.ner_re is None:
+            entry.ner_re = _ner_pattern(entry)
+        ner: list[Finding] = []
+        for m in entry.ner_re.finditer(text):
+            kind = entry.ner_kind.get(norm_key("person", m.group(0)))     # 정규화가 어긋나는 글자면(없어야 한다) 버린다 — KeyError로 500을 내지 않는다
+            if kind is not None:
+                ner.append(Finding(kind, m.start(), m.end(), "strong"))
+        return _merge_free(hits, ner)
 
     def residual(self, session: str, text: str, found: list[Finding] | None = None) -> int:
         """복원 뒤에도 남은 대체값 수. 0이어야 정상이며 감사 로그로 감시한다."""
@@ -325,13 +374,16 @@ class TokenVault:
         window = text[-SHORT:] if entry.prefixes else ""
         for i in range(len(window)):
             tail = window[i:]
+            if tail[0].isspace():
+                continue                  # 보류는 공백이 아닌 글자에서 시작한다 — 접두사 집합에 공백으로 시작하는 것은 없다(D-126)
             if tail[0].isdigit() or tail[0] == "+":
                 # 숫자 종류는 숫자열로, IPv4는 점이 든 그대로(`203.47`) 앞부분을 본다(D-117)
                 if all(c.isdigit() or c in "+-.() \t" for c in tail) and (digits(tail) in entry.prefixes or tail in entry.prefixes) \
                         or tail == "+" and "+" in entry.prefixes:
                     best = len(tail)
                     break
-            elif tail.lower() in entry.prefixes or tail in entry.prefixes:
+            # 숫자로 시작해도 글자가 섞인 꼬리('131동 38')는 아래로 내려온다(D-126 리뷰). 공백을 뺀 꼬리도 본다 — 주소 대체값 '서울특별시 강'이 조각 끝에 걸린다
+            if tail.lower() in entry.prefixes or tail in entry.prefixes or "".join(tail.split()).lower() in entry.prefixes:
                 best = len(tail)
                 break
         if entry.long:
@@ -343,13 +395,22 @@ class TokenVault:
                     best = max(best, len(window) - pos[len(norm) - k])
         return best
 
+    def leftovers(self, session: str, text: str, found: list[Finding] | None = None) -> tuple[int, int]:
+        """(복원 뒤 남은 대체값 수, 의심 잔여) — `_hits` 한 번으로. 응답마다 residual·suspect가 따로 훑던 것을 합쳤다(D-126 리뷰)."""
+        entry = self._live(session)
+        if entry is None:
+            return 0, 0
+        hits = self._hits(entry, text, found)
+        return len(hits), self._suspect(entry, text, hits)
+
     def suspect(self, session: str, text: str, found: list[Finding] | None = None) -> int:
         """복원 뒤 사용자에게 보이는 text의 의심 잔여(D-113): 남은 대체값 수 + 대체값이 통째로는 없는데 그 식별 조각
         (전화·카드의 끝 4자리, 이메일 로컬파트)이 원래 값에는 없이 나타난 대체값 수. 조각은 한 번 훑어 집합으로 본다."""
         entry = self._live(session)
-        if entry is None:
-            return 0
-        hits = self._hits(entry, text, found)
+        return self._suspect(entry, text, self._hits(entry, text, found)) if entry else 0
+
+    @staticmethod
+    def _suspect(entry: _Session, text: str, hits: list[Finding]) -> int:
         present = {norm_key(f.kind, text[f.start:f.end]) for f in hits}
         quads = {m.group(0)[i:i + 4] for m in DIGIT_RUN_RE.finditer(text) for i in range(len(m.group(0)) - 3)}
         words = {w.lower() for w in WORD_RE.findall(text)}

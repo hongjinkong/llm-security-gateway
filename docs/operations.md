@@ -112,6 +112,7 @@ kustomize는 이름에 해시가 붙은 옛 Secret·ConfigMap을 지우지 않�
 | `gateway_pii_restored_total` · `gateway_pii_residual_total` · `gateway_pii_suspect_total` | 복원 수 · 복원 뒤 남은 가짜 값 · 의심 잔여(남은 가짜 값 + 가짜 값의 끝 4자리·로컬파트만 나타난 경우) |
 | `gateway_pii_new_total` | 응답에 새로 나온 PII·비밀(가리지 않는다) |
 | `gateway_upstream_ms_sum`·`_count`, `gateway_total_ms_sum`·`_count` | 지연 합·횟수 — 평균은 `rate(_sum) / rate(_count)` |
+| `gateway_detect_errors_total{reason}` | 이름·주소 탐지 사이드카 실패 수(사유별 — `connect`·`timeout`·`http_<상태>`·`bad_response`). `GATEWAY_DETECT_FAIL=open`·`detect` 정책에서는 요청이 200으로 지나가므로 **이것만이 장애 신호**다 |
 | `gateway_vault_sessions{policy}` | 진행 중인 대체값 세션 수(게이지, 정책마다). 2,000에 닿은 정책은 503 `gateway_busy` |
 | `gateway_upstream_connections_in_use{upstream}` | 빌려 간 상류 연결 수(게이지, 상류 주소마다 — 주소가 같아도 `timeout`이 다르면 풀이 따로라 가장 바쁜 풀의 값). `GATEWAY_MAX_CONNECTIONS`에 닿으면 새 요청이 기다리다 503 `upstream_busy` |
 
@@ -203,6 +204,7 @@ scrape_configs:
 | `rejected` | 거절 | `not_found` | 허용 목록 밖 경로(인증 전에 걸러져 줄의 클라이언트·정책·API가 비어 있다) | 404 | 없음 |
 | `rejected` | 거절 | `gateway_busy` | 게이트웨이 바쁨(진행 중인 대체값 세션 상한) | 503 | 없음 |
 | `rejected` | 거절 | `upstream_busy` | AI 연결 가득(빈 상류 연결을 5초 기다려도 없음) | 503 | 없음 |
+| `rejected` | 거절 | `detect_unavailable` | 이름·주소 탐지기 응답 없음(이름·주소를 가리는 정책인데 탐지 사이드카가 연결 거부·5xx·시간 초과·이상한 응답, `GATEWAY_DETECT_FAIL=closed`) | 503 | 없음 |
 | `rejected` | 거절 | `http_<상태>` | 사유 코드가 없는 거절 — 나오지 않아야 한다(나오면 게이트웨이 버그다) | 그 상태 | 없음 |
 | `upstream_error` | AI 회사 오류 | `upstream_<상태>` | AI 회사가 준 오류를 그대로 전달(예: `upstream_429`) | 상류가 준 상태 | 있음 |
 | `upstream_error` | AI 회사 오류 | `upstream_stream_error` | AI 회사가 스트림 도중 오류를 보냄 | 200 | 있음 |
@@ -213,9 +215,11 @@ scrape_configs:
 | `failed` | 오류·끊김 | `CancelledError` | 처리 중 취소됨 — 스트림 도중 클라이언트가 끊었거나(200), 종료·재시작 때 유예(25초)를 넘긴 진행 중 요청을 게이트웨이가 끝냄(500) | 200·500 | 경우에 따라 |
 | `failed` | 오류·끊김 | 그 밖의 예외 이름 | 게이트웨이 내부 오류(예외 이름을 함께 보인다) | 500(스트림 도중이면 200) | 경우에 따라 |
 
-**종류별 가린 개수** — 12종을 많은 순으로 막대와 수로 보이고, 아래 한 줄에 '기록만'(가리지 않은) 종류별 수를 보인다. 화면의 종류 이름:
+**종류별 가린 개수** — 15종을 많은 순으로 막대와 수로 보이고, 아래 한 줄에 '기록만'(가리지 않은) 종류별 수를 보인다. 화면의 종류 이름:
 `rrn` 주민등록번호 · `frn` 외국인등록번호 · `passport` 여권번호 · `driver` 운전면허번호 · `card` 카드번호 · `phone` 전화번호 · `email` 이메일 · `secret` 자격 증명 ·
-`brn` 사업자등록번호 · `crn` 법인등록번호 · `account` 계좌번호 · `ipv4` IP 주소. 인젝션 룰: `R1` 지시 무효화 · `R2` 역할 전환·제약 해제.
+`brn` 사업자등록번호 · `crn` 법인등록번호 · `account` 계좌번호 · `ipv4` IP 주소 · `person` 이름 · `address` 주소 · `org` 직장(이름·주소·직장은 탐지 사이드카를 켠 정책에서만 나온다).
+인젝션 룰: `R1` 지시 무효화 · `R2` 역할 전환·제약 해제. 사이드카가 실패한 줄은 처리 문장 끝에 '이름·주소 탐지 실패(사유)'가 붙고(`open`이면 결과는 가림·그대로지만 이름·주소는 가리지 못했다),
+stats의 `detect_errors`·지표 `gateway_detect_errors_total{reason}`에 사유별로 쌓인다.
 
 **최근 요청** — 최신이 위, 200줄. 열은 시각(로컬) · 요청 ID · 클라이언트·정책 · API·모델 · 결과 · 어떻게 처리했나 · 복원(복원/발급, 의심·새 값 배지) · HTTP · 게이트웨이 ms다.
 '어떻게 처리했나'의 예:
@@ -244,6 +248,32 @@ scrape_configs:
 
 **밖으로 열지 않는다.** 인그레스로 `/__gateway/*`를 열지 않는다 — 클라이언트에게 필요한 경로는 `/v1/*`뿐이다. 원격에서 볼 때는 port-forward를 쓰거나 TLS 뒤에 둔다 —
 관리 키가 폴링마다 `Authorization` 헤더로 지나간다.
+
+## 탐지 사이드카
+
+이름·주소·직장(`person`·`address`·`org`)은 별도 컨테이너 [`detect/`](../detect/README.md)(한국어 NER, ONNX Runtime, 모델 `1T/veil-pii-ko-lite` INT8 — 리비전·SHA-256 고정)가 찾는다(D-126).
+정책이 `pii_kinds`에 그 종류를 넣어야 켜지고(기본 꺼짐), `GATEWAY_DETECT_URL`이 필요하다([설정](configuration.md#이름주소-가림-personaddressorg)). 사이드카는 인증이 없으므로 같은 파드(`127.0.0.1:8081`)나
+내부 네트워크에만 둔다 — 원문을 저장·기록하지 않는다(접근 로그 끔).
+
+- **배포**: compose는 서비스 `detect`(이미지는 빌드 때 모델 143MB를 받는다), k8s 견본은 같은 파드의 둘째 컨테이너(`ghcr.io/hongjinkong/llm-security-gateway-detect`, readinessProbe `/health` —
+  파드는 두 컨테이너가 다 준비돼야 Ready). 메모리는 M2에서 기동 직후 물리 점유 약 590MiB, 요청 뒤 약 620MiB(RSS 410~500MiB — 모델 143MB + ONNX 런타임·아레나, 돌려주지 않는다) — 요청 768Mi·상한 1Gi,
+  CPU 요청 1(ONNX 스레드 4). x86 컨테이너의 값은 다를 수 있다(`compose up` 때 `docker stats`로 한 번 본다).
+  게이트웨이는 기동 때 사이드카를 확인하지 않는다 —
+  사이드카가 아직 없으면 요청이 아래 '실패 동작'을 따른다.
+- **용량**: 사이드카는 한 번에 추론 하나를 돌린다(나머지는 줄을 선다) — 처리량은 1 ÷ 지연이다. x86 4 vCPU(GitHub 러너, AMD EPYC)에서 510토큰 HTTP p95 201.5ms, 32·64·128·256토큰은 15·30·42·86ms(D-125 §6).
+  게이트웨이는 **캐시에 없는 텍스트만** 보낸다(텍스트의 SHA-256 → 구간, 정책 검사기마다 4,096개): 매 턴 다시 오는 이력은 캐시에서 나오고 새 메시지만 간다. 12,000자를 넘는 텍스트는 256자 겹쳐 잘라
+  12,000자마다 호출 하나다 — **창 하나(12,000자)는 M2에서 한글 낱말 열 약 1.1초, 숫자 열 2.8초, 구두점 섞인 영문·한자 5.5~5.7초**(토큰 수가 글자 종류에 따라 다르다). 기본 기한 10초면 한글 문서
+  약 9만 자, 숫자·코드·한자가 많은 문서는 약 2만 자(창 둘)부터 `closed`에서 503이다. 긴 문서를 자주 보내는 정책은 `GATEWAY_DETECT_TIMEOUT`을 늘리거나 `detect`·`open`으로 두고, 사이드카가 병목이면 파드 수를 늘린다.
+  M2에서 실제 사이드카를 붙여 잰 게이트웨이 경유 지연은 DECISIONS D-126 §6에 있다.
+- **실패 동작**(`GATEWAY_DETECT_FAIL`): `closed`(기본) — 이름·주소를 가리는 `mask` 정책의 요청은 상류에 보내지 않고 503 `detect_unavailable`(`retry-after: 1`, 감사 `error`, 검사기 항목에
+  `ner_error`·`ner_ms`). `open` — 정규식 종류만 가리고 보내며 감사 줄 검사기 항목에 `ner_error`(`connect`·`timeout`·`http_<상태>`·`bad_response`)가 남는다. `detect` 정책과 감사만 종류(`org` 기본)만
+  켠 정책은 늘 통과한다(`ner_error`만). 어느 경우든 지표 `gateway_detect_errors_total{reason}`·stats `detect_errors`·대시보드 줄의 '이름·주소 탐지 실패(사유)'로 보인다 — `open`으로 바꾸면 503은
+  사라지지만 이름·주소는 가려지지 않은 채 나가므로 이 지표를 본다.
+- **감사 줄**: 검사기 항목에 `ner_ms`(사이드카에 쓴 시간 — 모두 캐시면 0에 가깝다)·`ner_error`. 종류 `person`·`address`·`org`는 `pii`·`unmasked`와 지표 `gateway_pii_masked_total{kind}`에 그대로 든다.
+- **정확도·복원의 한계**: 모델의 F1은 합성 문장 0.963·실제 대화(KDPII) 0.895 — 놓친 이름은 그대로 나가고 잘못 잡은 보통 명사는 가짜 이름이 된다. 모델이 성만 부르거나("김 고객님") 주소 일부만 되풀이하면
+  가짜 값 문자열이 통째로 없어 **복원되지 않고** 의심 잔여에도 잡히지 않는다. 응답에 새로 나온 이름은 세지 않는다(`pii_new`는 정규식 종류).
+- **모델 바꾸기**: `detect/models.json`에 고정된 다른 이름으로 이미지를 빌드한다(`--build-arg MODEL=…`). 모델이 바뀌면 같은 텍스트의 구간이 달라질 수 있다 — 가짜 값 자체는 원문과 키로만 정해지므로
+  이미 가린 값의 대체값은 그대로다.
 
 ## 용량
 
@@ -285,6 +315,7 @@ CHANGELOG를 읽고 이미지 주소를 바꿔 apply한다(롤링). 탐지 규�
 | 파드가 뜨지 않음(CrashLoopBackOff) | — | `kubectl logs`의 stderr — 기동 거부 문장이 고칠 것을 말한다(클라이언트 없음, 대체값 키 없음·짧음, `key_env` 값 없음, 설정 파일 오류) |
 | 401이 늘어남 | `error: unauthorized`, `client: null`, `policy: null` | 클라이언트 키 회전 중인가, 클라이언트의 키 |
 | 403 | `error: model_not_allowed` | 정책 `allowed_models` |
+| 503 `detect_unavailable`가 늘어남 | `error: detect_unavailable` | 탐지 사이드카 컨테이너(`kubectl logs <파드> -c detect`, `/health`), `GATEWAY_DETECT_URL`, 긴 요청이면 `GATEWAY_DETECT_TIMEOUT` — 급하면 `GATEWAY_DETECT_FAIL=open` |
 | 413 | `error: request_too_large`·`too_many_findings` | 본문 상한, 대량 데이터를 그대로 보내는 클라이언트 |
 | 502·504 | `error`(예외 이름)·`upstream_ms` | 나가는 연결·DNS, 상류 장애·지연, `GATEWAY_TIMEOUT` |
 | 503 | `error: upstream_busy`·`gateway_busy` | 상류 지연·풀 크기, 파드 수 |

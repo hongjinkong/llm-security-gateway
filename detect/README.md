@@ -1,8 +1,9 @@
-# 탐지 사이드카(`detect/`) — 실험용, v1.0에 넣지 않음
+# 탐지 사이드카(`detect/`) — 이름·주소·직장 NER
 
 게이트웨이와 따로 도는 컨테이너다(FastAPI + ONNX Runtime + tokenizers, torch 없음). 이름·주소·직장처럼 정규식으로 잡을 수 없는 개인정보를 한국어 NER 모델로 찾는다.
-**채택 게이트(결정 표 7번: x86 CPU에서 512토큰 이하 p95 +40ms 이하, F1 0.85 이상)를 넘은 모델이 없어 게이트웨이는 이것을 부르지 않는다** —
-정확도가 되는 모델(KoELECTRA-base)은 너무 느리고, 빠른 모델(KoELECTRA-small)은 실제 대화에서 많이 틀린다(KDPII 정밀도 0.45·재현율 0.55). 수치와 근거는 [`DECISIONS.md`](../DECISIONS.md)의 D-125.
+게이트웨이는 정책이 `pii_kinds`에 `person`·`address`·`org`를 넣고 `GATEWAY_DETECT_URL`을 줬을 때만 부른다(D-126, 기본 꺼짐 — 지연을 받아들이는 정책만 켠다).
+기본 모델은 측정한 다섯 가운데 F1이 합성 문장·실제 대화(KDPII) 둘 다 0.85를 넘은 유일한 `1T/veil-pii-ko-lite` INT8(0.963·0.895)이다 — x86 4 vCPU에서 510토큰 HTTP p95 201.5ms로
+처음의 '+40ms' 게이트는 넘지 못했다(D-125). 빠른 모델(KoELECTRA-small)은 실제 대화에서 많이 틀린다(KDPII 정밀도 0.45·재현율 0.55). 수치와 근거는 [`DECISIONS.md`](../DECISIONS.md)의 D-125·D-126.
 18단계(인젝션 분류기)가 같은 사이드카에 작업을 더하고, 새 후보가 나오면 같은 자로 다시 잰다.
 
 ```

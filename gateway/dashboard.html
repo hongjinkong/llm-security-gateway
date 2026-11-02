@@ -126,11 +126,13 @@ const K = "gw-admin-key";   // sessionStorage 이름 — scripts/traffic.py가 �
 const OUT = {masked: "가림 후 전달", passed: "그대로 전달", observed: "기록만", blocked: "차단", rejected: "거절",
   upstream_error: "AI 회사 오류", failed: "오류·끊김"};
 const KIND = {rrn: "주민등록번호", frn: "외국인등록번호", passport: "여권번호", driver: "운전면허번호", card: "카드번호", phone: "전화번호",
-  email: "이메일", secret: "자격 증명", brn: "사업자등록번호", crn: "법인등록번호", account: "계좌번호", ipv4: "IP 주소"};
+  email: "이메일", secret: "자격 증명", brn: "사업자등록번호", crn: "법인등록번호", account: "계좌번호", ipv4: "IP 주소",
+  person: "이름", address: "주소", org: "직장"};
 const RULE = {R1: "지시 무효화", R2: "역할 전환·제약 해제"};
 const REASON = {unauthorized: "키 없음·틀림", rate_limited: "분당 한도", request_too_large: "본문 상한",
   too_many_findings: "개인정보가 너무 많음", model_not_allowed: "허용 안 된 모델", not_found: "허용 목록 밖 경로",
-  gateway_busy: "게이트웨이 바쁨", upstream_busy: "AI 연결 가득", response_too_large: "AI 응답이 너무 큼", upstream_stream_error: "AI 회사가 스트림 도중 오류를 보냄",
+  gateway_busy: "게이트웨이 바쁨", upstream_busy: "AI 연결 가득", detect_unavailable: "이름·주소 탐지기 응답 없음",
+  response_too_large: "AI 응답이 너무 큼", upstream_stream_error: "AI 회사가 스트림 도중 오류를 보냄",
   ClientDisconnect: "클라이언트가 끊음", CancelledError: "처리 중 취소됨", injection_rule_turn: "이번 턴의 수상한 지시",
   pii_mask: "개인정보를 가짜 값으로 바꿈", masked_turns: "이력의 수상한 턴을 가림", injection_observe: "수상한 지시 — 기록만",
   unmasked: "가리지 않는 개인정보 — 기록만", none: "해당 없음"};
@@ -166,7 +168,8 @@ function reasonLabel(o, r) {
 
 // '어떻게 처리했나' — D-124 §2-7 문장 규칙. '상류 호출 없음'은 blocked·rejected 줄에만 붙는다(upstream_ms가 늘 null).
 function how(r) {
-  const rs = String(r.reason), st = r.status, rules = r.rules || [], um = kinds(r.unmasked), tail = um ? ` · 기록만: ${um}` : "";
+  const rs = String(r.reason), st = r.status, rules = r.rules || [], um = kinds(r.unmasked),
+    tail = (um ? ` · 기록만: ${um}` : "") + (r.ner_error ? ` · 이름·주소 탐지 실패(${r.ner_error}) — 이름·주소는 가리지 못함` : "");
   const codes = [...new Set(rules.map(h => h.rule))].join(" · "), named = [...new Set(rules.map(rname))].join(" · ");
   const turns = r.masked_turns ? `이력 ${r.masked_turns}턴 가림` + (named ? `(${named})` : "") : "";
   const at = st === 200 ? `스트림 도중, ${rs}` : `${st} ${rs}`;

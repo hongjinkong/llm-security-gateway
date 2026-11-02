@@ -25,9 +25,17 @@ CATALOG: dict[str, dict[str, str]] = {
         "ko": "GATEWAY_SURROGATE_KEY가 없거나 32자보다 짧다 — PII mask 모드는 결정적 대체값 키가 필요하다(D-111). `python -m gateway keygen`으로 만들어 넣는다",
         "en": "GATEWAY_SURROGATE_KEY is missing or shorter than 32 characters — PII mask mode needs a deterministic surrogate key. "
               "Create one with `python -m gateway keygen`"},
+    "no_detect_url": {
+        "ko": "GATEWAY_DETECT_URL이 없다 — 정책 {policies}이(가) 이름·주소·직장(person·address·org)을 켰다(D-126). 탐지 사이드카(detect/)의 주소를 넣거나 "
+              "그 종류를 pii_kinds에서 뺀다",
+        "en": "GATEWAY_DETECT_URL is empty — policy {policies} enables person/address/org (name and address masking). "
+              "Set the detect sidecar (detect/) URL or remove those kinds from pii_kinds"},
     # 설정 오류
     "choice": {"ko": "{var}는 {allowed} 중 하나여야 한다: {value!r}", "en": "{var} must be one of {allowed}: {value!r}"},
     "kinds": {"ko": "{where}는 {kinds} 중에서 고른다: {items!r}", "en": "{where}: choose from {kinds}: {items!r}"},
+    "positive": {"ko": "{var}는 0보다 큰 초(유한한 수)여야 한다: {value!r}", "en": "{var} must be a finite number of seconds greater than 0: {value!r}"},
+    "detect_url": {"ko": "GATEWAY_DETECT_URL은 `http(s)://호스트[:포트]` 모양이어야 한다(경로·쿼리 없이): {value!r}",
+                   "en": "GATEWAY_DETECT_URL must look like `http(s)://host[:port]` (no path or query): {value!r}"},
     "roles": {"ko": "GATEWAY_PII_ROLES는 {roles}(developer = system) 중에서 고른다: {spec!r}",
               "en": "GATEWAY_PII_ROLES: choose from {roles} (developer = system): {spec!r}"},
     "empty_client_key": {"ko": "GATEWAY_CLIENT_KEYS: 빈 키가 있다 (형식: 이름=키,이름2=키2)",

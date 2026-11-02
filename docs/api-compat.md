@@ -20,7 +20,7 @@
 info·metrics·stats는 `Authorization: Bearer` 관리 키가 맞을 때만 200이다 — 키 없음·틀린 키·`?key=`·Basic·관리 키 미설정은 404. 이 경로들은 감사 로그·지표·레이트리밋에 들어가지 않는다.
 그 밖의 경로·메서드는 404이고 상류에 연결하지 않는다(어떤 메서드가 있는지 알리지 않으려고 405도 404로 답한다). 끝에 `/`를 붙인 경로(`/v1/chat/completions/` 등)도 리다이렉트(307) 없이 404다. FastAPI 기본 문서 경로(`/docs`·`/redoc`·`/openapi.json`)는 없다.
 
-처리 순서: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 파싱(400) → 허용 모델(403) → 인젝션 → PII → 상류 → 복원 → 감사 한 줄.
+처리 순서: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 파싱(400) → 허용 모델(403) → 인젝션 → PII(이름·주소를 켠 정책은 여기서 탐지 사이드카를 부른다) → 상류 → 복원 → 감사 한 줄.
 401·429·413·403은 본문을 검사하지도 중계하지도 않는다.
 
 ## API별 검사·복원 범위
@@ -99,7 +99,7 @@ info·metrics·stats는 `Authorization: Bearer` 관리 키가 맞을 때만 200�
 | 429 | `rate_limit_exceeded` | 분당 상한(`retry-after`) | 없음 |
 | 500 | `internal_error` | 게이트웨이 내부 예외 — `x-gateway-request-id`로 감사 줄을 찾는다 | — |
 | 502 | `upstream_unavailable` · `upstream_response_too_large` | 상류 연결 실패 · 비스트리밍 응답이 32MiB 초과 | 시도함 |
-| 503 | `upstream_busy` · `gateway_busy` | 빈 상류 연결을 5초 기다려도 없음 · 진행 중인 대체값 세션이 상한(워커·정책당 2,000) — 둘 다 `retry-after: 1` | 없음 |
+| 503 | `upstream_busy` · `gateway_busy` · `detect_unavailable` | 빈 상류 연결을 5초 기다려도 없음 · 진행 중인 대체값 세션이 상한(워커·정책당 2,000) · 이름·주소를 가리는 정책인데 탐지 사이드카가 답하지 못함(`GATEWAY_DETECT_FAIL=closed`) — 모두 `retry-after: 1` | 없음 |
 | 504 | `upstream_timeout` | 상류 연결(5초)·쓰기(30초)·읽기(`GATEWAY_TIMEOUT`) 시간 초과. 스트림 도중이면 이미 200을 보냈으므로 스트림이 끊기고 감사 `error`에 남는다 | 시도함 |
 
 ## 차단 응답 (`GATEWAY_INJECTION=block`)

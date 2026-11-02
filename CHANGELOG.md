@@ -2,6 +2,12 @@
 
 ## 미출시
 
+- 이름·주소 가림(D-126, 정책에서 켬): PII 종류 `person`·`address`·`org`를 더했다 — 정규식이 아니라 탐지 사이드카(`detect/`, 한국어 NER `1T/veil-pii-ko-lite` INT8)가 찾는다.
+  **기본은 꺼짐**(`GATEWAY_PII_KINDS` 기본은 정규식 12종 그대로) — 정책 `pii_kinds`에 `person,address`를 더하고 `GATEWAY_DETECT_URL`을 주면 켜진다(없으면 기동 실패). `org`는 기본 감사만.
+  새 환경변수 `GATEWAY_DETECT_URL`·`GATEWAY_DETECT_TIMEOUT`(10초)·`GATEWAY_DETECT_FAIL`(`closed` — 503 `detect_unavailable`·`open`). 가짜 이름은 성 + 이름(받침 부류 유지), 가짜 주소는 시·도·시·군·구 유지,
+  복원은 발급한 문자열 찾기(공백 변형 포함), 이력은 캐시(텍스트 해시)로 사이드카에 다시 가지 않는다. 겹치면 정규식 우선, 시·도만인 주소는 감사만. 감사 `ner_ms`·`ner_error`, 대시보드 종류 15.
+  compose에 서비스 `detect`, k8s 견본에 같은 파드의 둘째 컨테이너. 지표 `gateway_detect_errors_total{reason}`·stats `detect_errors`·대시보드 줄 `ner_error`(사이드카 실패 — `open`에서는 이것만이 신호).
+  **바뀐 기본값**: `GATEWAY_PII_DETECT_KINDS` 기본에 `org`가 더해졌다(켜지 않으면 영향 없음)
 - 쉽게 읽는 제품 설명서(`docs/overview/LLM보안게이트웨이_제품설명서.pdf`, 원본 `overview.html`): 앱·웹이 아닌 자체 설치형 서버라는 점, 지켜 주는 범위, 구조·요청 흐름 그림, 시나리오 6개와 오류 표, 화면 A~E(비교 데모·대시보드 예시·감사 줄·설정 파일), 도입 4단계, 한계, 숫자, 진행 상황과 v1.0 모습, FAQ·용어 풀이
 - 실 공급자 2턴 확인(D-114): Claude(`claude-haiku-5-5`) 앞에서 둘째 턴이 thinking 서명 검사 400 없이 프롬프트 캐시를 읽었다 — 요청마다 난수였던 옛 코드는 5/5가 400
   (`docs/verification/multiturn_claude.md`, `scripts/check_multiturn_claude.py`)

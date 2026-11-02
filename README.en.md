@@ -43,7 +43,8 @@ upstream  OpenAI · Anthropic · OpenAI-compatible servers (Ollama, vLLM, …)
 The kind name is used in audit logs, metrics (`kind`) and `GATEWAY_PII_KINDS`. Detection looks at the shape only; context words (within 20 characters) decide only whether to mask —
 so that a fake value coming back without context can still be restored. Formats that cannot be told apart from ordinary numbers without context are not supported.
 **Audit-only** kinds are detected and recorded (`unmasked`) but sent as is — remove them from `GATEWAY_PII_DETECT_KINDS` to mask them.
-Recall is measured on the synthetic corpus with masking on (`eval/pii/`, 100 positives per kind; false positives on 1,200 number-dense business sentences: 3 in total, 0.2%).
+Recall is measured on the synthetic corpus with masking on (`eval/pii/`, 100 positives per kind; false positives on 1,200 number-dense business sentences: 3 in total, 0.2%). For names, addresses and
+workplaces it is the model's recall on real dialogue (KDPII test) with F1 in parentheses (`eval/ner/`, DECISIONS D-125 §6).
 
 | Kind | Format | Validation | Default | Not masked / not supported | Recall |
 |---|---|---|---|---|---|
@@ -59,11 +60,20 @@ Recall is measured on the synthetic corpus with masking on (`eval/pii/`, 100 pos
 | Corporate registration no. `crn` | `134511-0012340` (hyphen) | checksum | **audit only** | numbers shaped like an `rrn` are masked as `rrn` unless "법인" is nearby | 89 |
 | Bank account `account` | 14 hyphenated bank formats (KB, Shinhan, Woori, Hana, NH, IBK, Kakao, Toss, K bank, Post Office, SC, MG) | — | **audit only** | audit-only without account context; no separators, spaces | 64 |
 | IPv4 `ipv4` | public addresses (private, reserved, multicast and `.0` addresses excluded) | — | **audit only** | audit-only near "version/build/firmware"; four-part version numbers without context are taken for addresses; IPv6 | 100 |
+| Person `person` | Korean NER model in the detect sidecar ([`detect/`](detect/README.md)) — Korean and Latin names | model score | **off** (enable per policy) | about 10% missed and 10% over-masked (model F1 0.96 synthetic, 0.90 real dialogue); surname-only forms and nicknames depend on the model | real dialogue 91 (F1 synthetic 0.996 · KDPII 0.899) |
+| Address `address` | same model — from province/city down to the unit | model score | **off** (enable per policy) | audit-only when no token contains a digit (city, district, station or country names alone) | real dialogue 90 (F1 synthetic 0.963 · KDPII 0.878) |
+| Organization `org` | same model — companies, institutions, schools | model score | **off**, audit-only even when enabled | masking a company name breaks questions such as "Samsung Electronics share price" — remove it from `GATEWAY_PII_DETECT_KINDS` to mask | real dialogue 89 (F1 synthetic 0.879 · KDPII 0.900) |
+
+**Names, addresses and workplaces** (D-126) are found by a Korean NER model (`1T/veil-pii-ko-lite` INT8, Apache-2.0) running in a separate container, not by regexes. They are **off by default** —
+add `person,address` to a policy's `pii_kinds` and set `GATEWAY_DETECT_URL`. Each request then pays a sidecar round trip (about 200 ms for 510 tokens on a 4-vCPU x86 runner; history that
+comes back turn after turn is served from a cache, only new messages go to the sidecar) and accuracy is the model's. Fake names keep the final-consonant class of the original (so Korean particles still fit),
+fake addresses keep the province/city/district and change road, neighbourhood, building and numbers (digit count and last digit kept). Restoration looks for the issued strings — a model that
+repeats only the surname or part of an address is not restored. When the sidecar fails, `GATEWAY_DETECT_FAIL` decides (`closed` default: 503, `open`: regex kinds only). See [`docs/configuration.md`](docs/configuration.md).
 
 ## 2. What it does not stop
 
-- **Names, addresses and workplaces** pass through — regexes cannot find them. Five Korean NER models were measured in a sidecar ([`detect/`](detect/README.md)), but none met the adoption gate (x86 CPU p95 +40 ms or less up to 512 tokens, F1 0.85 or more), so NER is not in v1.0 (D-125): the accurate model (KoELECTRA-base, F1 0.895 on real KDPII dialogue) takes p95 214 ms for one 510-token window even on an M2, and the fast one (KoELECTRA-small, around the 40 ms gate on an M2) scores F1 0.490 on KDPII.
-- **Unstructured personal data and secrets** — only the twelve kinds above. IBANs, IPv6 and free-text sensitive data pass through, as do the unsupported formats in the table.
+- **Names, addresses and workplaces only in policies that enable them, and only as well as the model.** The default policy sends them as is. When enabled, names and addresses the model misses (about 10%) pass through, and ordinary words it mistakes for names become fake names. A model that repeats only the surname or part of an address is not restored and not counted as suspect. New names in responses are not counted. The fast model (KoELECTRA-small, around 40 ms) scores F1 0.490 on real dialogue, so it is not used (D-125).
+- **Unstructured personal data and secrets** — only the kinds above. IBANs, IPv6 and free-text sensitive data (medical history etc.) pass through, as do the unsupported formats in the table.
   Full-width digits, zero-width characters and dash variants are normalized and caught.
 - **Ambiguous numbers are not masked** — see the "not masked" column. Those values reach the upstream; they are recorded as `unmasked`.
 - **Business, corporate, account numbers and IPs are sent by default** (audit only). Enable them with `GATEWAY_PII_DETECT_KINDS` when you handle customer access logs or payments.
@@ -138,9 +148,12 @@ Invalid choices, kinds and roles and unknown or invalid config-file keys stop st
 | `GATEWAY_ADMIN_KEY` | (none) | Opens `/__gateway/info`, `/__gateway/metrics`, `/__gateway/stats` (`Authorization: Bearer`) and the dashboard (`/__gateway/dashboard`, key entered in the page); without it all four are 404 |
 | `GATEWAY_SURROGATE_KEY` | (none) | Deterministic surrogate key, 32+ characters; **required** when any policy masks. Keep it like a provider key. Rotating it is described in `docs/operations.md` |
 | `GATEWAY_PII` | `mask` | `mask` (replace and restore) · `detect` (audit only) · `off` |
-| `GATEWAY_PII_KINDS` | all twelve | Kinds to detect, comma-separated |
-| `GATEWAY_PII_DETECT_KINDS` | `account,brn,crn,ipv4` | Kinds that are detected but not masked; empty masks everything detected |
+| `GATEWAY_PII_KINDS` | the twelve regex kinds | Kinds to detect, comma-separated. `person`, `address` and `org` are not in the default — add them to have the detect sidecar find names, addresses and workplaces (`GATEWAY_DETECT_URL` required) |
+| `GATEWAY_PII_DETECT_KINDS` | `account,brn,crn,ipv4,org` | Kinds that are detected but not masked; empty masks everything detected |
 | `GATEWAY_PII_ROLES` | `user,assistant,tool,system` | Roles to mask (`developer` and Responses `instructions` are `system`) |
+| `GATEWAY_DETECT_URL` | (none) | Detect sidecar ([`detect/`](detect/README.md)) URL, e.g. `http://127.0.0.1:8081` in the same pod. **Start-up fails** when a policy with `pii_mode` other than `off` lists `person`/`address`/`org` and this is empty |
+| `GATEWAY_DETECT_TIMEOUT` | `10` | Overall deadline (seconds) for name/address detection of one request — one sidecar call per 12,000 characters |
+| `GATEWAY_DETECT_FAIL` | `closed` | What a `mask` policy with names/addresses does when the sidecar fails (refused, 5xx, timeout, bad response): `closed` — 503 `detect_unavailable` with `retry-after: 1`, nothing goes upstream; `open` — regex kinds only, audit `ner_error`. `detect` policies and audit-only kinds always pass |
 | `GATEWAY_INJECTION` | `observe` | `observe` (audit only) · `block` (blocked response, no upstream call) · `off` |
 | `GATEWAY_LANG` | `ko` | Language of user and operator messages: `ko` or `en`. API error bodies are always English |
 | `GATEWAY_BLOCKED_MESSAGE` | (catalog) | Text of the blocked response; the request ID is appended |

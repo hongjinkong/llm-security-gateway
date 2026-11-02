@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -r detect/requirements.txt \
  && useradd --system --uid 10001 --no-create-home detect
 COPY detect/__init__.py detect/app.py detect/decode.py detect/fetch.py detect/ner.py detect/models.json detect/
 # 가중치는 빌드할 때 고정 리비전에서 받아 SHA-256을 맞춘다(fetch.py) — 실행 중에는 네트워크가 필요 없다. 기동 때 NER이 해시를 다시 잰다.
-# 모델은 models.json의 이름 하나다(--build-arg MODEL=…). 기본은 정확도가 가장 높은 후보다 — 게이트를 넘은 모델은 아직 없다(D-125)
+# 모델은 models.json의 이름 하나다(--build-arg MODEL=…). 기본은 F1이 두 셋 다 0.85를 넘은 유일한 후보다(D-125) — 게이트웨이가 D-126부터 이것을 쓴다
 ARG MODEL=veil-ko-lite-int8
 RUN python -m detect.fetch "$MODEL" --dir /models && chmod -R a+rX /models
 

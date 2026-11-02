@@ -10,9 +10,11 @@ D-119: `GATEWAY_CONFIG`(TOML)가 있으면 `[[clients]]`(해시 키·정책)·`[
 from __future__ import annotations
 
 import hashlib
+import math
 import os
 import re
 import tomllib
+import urllib.parse
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -22,7 +24,9 @@ from gateway.auth import parse_client_keys
 from gateway.chain import DetectorChain
 from gateway.detectors.base import Detector
 from gateway.detectors.injection import InjectionRuleDetector
-from gateway.detectors.pii import ALL_KINDS, DETECT_ONLY, PIIDetector
+from gateway.detect_client import DetectClient
+from gateway.detectors.patterns import NER_KINDS
+from gateway.detectors.pii import ALL_KINDS, DETECT_ONLY, FAIL_MODES, REGEX_KINDS, PIIDetector
 from gateway import messages
 from gateway.messages import LANGS, ConfigError
 from gateway.openai_api import PII_ROLES
@@ -74,9 +78,12 @@ class Settings:
     upstream_key: str = ""                               # GATEWAY_UPSTREAM_KEY — 설정 파일에 없는 상류의 공급자 키
     injection: str = "observe"                           # GATEWAY_INJECTION — observe|block|off
     pii: str = "mask"                                    # GATEWAY_PII — mask|detect|off
-    pii_kinds: tuple[str, ...] = ALL_KINDS               # GATEWAY_PII_KINDS
+    pii_kinds: tuple[str, ...] = REGEX_KINDS             # GATEWAY_PII_KINDS — 기본은 정규식 12종. person·address·org(D-126)는 정책이 더해 켠다
     pii_detect_kinds: tuple[str, ...] = DETECT_ONLY      # GATEWAY_PII_DETECT_KINDS — 가리지 않고 감사에만(D-117)
     pii_roles: frozenset[str] = PII_ROLES                # GATEWAY_PII_ROLES — developer는 system의 별칭(D-112)
+    detect_url: str = ""                                 # GATEWAY_DETECT_URL — 탐지 사이드카(detect/) 주소. 비면 NER 없음(D-126)
+    detect_timeout: float = 10.0                         # GATEWAY_DETECT_TIMEOUT — 한 요청의 NER 전체 기한(초)
+    detect_fail: str = "closed"                          # GATEWAY_DETECT_FAIL — closed(503 detect_unavailable)|open(정규식 종류만 가리고 보냄)
     # 저수준 검사기 목록 — 있으면 injection·pii보다 우선, 빈 튜플은 검사기 없음. 환경변수가 없다(테스트·임베딩용, D-118)
     detectors: tuple[str, ...] | None = None
     allowed_models: tuple[str, ...] | None = None        # 정책의 허용 모델(fnmatch 글롭, D-119). None = 모두
@@ -127,9 +134,12 @@ class Settings:
             upstream_key=get("GATEWAY_UPSTREAM_KEY", ""),
             injection=_choice("GATEWAY_INJECTION", get("GATEWAY_INJECTION", "observe").lower(), INJECTION_MODES),
             pii=_choice("GATEWAY_PII", get("GATEWAY_PII", "mask").lower(), PII_MODES),
-            pii_kinds=_kinds(env, "GATEWAY_PII_KINDS", ALL_KINDS),
+            pii_kinds=_kinds(env, "GATEWAY_PII_KINDS", REGEX_KINDS),
             pii_detect_kinds=_kinds(env, "GATEWAY_PII_DETECT_KINDS", DETECT_ONLY),
             pii_roles=_roles(env.get("GATEWAY_PII_ROLES")),
+            detect_url=_detect_url(get("GATEWAY_DETECT_URL", "")),
+            detect_timeout=_positive("GATEWAY_DETECT_TIMEOUT", get("GATEWAY_DETECT_TIMEOUT", "10")),
+            detect_fail=_choice("GATEWAY_DETECT_FAIL", get("GATEWAY_DETECT_FAIL", "closed").lower(), FAIL_MODES),
         )
         path = env.get("GATEWAY_CONFIG", "").strip()
         return _with_config(base, Path(path), env) if path else base
@@ -250,6 +260,27 @@ def _kind_list(where: str, items: list[str]) -> tuple[str, ...]:
     return kinds
 
 
+def _positive(var: str, value: str) -> float:
+    """0보다 큰 유한한 초(D-126 리뷰) — 0·음수·nan·글자는 기동 거부. 0이면 모든 호출이 timeout이 되고 nan은 요청마다 500이다."""
+    try:
+        seconds = float(value)
+    except ValueError:
+        seconds = float("nan")
+    if not (seconds > 0 and math.isfinite(seconds)):
+        raise ConfigError("positive", var=var, value=value)
+    return seconds
+
+
+def _detect_url(value: str) -> str:
+    """`http(s)://호스트[:포트]` 모양만(D-126 리뷰) — 경로·쿼리가 붙으면 `/v1/detect`가 그 뒤에 붙어 404가 되고, 스킴이 없으면 첫 요청에서야 connect로 드러난다."""
+    if not value:
+        return ""
+    u = urllib.parse.urlsplit(value)
+    if u.scheme not in ("http", "https") or not u.netloc or u.path not in ("", "/") or u.query or u.fragment:
+        raise ConfigError("detect_url", value=value)
+    return value.rstrip("/")
+
+
 def _roles(spec: str | None) -> frozenset[str]:
     """가리는 역할을 좁힌다(D-112). 기본은 전부. developer는 system의 별칭. 모르는 이름은 ValueError."""
     if spec is None:
@@ -258,6 +289,16 @@ def _roles(spec: str | None) -> frozenset[str]:
     if not roles or roles - PII_ROLES:
         raise ConfigError("roles", roles=sorted(PII_ROLES), spec=spec)
     return roles
+
+
+def ner_policies(settings: Settings) -> list[str]:
+    """이름·주소·직장(NER 종류, D-126)을 켠 정책 이름 — pii_mode가 off가 아닌 것만. 비어 있지 않은데 GATEWAY_DETECT_URL이 없으면 기동 거부(main)."""
+    return [name for name, p in settings.policy_settings().items() if p.pii != "off" and set(p.pii_kinds) & set(NER_KINDS)]
+
+
+def _detect(s: Settings) -> DetectClient | None:
+    """정책이 NER 종류를 켰고 사이드카 주소가 있을 때만 클라이언트(캐시는 검사기마다, D-126)."""
+    return DetectClient(s.detect_url, s.detect_timeout) if s.detect_url and set(s.pii_kinds) & set(NER_KINDS) else None
 
 
 def detector_names(settings: Settings) -> list[str]:
@@ -271,10 +312,10 @@ def detector_names(settings: Settings) -> list[str]:
 # 이름 → 생성자(설정을 받는다). 테스트는 tests/chain_app.py에서 시험용 검사기를 더한 사전을 넘긴다.
 Registry = Mapping[str, Callable[[Settings], Detector]]
 DETECTOR_REGISTRY: Registry = {
-    "pii": lambda s: PIIDetector("detect", kinds=s.pii_kinds, roles=s.pii_roles),
+    "pii": lambda s: PIIDetector("detect", kinds=s.pii_kinds, roles=s.pii_roles, detect=_detect(s)),
     # 볼트 TTL은 상류 타임아웃보다 길다 — 긴 스트림 도중 매핑이 만료되면 복원이 깨진다(D-110).
     "pii_mask": lambda s: PIIDetector("mask", kinds=s.pii_kinds, max_findings=s.max_findings, roles=s.pii_roles,
-                                      detect_kinds=s.pii_detect_kinds,
+                                      detect_kinds=s.pii_detect_kinds, detect=_detect(s), detect_fail=s.detect_fail,
                                       vault=TokenVault(ttl=max(s.upstream(a).timeout for a in API_NAMES) + 60,
                                                        key=s.surrogate_key.encode() or None)),
     "injection_observe": lambda s: InjectionRuleDetector(mode="observe"),

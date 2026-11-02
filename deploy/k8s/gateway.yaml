@@ -1,4 +1,6 @@
 # 게이트웨이 Deployment·Service·PodDisruptionBudget(D-121). ConfigMap(gateway.toml)과 Secret(secret.env)은 kustomization.yaml이 만든다.
+# 파드마다 탐지 사이드카 컨테이너(detect, D-126)가 함께 돈다 — 이름·주소 가림을 켠 정책이 쓴다. 쓰지 않으면 그 컨테이너와 GATEWAY_DETECT_URL, 그리고 gateway.toml의 [policies.names]를
+# 함께 지운다 — 정책에 person·address가 남아 있으면 게이트웨이가 기동하지 않는다(어느 클라이언트가 그 정책을 쓰는지와 무관하다).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -43,6 +45,9 @@ spec:
           env:
             - name: GATEWAY_CONFIG
               value: /etc/llm-security-gateway/gateway.toml
+            # 같은 파드의 탐지 사이드카(아래 detect 컨테이너). 인증이 없으므로 파드 밖으로 열지 않는다
+            - name: GATEWAY_DETECT_URL
+              value: http://127.0.0.1:8081
             # 쉬는 연결을 75초 붙잡는다(uvicorn 기본 5초) — 인그레스·LB의 유휴 시간(ingress-nginx·AWS ALB 60초)보다 짧으면
             # LB가 게이트웨이가 막 닫은 연결로 POST를 보내 502가 난다. LB 없이 클라이언트를 직접 받으면 기본값이 낫다(D-122).
             - name: UVICORN_TIMEOUT_KEEP_ALIVE
@@ -75,6 +80,30 @@ spec:
             - name: config
               mountPath: /etc/llm-security-gateway
               readOnly: true
+        - name: detect
+          # 탐지 사이드카(detect/Dockerfile — 모델은 빌드 때 받아 이미지 안에 있다). 20단계 릴리스가 올리는 주소다. 그 전에는 직접 빌드해 올린 주소로 바꾼다
+          image: ghcr.io/hongjinkong/llm-security-gateway-detect:0.1.0
+          ports:
+            - name: detect
+              containerPort: 8081
+          # 파드는 게이트웨이와 사이드카가 다 준비돼야 Ready다 — 모델을 여는 데 몇 초 걸린다
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: detect
+            periodSeconds: 5
+          # 잠정값: 모델 143MB + ONNX 런타임 — M2에서 기동 직후 물리 점유 약 590MiB, 요청 뒤 약 620MiB(D-126 §6), 한 번에 추론 하나(스레드 4)
+          resources:
+            requests:
+              cpu: "1"
+              memory: 768Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
       volumes:
         - name: config
           configMap:

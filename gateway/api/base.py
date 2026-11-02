@@ -26,9 +26,10 @@ class TextRef:
 
 class ApiError(ValueError):
     def __init__(self, message: str, param: str | None = None, code: str = "invalid_request",
-                 status: int = 400, type_: str = "invalid_request_error") -> None:
+                 status: int = 400, type_: str = "invalid_request_error", meta: dict | None = None) -> None:
         super().__init__(message)
         self.param, self.code, self.status, self.type_ = param, code, status, type_
+        self.meta = meta or {}          # 거절한 검사기가 감사 줄에 남길 것(D-126 — `detector`와 ner_error·ner_ms). 원문은 넣지 않는다
 
 
 @dataclass

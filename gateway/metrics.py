@@ -9,6 +9,8 @@
   gateway_pii_restored_total / gateway_pii_residual_total   복원 건수 / 복원 뒤 남은 대체값 수
   gateway_pii_suspect_total                    의심 잔여 — 남은 대체값 + 대체값의 식별 조각(끝 4자리·로컬파트)만 나타난 경우(D-113)
   gateway_pii_new_total                        응답에 새로 나온 PII·비밀(우리가 가린 원문·발급한 대체값이 아닌 것, D-120) — 가리지 않는다
+  gateway_detect_errors_total{reason}          이름·주소 탐지 사이드카 실패(검사기 항목의 ner_error — connect·timeout·http_<상태>·bad_response, D-126). open·detect 정책에서는
+                                               이것만이 장애 신호다(요청은 200으로 지나간다)
   gateway_upstream_ms_sum/_count, gateway_total_ms_sum/_count   지연 합·횟수(평균은 나눠서)
   gateway_vault_sessions{policy}               진행 중인 대체값 세션(게이지, D-122) — 정책·워커당 2,000이면 503 gateway_busy
   gateway_upstream_connections_in_use{upstream} 빌려 간 상류 연결(게이지, D-122) — GATEWAY_MAX_CONNECTIONS면 기다리다 503 upstream_busy.
@@ -29,7 +31,7 @@ from gateway.audit import utcnow
 # 게이트웨이가 상류에 보내지 않고 거절한 요청의 감사 `error` 코드(D-124). 새 코드를 만들면 여기나 UPSTREAM_ERRORS에 넣는다 — 테스트가 소스를 훑어 지킨다.
 REJECTED = frozenset({"unauthorized", "rate_limited", "request_too_large", "too_many_findings", "model_not_allowed",
                       "invalid_json", "invalid_messages", "invalid_request", "invalid_stream", "not_found",
-                      "gateway_busy", "upstream_busy"})
+                      "gateway_busy", "upstream_busy", "detect_unavailable"})
 # 상류 호출 실패 — relay가 감사 `error`에 예외 이름을 적는다. 스트림 도중이면 상태가 200이다(이미 머리를 보냈다).
 # upstream_stream_error: 상류가 머리(200) 뒤 스트림 안에 보낸 오류 이벤트(Anthropic `event: error` overloaded_error 등, D-124).
 UPSTREAM_ERRORS = frozenset({c.__name__ for c in vars(httpx).values()
@@ -37,7 +39,7 @@ UPSTREAM_ERRORS = frozenset({c.__name__ for c in vars(httpx).values()
 OUTCOMES = ("masked", "passed", "observed", "blocked", "rejected", "upstream_error", "failed")
 RECENT = 200
 ROW_KEYS = ("ts", "request_id", "client", "policy", "api", "model", "status", "outcome", "reason", "gateway_ms", "upstream_ms",
-            "masked", "unmasked", "masked_turns", "rules", "issued", "restored", "suspect", "new")
+            "masked", "unmasked", "masked_turns", "rules", "issued", "restored", "suspect", "new", "ner_error")
 
 
 def _steps(rec: dict) -> list[dict]:
@@ -111,6 +113,7 @@ def row(rec: dict, result: tuple[str, str]) -> dict:
         "rules": [{"rule": _cut(h.get("rule"), 40), "trigger": _cut(h.get("trigger"), 40), "object": _cut(h.get("object"), 40)} for h in rules],
         "issued": rec.get("pii_issued", 0), "restored": rec.get("pii_restored", 0),
         "suspect": rec.get("pii_suspect", 0), "new": rec.get("pii_new", 0),
+        "ner_error": next((_cut(str(d["ner_error"]), 40) for d in steps if d.get("ner_error")), None),   # 사이드카 실패 사유(D-126)
     }
 
 
@@ -122,6 +125,7 @@ class Metrics:
         self.masked: Counter = Counter()
         self.unmasked: Counter = Counter()
         self.outcomes: Counter = Counter()
+        self.detect_errors: Counter = Counter()   # 이름·주소 탐지 사이드카 실패 사유별(D-126)
         # ponytail: 링은 하나다 — 부하 중에는 차단·거절 줄도 몇 초 안에 밀려난다. 필요해지면 passed·masked가 아닌 줄만 담는 두 번째 링을 둔다.
         self.recent: deque[dict] = deque(maxlen=RECENT)
         self.started = utcnow()                # 감사 줄 ts와 같은 형식. 이미지에서는 uvicorn이 PID 1이라 파드는 started로 가른다
@@ -140,6 +144,8 @@ class Metrics:
                     name = str(d.get("detector", ""))
                     if name.startswith("injection") and (d.get("rules") or d.get("would_block")):
                         self.injection["observe" if name == "injection_observe" else "block"] += 1
+                    if d.get("ner_error"):
+                        self.detect_errors[str(d["ner_error"])[:40]] += 1
                 masked, unmasked = _kinds(rec)
                 self.masked.update(masked)
                 self.unmasked.update(unmasked)
@@ -175,7 +181,7 @@ class Metrics:
                 "started": self.started, "now": utcnow(), "pid": self.pid, "max_connections": max_connections,
                 "requests": sum(self.requests.values()), "status": dict(status), "outcomes": outcomes,
                 "reasons": [{"outcome": o, "reason": r, "count": n} for (o, r), n in self.outcomes.most_common()],
-                "masked": dict(self.masked), "unmasked": dict(self.unmasked),
+                "masked": dict(self.masked), "unmasked": dict(self.unmasked), "detect_errors": dict(self.detect_errors),
                 "injection": {"observe": self.injection["observe"], "block": self.injection["block"]},
                 "restored": self.restored, "residual": self.residual, "suspect": self.suspect, "new": self.new,
                 "gateway_ms_avg": round((self.total_ms - self.upstream_ms) / self.total_n, 2) if self.total_n else None,
@@ -197,6 +203,8 @@ class Metrics:
             lines += [f'gateway_pii_masked_total{{kind="{_label(k)}"}} {n}' for k, n in sorted(self.masked.items())]
             lines.append("# TYPE gateway_pii_unmasked_total counter")
             lines += [f'gateway_pii_unmasked_total{{kind="{_label(k)}"}} {n}' for k, n in sorted(self.unmasked.items())]
+            lines.append("# TYPE gateway_detect_errors_total counter")
+            lines += [f'gateway_detect_errors_total{{reason="{_label(r)}"}} {n}' for r, n in sorted(self.detect_errors.items())]
             lines += ["# TYPE gateway_pii_restored_total counter", f"gateway_pii_restored_total {self.restored}",
                       "# TYPE gateway_pii_residual_total counter", f"gateway_pii_residual_total {self.residual}",
                       "# TYPE gateway_pii_suspect_total counter", f"gateway_pii_suspect_total {self.suspect}",

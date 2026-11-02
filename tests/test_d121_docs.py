@@ -53,7 +53,7 @@ def env_file_names(path: str | Path) -> set[str]:
 # ---------- S3 문서 = 코드 ----------
 
 def test_s3_recorder_sees_every_setting():
-    assert len(read_names()) == 22 and "GATEWAY_CONFIG" in read_names()
+    assert len(read_names()) == 25 and "GATEWAY_CONFIG" in read_names()      # D-126: GATEWAY_DETECT_URL·TIMEOUT·FAIL
 
 
 @pytest.mark.parametrize("path", ["docs/configuration.md", "README.en.md"])

@@ -24,7 +24,8 @@ from starlette.responses import JSONResponse
 from gateway.api import ApiError
 from gateway.api.anthropic import MessagesShape
 from gateway.api.responses import ResponsesShape
-from gateway.detectors.patterns import PRIORITY, find_all
+from gateway.detectors.patterns import find_all
+from gateway.detectors.pii import ALL_KINDS
 from gateway.main import DASHBOARD as HTML
 from gateway.main import INTERNAL_PREFIX, _csp, _gauges, router
 from gateway.metrics import OUTCOMES, RECENT, REJECTED, ROW_KEYS, UPSTREAM_ERRORS, Metrics, outcome, row
@@ -226,7 +227,7 @@ CASES = {
 }
 CODE_STATUS = {"unauthorized": 401, "rate_limited": 429, "request_too_large": 413, "too_many_findings": 413, "model_not_allowed": 403,
                "invalid_json": 400, "invalid_messages": 400, "invalid_request": 400, "invalid_stream": 400, "not_found": 404,
-               "gateway_busy": 503, "upstream_busy": 503}
+               "gateway_busy": 503, "upstream_busy": 503, "detect_unavailable": 503}
 
 
 @pytest.mark.parametrize("record, expected", CASES.values(), ids=list(CASES))
@@ -235,7 +236,7 @@ def test_w3_outcome_takes_the_first_rule_that_fits(record, expected):
     assert set(row(record, expected)) == set(ROW_KEYS)
 
 
-def test_w3_rejected_codes_are_the_12_in_the_spec():
+def test_w3_rejected_codes_are_the_13_in_the_spec():
     assert REJECTED == set(CODE_STATUS)          # D-124 §2-3 글자 그대로 — 코드를 빼거나 UPSTREAM_ERRORS로 옮겨도 여기서 안다
 
 
@@ -299,10 +300,10 @@ def test_w4_stats_has_no_original_or_surrogate_values(gw):
     assert (line["outcome"], line["reason"]) == ("masked", "pii_mask") and "R1" in {h["rule"] for h in line["rules"]}   # 가림이 기록만보다 먼저(§2-3)
 
 
-def test_w4_row_keys_are_the_19_in_the_spec():
-    """D-124 §2-4 글자 그대로 — 구현 상수(ROW_KEYS)와만 비교하면 상수와 row()에 ip를 함께 더해도 통과한다."""
+def test_w4_row_keys_are_the_20_in_the_spec():
+    """D-124 §2-4 글자 그대로(+ D-126의 ner_error) — 구현 상수(ROW_KEYS)와만 비교하면 상수와 row()에 ip를 함께 더해도 통과한다."""
     assert ROW_KEYS == ("ts", "request_id", "client", "policy", "api", "model", "status", "outcome", "reason", "gateway_ms",
-                        "upstream_ms", "masked", "unmasked", "masked_turns", "rules", "issued", "restored", "suspect", "new")
+                        "upstream_ms", "masked", "unmasked", "masked_turns", "rules", "issued", "restored", "suspect", "new", "ner_error")
     omitted = {"ip", "path", "query_keys", "req_sha256_12", "findings", "usage", "upstream_request_id", "config"}   # 싣지 않는 것
     assert not omitted & set(ROW_KEYS) and not omitted & set(row(rec(), ("passed", "none")))
 
@@ -315,7 +316,7 @@ def test_w4_row_takes_each_value_from_its_own_field():
         "ts": r["ts"], "request_id": r["request_id"], "client": "app", "policy": "default", "api": "chat", "model": "stub-model",
         "status": 200, "outcome": "masked", "reason": "pii_mask", "gateway_ms": 20.0, "upstream_ms": 880.0,
         "masked": {"phone": 1, "email": 1}, "unmasked": {"account": 6}, "masked_turns": 5, "rules": [HIT],
-        "issued": 3, "restored": 2, "suspect": 1, "new": 4}
+        "issued": 3, "restored": 2, "suspect": 1, "new": 4, "ner_error": None}
 
 
 LONG = "가" * 1000
@@ -329,8 +330,8 @@ def test_w4_row_cuts_client_controlled_strings():
 
 
 def test_w4_worst_line_and_a_full_ring_stay_small():
-    """잘린 값 + 12종 모두 큰 수 + 가장 긴 사유 코드. 크기는 응답과 같은 직렬화(JSONResponse — UTF-8, ensure_ascii=False)로 잰다."""
-    big = dict.fromkeys(PRIORITY, 1_000_000)
+    """잘린 값 + 15종 모두 큰 수 + 가장 긴 사유 코드. 크기는 응답과 같은 직렬화(JSONResponse — UTF-8, ensure_ascii=False)로 잰다."""
+    big = dict.fromkeys(ALL_KINDS, 1_000_000)
     code = max(sorted(REJECTED | UPSTREAM_ERRORS), key=len)
     worst = rec(client="고객센터-상담봇-운영", policy="개인정보-엄격-정책", api="responses", model=LONG, error=code, transformed=True,
                 total_ms=600123.45, upstream_ms=600001.23, gateway_ms=122.22,
@@ -342,9 +343,9 @@ def test_w4_worst_line_and_a_full_ring_stay_small():
         m.observe(worst)
     snap = m.snapshot({"default": 0}, {"http://127.0.0.1:8080": 0}, 100)
     line = snap["recent"][0]
-    assert line["reason"] == code and len(line["masked"]) == len(line["unmasked"]) == len(PRIORITY) == 12
-    assert len(JSONResponse(line).body) <= 2_500
-    assert len(snap["recent"]) == RECENT and len(JSONResponse(snap).body) <= 500_000
+    assert line["reason"] == code and len(line["masked"]) == len(line["unmasked"]) == len(ALL_KINDS) == 15
+    assert len(JSONResponse(line).body) <= 2_600                       # D-126: 종류 15 + ner_error로 2,500에서 올렸다(15종이 모두 100만인 줄은 실제로는 없다)
+    assert len(snap["recent"]) == RECENT and len(JSONResponse(snap).body) <= 520_000
 
 
 # ---------- W5 링·격리 ----------
@@ -469,8 +470,8 @@ def test_stats_body_keeps_the_contract(fresh):
     assert httpx.post(fresh.gateway + CHAT, json=chat("hi"), headers={"Authorization": "Bearer wrong"}).status_code == 401
     st, lines, info = stats(fresh), fresh.log_lines(), fresh.info()
     assert set(st) == {"started", "now", "pid", "max_connections", "requests", "status", "outcomes", "reasons", "masked", "unmasked",
-                       "injection", "restored", "residual", "suspect", "new", "gateway_ms_avg", "upstream_ms_avg", "vault_sessions",
-                       "upstreams", "recent"}                                          # 호스트 이름은 싣지 않는다 — 프로세스는 started·pid로 가른다
+                       "detect_errors", "injection", "restored", "residual", "suspect", "new", "gateway_ms_avg", "upstream_ms_avg",
+                       "vault_sessions", "upstreams", "recent"}                        # 호스트 이름은 싣지 않는다 — 프로세스는 started·pid로 가른다
     assert st["max_connections"] == 7 and st["status"] == Counter(str(x["status"]) for x in lines)
     assert set(st["vault_sessions"]) == set(info["policies"]) and set(st["upstreams"]) == set(info["upstreams"].values())
     # (Σtotal − Σupstream) ÷ 횟수 = 감사 gateway_ms 평균. 감사 줄은 세 값을 따로 반올림하므로 0.02까지 어긋날 수 있다
@@ -627,14 +628,15 @@ def test_w7_traffic_script_one_round_matches_all_16_scenes(tmp_path):
 # D-124 §2-7 라벨 사전 — 화면과 docs/operations.md '대시보드' 절이 같은 말을 쓴다
 KIND_LABELS = {"rrn": "주민등록번호", "frn": "외국인등록번호", "passport": "여권번호", "driver": "운전면허번호", "card": "카드번호",
                "phone": "전화번호", "email": "이메일", "secret": "자격 증명", "brn": "사업자등록번호", "crn": "법인등록번호",
-               "account": "계좌번호", "ipv4": "IP 주소"}
+               "account": "계좌번호", "ipv4": "IP 주소", "person": "이름", "address": "주소", "org": "직장"}
 OUTCOME_LABELS = {"masked": "가림 후 전달", "passed": "그대로 전달", "observed": "기록만", "blocked": "차단", "rejected": "거절",
                   "upstream_error": "AI 회사 오류", "failed": "오류·끊김"}
 RULE_LABELS = {"R1": "지시 무효화", "R2": "역할 전환·제약 해제"}
 # 사유 중 코드 하나에 붙는 라벨. invalid_*·upstream_<상태>·시간 초과 예외·그 밖의 예외는 화면이 규칙으로 고른다(reasonLabel)
 REASON_LABELS = {"unauthorized": "키 없음·틀림", "rate_limited": "분당 한도", "request_too_large": "본문 상한",
                  "too_many_findings": "개인정보가 너무 많음", "model_not_allowed": "허용 안 된 모델", "not_found": "허용 목록 밖 경로",
-                 "gateway_busy": "게이트웨이 바쁨", "upstream_busy": "AI 연결 가득", "response_too_large": "AI 응답이 너무 큼",
+                 "gateway_busy": "게이트웨이 바쁨", "upstream_busy": "AI 연결 가득", "detect_unavailable": "이름·주소 탐지기 응답 없음",
+                 "response_too_large": "AI 응답이 너무 큼",
                  "upstream_stream_error": "AI 회사가 스트림 도중 오류를 보냄", "ClientDisconnect": "클라이언트가 끊음",
                  "CancelledError": "처리 중 취소됨", "injection_rule_turn": "이번 턴의 수상한 지시", "pii_mask": "개인정보를 가짜 값으로 바꿈",
                  "masked_turns": "이력의 수상한 턴을 가림", "injection_observe": "수상한 지시 — 기록만",
@@ -655,7 +657,7 @@ def js_object(text: str, name: str) -> dict[str, str]:
 
 def test_w10_dashboard_labels_are_the_dictionary():
     """코드 → 라벨 대응까지 본다 — 전화번호↔이메일이나 R1↔R2가 뒤바뀌어도 글자는 파일에 그대로 있다."""
-    assert set(KIND_LABELS) == set(PRIORITY) and set(OUTCOME_LABELS) == set(OUTCOMES)     # 종류·결과가 늘면 사전도 는다
+    assert set(KIND_LABELS) == set(ALL_KINDS) and set(OUTCOME_LABELS) == set(OUTCOMES)     # 종류·결과가 늘면 사전도 는다
     text = (ROOT / "gateway" / "dashboard.html").read_text(encoding="utf-8")
     assert [js_object(text, n) for n in ("KIND", "OUT", "RULE", "REASON")] == [KIND_LABELS, OUTCOME_LABELS, RULE_LABELS, REASON_LABELS]
 

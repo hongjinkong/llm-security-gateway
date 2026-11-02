@@ -105,6 +105,8 @@ VERSION_CONTEXT_RE = re.compile(r"버전|빌드|펌웨어|version|build|release|
 # 문맥 없는 카드로 잡혀 계좌 문맥어가 있어도 못 가린다), 이메일은 여권보다 앞(`M12345678@…`의 로컬파트만 가리면 도메인이 남는다).
 PRIORITY = {"secret": 0, "rrn": 1, "frn": 2, "crn": 3, "account": 4, "card": 5, "phone": 6, "driver": 7, "brn": 8,
             "email": 9, "passport": 10, "ipv4": 11}
+# 정규식이 아니라 탐지 사이드카(NER, D-126)가 찾는 종류 — 모양이 없어 응답의 대체값은 발급한 문자열로 되찾는다(vault). 설정이 받는 전체 종류는 pii.ALL_KINDS
+NER_KINDS = ("person", "address", "org")
 
 _RRN_WEIGHTS = (2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5)
 _CENTURY = {"1": 1900, "2": 1900, "3": 2000, "4": 2000,

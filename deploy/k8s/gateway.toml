@@ -12,6 +12,12 @@
 injection = "observe"       # observe | block | off
 pii_mode = "mask"           # mask | detect | off
 
+# 이름·주소까지 가리는 정책(D-126) — 같은 파드의 탐지 사이드카(GATEWAY_DETECT_URL)가 찾는다. 요청마다 수백 ms가 더해질 수 있다(docs/operations.md '탐지 사이드카').
+# 필요한 클라이언트만 policy = "names"로 묶는다. org(직장)는 넣지 않았다 — 넣어도 기본은 감사만이다.
+# 사이드카 컨테이너를 빼면 이 표도 지운다 — 쓰는 클라이언트가 없어도 이 표가 있으면 GATEWAY_DETECT_URL 없이는 기동하지 않는다.
+[policies.names]
+pii_kinds = ["rrn", "frn", "passport", "driver", "card", "phone", "email", "secret", "brn", "crn", "account", "ipv4", "person", "address"]
+
 [upstreams.chat]
 base_url = "https://api.openai.com"
 key_env = "OPENAI_API_KEY"

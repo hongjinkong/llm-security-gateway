@@ -42,7 +42,7 @@ from gateway.messages import t
 from gateway.metrics import Metrics
 from gateway.ratelimit import RateLimiter
 from gateway.relay import UpstreamClient, UpstreamPool, downstream, read_body, read_capped, relay, send
-from gateway.settings import API_NAMES, DETECTOR_REGISTRY, Registry, Settings, build_chain
+from gateway.settings import API_NAMES, DETECTOR_REGISTRY, Registry, Settings, build_chain, ner_policies
 from gateway.version import VERSION, code_fingerprint
 
 # 게이트웨이 자체 경로. 감사 로그에서 제외한다 — 헬스체크가 초당 여러 번 때리면 지연 통계가 오염된다.
@@ -95,6 +95,8 @@ def create_app(settings: Settings, registry: Registry = DETECTOR_REGISTRY) -> Fa
         app.state.audit = AuditLog(s.log_path, s.log_max_bytes, s.log_backups, on_write=app.state.metrics.observe)
         app.state.ratelimit = RateLimiter(s.rate_per_minute)
         app.state.policies = s.policy_settings()
+        if (ner := ner_policies(s)) and not s.detect_url:        # 이름·주소를 켰는데 사이드카 주소가 없다(D-126)
+            raise RuntimeError(t("no_detect_url", s.lang, policies=", ".join(ner)))
         app.state.chains = {name: build_chain(p, registry) for name, p in app.state.policies.items()}   # 정책마다 체인(D-119)
         app.state.chain = app.state.chains["default"]
         masks = any(isinstance(d, PIIDetector) and d.mode == "mask" for c in app.state.chains.values() for d in c.detectors)
@@ -241,6 +243,7 @@ async def info(request: Request) -> Response:
         "upstreams": {api: s.upstream(api).base_url for api in API_NAMES},   # 공급자 키는 싣지 않는다
         "detectors": list(request.app.state.chain.names),
         "policies": {name: list(chain.names) for name, chain in request.app.state.chains.items()},
+        "detect": s.detect_url or None,                                 # 탐지 사이드카 주소(D-126), 없으면 null
     })
 
 

@@ -27,9 +27,12 @@
 | `GATEWAY_ADMIN_KEY` | (없음) | `/__gateway/info`·`/__gateway/metrics`·`/__gateway/stats`(`Authorization: Bearer`)와 대시보드(`/__gateway/dashboard` — 화면에 키를 넣는다)를 여는 관리 키. 없으면 모두 404 — [운영 — 대시보드](operations.md#대시보드) |
 | `GATEWAY_SURROGATE_KEY` | (없음) | 결정적 대체값 키, 32자 이상. 어느 정책이든 `mask`면 필수(없거나 짧으면 **기동 실패**). 원문을 되짚을 수 있는 키라 공급자 키와 같은 등급으로 보관한다. 바꾸는 절차는 [운영 — 키 회전](operations.md#키-회전) |
 | `GATEWAY_PII` | `mask` | `mask`(같은 모양의 가짜 값으로 바꾸고 응답에서 복원) · `detect`(감사에만 남김) · `off` |
-| `GATEWAY_PII_KINDS` | 전부(`rrn,frn,passport,driver,card,phone,email,secret,brn,crn,account,ipv4`) | 탐지할 종류(쉼표). 종류는 [README 탐지 종류](../README.md#탐지-종류) |
-| `GATEWAY_PII_DETECT_KINDS` | `account,brn,crn,ipv4` | `mask` 모드에서도 가리지 않고 감사(`unmasked`)에만 남길 종류. 빈 값이면 탐지한 종류를 모두 가린다 |
+| `GATEWAY_PII_KINDS` | 정규식 12종(`rrn,frn,passport,driver,card,phone,email,secret,brn,crn,account,ipv4`) | 탐지할 종류(쉼표). 종류는 [README 탐지 종류](../README.md#탐지-종류). **이름·주소·직장**(`person`·`address`·`org`)은 기본에 없다 — 더하면 탐지 사이드카가 찾는다(`GATEWAY_DETECT_URL` 필수, 아래 '이름·주소 가림') |
+| `GATEWAY_PII_DETECT_KINDS` | `account,brn,crn,ipv4,org` | `mask` 모드에서도 가리지 않고 감사(`unmasked`)에만 남길 종류. 빈 값이면 탐지한 종류를 모두 가린다 |
 | `GATEWAY_PII_ROLES` | `user,assistant,tool,system` | 가릴 역할(쉼표). `developer`·Responses `instructions`는 `system`이다 |
+| `GATEWAY_DETECT_URL` | (없음) | 탐지 사이드카([`detect/`](../detect/README.md)) 주소 — 예: `http://127.0.0.1:8081`(k8s 같은 파드)·`http://detect:8081`(compose). 어느 정책이든 `pii_kinds`에 `person`·`address`·`org`를 넣었는데(그리고 `pii_mode`가 `off`가 아닌데) 비어 있으면 **기동 실패**. 모양은 `http(s)://호스트[:포트]`만 — 경로·쿼리·다른 스킴은 기동 실패 |
+| `GATEWAY_DETECT_TIMEOUT` | `10` | 한 요청의 이름·주소 탐지 전체 기한(초, 0보다 큰 수 — 아니면 기동 실패) — 긴 요청은 12,000자마다 사이드카 호출 하나(창 하나 1~6초, [운영](operations.md#탐지-사이드카)). 넘으면 아래 `GATEWAY_DETECT_FAIL` |
+| `GATEWAY_DETECT_FAIL` | `closed` | 사이드카가 실패(연결 거부·5xx·시간 초과·이상한 응답)했을 때 가리는 이름·주소가 켜진 `mask` 정책의 동작 — `closed`: 상류에 보내지 않고 503 `detect_unavailable`(`retry-after: 1`) · `open`: 정규식 종류만 가리고 보낸다(감사 `ner_error`). `detect` 정책과 감사만 종류(`org` 기본)는 늘 통과한다 |
 | `GATEWAY_INJECTION` | `observe` | `observe`(적중을 감사에만, `would_block`) · `block`(이번 턴이 걸리면 상류 없이 차단 응답, 이력의 걸린 턴은 가림) · `off` |
 | `GATEWAY_LANG` | `ko` | 사용자·운영자 문구 — `ko`·`en`(차단 문구·가린 이력 자리표시·기동 거부·설정 오류). API 오류 본문은 언제나 영어 |
 | `GATEWAY_BLOCKED_MESSAGE` | (카탈로그 문구) | 차단 응답 문구. 끝에 `(요청 ID: …)`가 붙는다 |
@@ -64,7 +67,7 @@
 | `[[clients]] policy` | 정책 이름 | `default` | 이 클라이언트에 쓸 정책 |
 | `[policies.<이름>] injection` | `observe`·`block`·`off` | `GATEWAY_INJECTION` | |
 | `[policies.<이름>] pii_mode` | `mask`·`detect`·`off` | `GATEWAY_PII` | |
-| `[policies.<이름>] pii_kinds` | 종류 목록 | `GATEWAY_PII_KINDS` | |
+| `[policies.<이름>] pii_kinds` | 종류 목록 | `GATEWAY_PII_KINDS` | `person`·`address`를 더하면 이 정책만 이름·주소를 가린다 |
 | `[policies.<이름>] pii_detect_kinds` | 종류 목록 | `GATEWAY_PII_DETECT_KINDS` | 빈 목록이면 모두 가린다 |
 | `[policies.<이름>] pii_roles` | 역할 목록 | `GATEWAY_PII_ROLES` | |
 | `[policies.<이름>] allowed_models` | fnmatch 글롭 목록 | (모두) | 밖의 모델은 403 `model_not_allowed`, 검사기·상류 없음 |
@@ -88,8 +91,11 @@ injection = "observe"
 [policies.strict]
 injection = "block"
 pii_mode = "mask"
-pii_detect_kinds = []       # 계좌·사업자·IP까지 가린다(pii_kinds는 default — 여기서는 환경변수의 기본, 열두 종류 전부)
+pii_detect_kinds = []       # 계좌·사업자·IP까지 가린다(pii_kinds는 default — 여기서는 환경변수의 기본, 정규식 열두 종류)
 allowed_models = ["gpt-4.1*", "claude-sonnet-*"]
+
+[policies.names]            # 이름·주소까지 가린다 — GATEWAY_DETECT_URL이 있어야 뜬다(직장 org는 넣지 않았으므로 찾지도 않는다)
+pii_kinds = ["rrn", "frn", "passport", "driver", "card", "phone", "email", "secret", "brn", "crn", "account", "ipv4", "person", "address"]
 
 [upstreams.chat]
 base_url = "https://api.openai.com"
@@ -106,3 +112,15 @@ timeout = 600
 ```
 
 k8s 견본 설정은 [`deploy/k8s/gateway.toml`](../deploy/k8s/gateway.toml)이다.
+
+## 이름·주소 가림 (`person`·`address`·`org`)
+
+정규식이 아니라 한국어 NER 모델(탐지 사이드카 `detect/`, 별도 컨테이너)이 찾는다. **기본은 꺼져 있다** — 정책의 `pii_kinds`(또는 `GATEWAY_PII_KINDS`)에 `person`·`address`를 더하고
+`GATEWAY_DETECT_URL`을 주면 켜진다. 정확도는 모델의 것(합성 문장 F1 0.96·실제 대화 0.90 — 놓침·잘못 가림 각각 약 10%)이고, 요청마다 사이드카 왕복이 더해진다
+(x86 4 vCPU에서 510토큰 약 200ms — 매 턴 다시 오는 이력은 캐시에서 나와 새 메시지만 간다). 규칙과 한계는 [README 탐지 종류](../README.md#탐지-종류)·[운영 — 탐지 사이드카](operations.md#탐지-사이드카),
+배포 모양은 [`deploy/compose.yml`](../deploy/compose.yml)(서비스 `detect`)·[`deploy/k8s/gateway.yaml`](../deploy/k8s/gateway.yaml)(같은 파드의 둘째 컨테이너)이다.
+
+- `org`(직장)는 기본 감사만(`GATEWAY_PII_DETECT_KINDS`)이다 — 회사 이름을 가짜로 바꾸면 '삼성전자 주가' 같은 질문의 답이 망가진다. 가리려면 거기서 뺀다.
+- `address`는 번지·건물 번호·동·호·층처럼 숫자가 든 토큰이 있을 때만 가리고, 시·도·구·역·나라 이름뿐이면 감사만이다('서울 날씨'를 가리면 질문이 바뀐다).
+- 가짜 이름은 성 + 이름(마지막 글자의 받침 부류가 원문과 같아 뒤따르는 조사가 맞는다), 가짜 주소는 시·도·시·군·구를 두고 도로·동·건물·번호를 바꾼다(번호는 자릿수와 마지막 자리 유지).
+- 사이드카가 실패하면 `GATEWAY_DETECT_FAIL`(`closed` 기본 — 503 `detect_unavailable`, `open` — 정규식 종류만 가리고 보냄). `detect` 정책은 늘 통과한다.

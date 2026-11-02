@@ -90,7 +90,7 @@
   2026-11-01 세션이 GitHub API로 확인: run #7(`cf0ee1e`)은 **성공**(전체 75초 — test 3.14 64초·3.12 72초·docker 23초). 실행 화면이 '진행 중'으로 멈춰 보인 것은 페이지가 갱신되지 않은 것이다(새로고침).
   남은 것: 작업 로그는 인증이 필요해 세션이 읽지 못했다 — `Run pytest -q -rs` 단계 끝 줄이 `767 passed`면 화면 확인까지 돈 것, `766 passed, 1 skipped`와 `SKIPPED … Chrome을 실행하지 못했다`면 러너의 Chrome이 뜨지 못한 것이다(W7 대조는 했다 — 그 줄을 다음 세션에 붙여 준다).
 - [ ] (17단계 커밋·푸시 뒤) GitHub Actions에 새 `detect` 워크플로가 돈다(모델 약 160MB를 받고 x86에서 F1·지연을 잰다, 몇 분). 따로 할 일은 없다 — 다음 세션이 check-runs API의 `::notice` 주석(인증 없이 읽힌다)에서 x86 숫자를 읽어 D-125 §6 표에 옮긴다. 실패(빨간색)면 그 작업 로그의 마지막 줄을 다음 세션에 붙여 준다.
-- [ ] (18단계 전, 선택) Llama Prompt Guard 2(86M·22M)를 비교 후보로 재려면 Hugging Face에서 `meta-llama/Llama-Prompt-Guard-2-86M`의 접근을 신청하고(수동 승인), 승인되면 읽기 토큰을 `! huggingface-cli login`으로 넣는다. 하지 않으면 다음 세션은 이 둘을 빼고 잰다.
+- [ ] (18단계 전, 선택) Llama Prompt Guard 2(86M·22M)를 비교 후보로 재려면 Hugging Face에서 `meta-llama/Llama-Prompt-Guard-2-86M`의 접근을 신청하고(수동 승인), 승인되면 읽기 토큰을 본인 터미널에서 `hf auth login`으로 넣는다(`!`로 하지 않는다 — 토큰이 대화 기록에 남는다. git 자격 증명 질문에는 n). 토큰은 `~/.cache/huggingface/token`에 저장되고, 다음 세션이 `detect/fetch.py`가 그 파일을 읽게 고친다. 하지 않으면 다음 세션은 이 둘을 빼고 잰다.
 - [ ] (선택, 17단계 뒤) 이름·주소 가림이 꼭 필요하면 결정 표 7번(NER 게이트)을 바꿀지 정한다 — 지금 모델로는 정확한 쪽(veil)이 요청마다 수백 ms를 더한다(512토큰 기준, CPU). 바꾸면 다음 세션이 D-125 §2-8의 연결을 단계로 올린다. 바꾸지 않으면 할 일 없음.
 - [ ] (선택, 16-1단계 뒤) 시스템 임시 폴더에 이 세션의 검토 하네스가 남긴 Chrome 프로필·traffic 임시 폴더가 약 3.2GB 있다(2026-10-31 20:10~23:51, `cdp-prof-*` 145·`traffic-*` 4). 세션의 삭제는 권한 분류기가 막았다 — 지우려면 아래 명령. macOS도 오래된 임시 파일은 스스로 지운다.
   `find "$TMPDIR" -maxdepth 1 \( -name 'cdp-prof-*' -o -name 'traffic-*' \) -type d -newermt '2026-10-31 20:00' -exec rm -rf {} +`

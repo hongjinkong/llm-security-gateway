@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 .venv/
+.venv-*/
 venv/
 *.egg-info/
 build/
@@ -22,3 +23,6 @@ target/
 
 # k8s 배포의 비밀 값(D-121) — 견본은 deploy/k8s/secret.env.example
 deploy/k8s/secret.env
+
+# 탐지 사이드카 모델 파일(D-125) — python -m detect.fetch가 받는다(수백 MB, 고정 리비전·SHA-256)
+models/

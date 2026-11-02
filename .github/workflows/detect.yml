@@ -1,0 +1,47 @@
+# D-125: 탐지 사이드카(detect/) — 디코더·계약 테스트, NER F1(합성 200문장·KDPII test), x86 지연(게이트: 512토큰 이하 HTTP p95 ≤ 40ms).
+# 모델 수백 MB를 받고 지연을 몇 분 재므로 detect/·eval/ner/(와 그것이 읽는 파일)가 바뀔 때만 돈다(손으로도 돌린다). 액션은 커밋 SHA로 고정한다(ci.yml과 같다).
+# 숫자는 작업 요약과 ::notice 주석에 남는다 — 주석은 로그 인증 없이 check-runs API로 읽힌다. 지연 미달은 측정 결과라 작업을 실패시키지 않는다.
+name: detect
+
+on:
+  # evaluate·bench가 읽는 것까지(eval/pii/score.py → gateway/detectors/patterns.py, bench 입력 benign_ko.jsonl, pytest 설정 pyproject.toml)
+  push:
+    branches: [main]
+    paths: ["detect/**", "eval/ner/**", "eval/pii/score.py", "eval/injection/benign_ko.jsonl", "gateway/detectors/patterns.py", "pyproject.toml", ".github/workflows/detect.yml"]
+  pull_request:
+    paths: ["detect/**", "eval/ner/**", "eval/pii/score.py", "eval/injection/benign_ko.jsonl", "gateway/detectors/patterns.py", "pyproject.toml", ".github/workflows/detect.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install -r detect/requirements.txt pytest==9.1.1 httpx==0.28.1
+      - run: python -m detect.fetch veil-ko-lite-int8 atonlee-small-int8 --dir models   # 정확도 최고(base)·지연 최저(small) 후보
+      - run: lscpu | head -20   # 지연 숫자의 조건(러너마다 CPU가 다르다)
+      - run: DETECT_MODEL_DIR=models python -m pytest -q -rs -p no:cacheprovider detect/tests
+      # 기본 셸은 pipefail이 없다(bash -e) — 평가가 실패해도 tee가 성공으로 가리지 않게 켠다
+      - run: set -o pipefail; python -m detect.evaluate --model veil-ko-lite-int8 --dir models --github | tee -a "$GITHUB_STEP_SUMMARY"
+      - run: set -o pipefail; python -m detect.evaluate --model atonlee-small-int8 --dir models --github | tee -a "$GITHUB_STEP_SUMMARY"
+      # 스레드 4와 2 중 나은 쪽이 그 모델의 배포 설정이다(D-125 §2-6)
+      - run: python -m detect.bench --model veil-ko-lite-int8 --dir models --threads 4 --github
+      - run: python -m detect.bench --model veil-ko-lite-int8 --dir models --threads 2 --github
+      - run: python -m detect.bench --model atonlee-small-int8 --dir models --threads 4 --github
+      - run: python -m detect.bench --model atonlee-small-int8 --dir models --threads 2 --github
+
+  image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: docker build -f detect/Dockerfile .   # 빌드 때 모델을 고정 리비전에서 받아 해시를 맞춘다

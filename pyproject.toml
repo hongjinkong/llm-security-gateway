@@ -37,7 +37,7 @@ select = ["E", "F"]
 ignore = ["E501"]
 
 [tool.mypy]
-# 관대한 설정(D-118): 제품 코드만, 타입을 단 함수만 본다. 엄격 옵션은 켜지 않는다.
-files = ["gateway"]
+# 관대한 설정(D-118): 제품 코드만, 타입을 단 함수만 본다. 엄격 옵션은 켜지 않는다. 탐지 사이드카(D-125)도 — numpy·onnxruntime이 없는 환경에서는 Any로 본다.
+files = ["gateway", "detect"]
 python_version = "3.12"
 ignore_missing_imports = true

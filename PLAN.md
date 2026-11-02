@@ -34,7 +34,7 @@
 **E. 탐지 모델**
 - [x] 16. 한국어 평가셋 v1 + 기준선
 - [x] 16-1. 운영 대시보드(읽기 전용) — 시험 중 요청마다 무엇을 가리고·막고·거절했는지 보기
-- [ ] 17. 탐지 사이드카 + 한국어 PII NER(채택 게이트)
+- [x] 17. 탐지 사이드카 + 한국어 PII NER(채택 게이트) — 게이트 미달, NER은 v1.0에서 뺀다(D-125)
 - [ ] 18. 인젝션 분류기(관측) + 가드레일 웹훅
 
 **F. 출시**
@@ -70,6 +70,7 @@
 | 2026-10-31 | 16 | D-123 | E1~E5·pytest 678(3.14·3.12)·ruff·mypy 통과. 평가셋 v1 6,871행(dev 5,492·봉인 홀드아웃 1,379 — SHA-256 결정·테스트에 고정), 한국어 공격 2,028·정상 2,608, 하드 네거티브 29%. 룰 기준선(dev) 재현율 8.7%(한국어 5.9%)·오탐률 2.7%(일반 정상 0%·하드 네거티브 9.2%), recall@FPR 1% 미달. 데이터셋 조사(에이전트 36, 라이선스·리비전 확인)·한국어 정상 문장 작성·검증(에이전트 23)·리뷰+반박 검증(에이전트 74, 31건 수정 — 홀드아웃 가족 누수 12%·in-the-wild 번역 포함 등). 계획과 다른 점: 공개 한국어 정상셋을 함께 씀, ko-jailbreak·jackhhao 뺌, 한국어 다중 턴 없음, datasets-server 출처는 받은 날짜+저장소 고정 | 17단계 |
 | 2026-10-31 | — | — | 계획 변경: 16-1단계 추가(사용자 요청). 설명서 화면 C를 제품 안 읽기 전용 대시보드(`/__gateway/dashboard`·`/__gateway/stats`, 관리 키)로 만든다 — 요청마다 결과·사유가 보이는 최근 요청 표, 시험 트래픽 `scripts/traffic.py`(16장면, 스스로 대조, `--shot` 스크린샷). 선행 수정으로 FastAPI 기본 문서 경로(`/docs`·`/redoc`·`/openapi.json` 무인증 200, 재현)를 없앤다. 설계는 독립 설계 3개 → 종합 → 코드 대조·실행 가능성 검토 2개(지적 22건 반영). 16단계 커밋에 든 설명서 PDF(docs/overview)의 화면 C·7장도 이 단계에서 실제 화면으로 고친다. 17~22 번호는 그대로 | 16-1단계 |
 | 2026-10-31 | 16-1 | D-124 | W1~W10·pytest 767(이 단계 전 678)·ruff·mypy 통과. `/__gateway/dashboard`(정적 HTML·CSP 해시·Trusted Types, 400줄)·`/__gateway/stats`(관리 키)·`metrics.outcome()` 7결과·사유·최근 200줄, `scripts/traffic.py` 16장면 자기 대조 + `--shot`(16/16·fetch 키 취급 확인, `docs/dashboard.png` 416KB), FastAPI 문서 경로 제거. compose 이미지 확인(바이트·CSP·지문 같음), 부하 30초 6,751건 판정 10/10·감사 gateway_ms p95 14.4ms. 통합 중 결함 2(Responses 스트림 복원 5배 집계·401 줄 policy) 고침. 리뷰+반박 검증(에이전트 100) 44건 → 병렬 수정(5) → 회의적 재검증(5, partial 3·새 low 9 추가 수정): 서로게이트 model로 감사 줄 유실·stats 500, 끝 '/' 307, 스트림 안 공급자 오류 이벤트(`upstream_stream_error`), CRLF CSP, Chrome 비밀번호 저장 질문, 표 통째 재그리기 등. 설명서 PDF 21쪽으로 다시 만듦. 계획과 다른 점: W8이 W7 테스트 안에서도 돎(CI `--no-sandbox`·`-rs`), 관리 키 길이 하한은 두지 않음(keygen 안내·한계) | 17단계 |
+| 2026-11-01 | 17 | D-125 | N1~N6·pytest 773·ruff·mypy(detect 포함) 통과, 사이드카 테스트 12, N7은 M2·KDPII까지(x86은 푸시 뒤 CI). **게이트 미달 — 이름·주소·직장 NER은 v1.0에서 뺀다.** 후보 45개 조사(에이전트 8)·여덟 통과·다섯 측정: veil(KoELECTRA-base) 합성 F1 0.963·KDPII 0.895(제작자 카드의 재현율 재현)이지만 M2 510토큰 HTTP p95 214ms, atonlee(KoELECTRA-small)는 M2에서만 지연이 게이트 언저리(40ms 안팎)이고 KDPII F1 0.490, newmean·Horizon은 둘 다 미달. 리뷰 + 반박 검증(에이전트 32) 28건 모두 반영(NFD 한글·SentencePiece 겹친 구간·WordPiece 긴 덩어리·요청 비용 상한 등). 사이드카 `detect/`(ONNX·tokenizers, 모델 리비전·SHA-256 고정, 이미지), 평가셋 `eval/ner/`(합성 200·KDPII 4,799), x86 측정 워크플로 `detect.yml`. 계획과 다른 점: 공개셋은 KDPII(나라·역 이름도 주소인 넓은 규약 — 모델 라벨을 그 규약으로 옮기고 주소 잇기를 끄고 채점), F1 게이트를 두 셋 각각으로 읽음, 지연은 HTTP 왕복·스레드 4와 2 중 나은 쪽, x86 숫자는 푸시 뒤 CI(판정은 이미 남) | 18단계 |
 
 ## 사용자 할 일
 
@@ -86,7 +87,11 @@
 - [ ] (선택) Docker Desktop 설정 → Kubernetes → Enable Kubernetes(`docker-desktop` 컨텍스트가 생긴다). kubectl은 `--dry-run=client`에도 서버 탐색이 필요해 컨텍스트가 없으면 `--validate=false`로도 실패한다(2026-10-31 확인). 14단계(D-121)는 클러스터 없이 kustomize 렌더 + 스키마 검증으로 끝냈다 — 켜 두면 다음 세션이 `kubectl apply -k deploy/k8s --dry-run=server`와 실제 배포를 확인한다.
 - [ ] (14단계 뒤) GitHub 저장소 Settings → Code security → **Private vulnerability reporting** 켜기 — `SECURITY.md`가 제보 경로로 가리킨다(켜기 전에는 그 링크가 열리지 않는다).
 - [ ] (16-1단계 커밋·푸시 뒤) GitHub Actions의 `test` 작업 로그에서 W7 테스트(`test_w7_traffic_script_one_round_matches_all_16_scenes`)를 본다 — CI가 이제 headless Chrome으로 대시보드 화면도 확인한다(`--no-sandbox`).
-  통과면 끝. `SKIPPED … Chrome을 실행하지 못했다`가 찍혔으면 러너의 Chrome이 뜨지 못한 것이다(W7 대조는 했다) — 그 줄을 다음 세션에 붙여 준다. 세션은 오프라인이라 러너를 확인하지 못했다.
+  2026-11-01 세션이 GitHub API로 확인: run #7(`cf0ee1e`)은 **성공**(전체 75초 — test 3.14 64초·3.12 72초·docker 23초). 실행 화면이 '진행 중'으로 멈춰 보인 것은 페이지가 갱신되지 않은 것이다(새로고침).
+  남은 것: 작업 로그는 인증이 필요해 세션이 읽지 못했다 — `Run pytest -q -rs` 단계 끝 줄이 `767 passed`면 화면 확인까지 돈 것, `766 passed, 1 skipped`와 `SKIPPED … Chrome을 실행하지 못했다`면 러너의 Chrome이 뜨지 못한 것이다(W7 대조는 했다 — 그 줄을 다음 세션에 붙여 준다).
+- [ ] (17단계 커밋·푸시 뒤) GitHub Actions에 새 `detect` 워크플로가 돈다(모델 약 160MB를 받고 x86에서 F1·지연을 잰다, 몇 분). 따로 할 일은 없다 — 다음 세션이 check-runs API의 `::notice` 주석(인증 없이 읽힌다)에서 x86 숫자를 읽어 D-125 §6 표에 옮긴다. 실패(빨간색)면 그 작업 로그의 마지막 줄을 다음 세션에 붙여 준다.
+- [ ] (18단계 전, 선택) Llama Prompt Guard 2(86M·22M)를 비교 후보로 재려면 Hugging Face에서 `meta-llama/Llama-Prompt-Guard-2-86M`의 접근을 신청하고(수동 승인), 승인되면 읽기 토큰을 `! huggingface-cli login`으로 넣는다. 하지 않으면 다음 세션은 이 둘을 빼고 잰다.
+- [ ] (선택, 17단계 뒤) 이름·주소 가림이 꼭 필요하면 결정 표 7번(NER 게이트)을 바꿀지 정한다 — 지금 모델로는 정확한 쪽(veil)이 요청마다 수백 ms를 더한다(512토큰 기준, CPU). 바꾸면 다음 세션이 D-125 §2-8의 연결을 단계로 올린다. 바꾸지 않으면 할 일 없음.
 - [ ] (선택, 16-1단계 뒤) 시스템 임시 폴더에 이 세션의 검토 하네스가 남긴 Chrome 프로필·traffic 임시 폴더가 약 3.2GB 있다(2026-10-31 20:10~23:51, `cdp-prof-*` 145·`traffic-*` 4). 세션의 삭제는 권한 분류기가 막았다 — 지우려면 아래 명령. macOS도 오래된 임시 파일은 스스로 지운다.
   `find "$TMPDIR" -maxdepth 1 \( -name 'cdp-prof-*' -o -name 'traffic-*' \) -type d -newermt '2026-10-31 20:00' -exec rm -rf {} +`
 
@@ -773,12 +778,16 @@ traffic.py 장면. 값은 모두 합성이고 web/app.py·tests에 이미 있는
 ### 17. 탐지 사이드카 + 한국어 PII NER
 
 할 일
-- [ ] `detect/`: 별도 컨테이너(FastAPI + onnxruntime, 게이트웨이 이미지와 의존성 분리). `POST /v1/detect {texts: [{id, role, text}], tasks: ["pii_ner"]}` → 스팬, `GET /health`에 모델 해시.
-- [ ] 후보 모델을 실행 시 확인한다(존재·라이선스·크기): KoELECTRA 계열 한국어 PII NER(검토에서 거론된 `1T/veil-pii-ko-lite` 등). INT8 ONNX로 변환한다.
-- [ ] NER 평가셋: 합성 200문장(이름·주소·직장, 템플릿과 사전으로 생성해 정답 스팬 자동) + 공개셋(라이선스 확인).
-- [ ] 게이트(결정 표 7번): x86 CPU에서 512토큰 이하 p95 +40ms 이하, F1 0.85 이상. 맥북은 arm이므로 지연은 CI 러너(x86)에서 잰다.
+- [x] `detect/`: 별도 컨테이너(FastAPI + onnxruntime, 게이트웨이 이미지와 의존성 분리). `POST /v1/detect {texts: [{id, role, text}], tasks: ["pii_ner"]}` → 스팬, `GET /health`에 모델 해시.
+- [x] 후보 모델을 실행 시 확인한다(존재·라이선스·크기): KoELECTRA 계열 한국어 PII NER(검토에서 거론된 `1T/veil-pii-ko-lite` 등). INT8 ONNX로 변환한다.
+  (후보 45개 조사·여덟 통과·다섯 측정. 제작자 INT8 ONNX를 쓰고, veil은 fp32에서 동적 INT8·그래프 융합도 재 봤다 — D-125 §6)
+- [x] NER 평가셋: 합성 200문장(이름·주소·직장, 템플릿과 사전으로 생성해 정답 스팬 자동) + 공개셋(라이선스 확인). (공개셋은 KDPII test 4,799행, CC BY 4.0)
+- [x] 게이트(결정 표 7번): x86 CPU에서 512토큰 이하 p95 +40ms 이하, F1 0.85 이상. 맥북은 arm이므로 지연은 CI 러너(x86)에서 잰다.
+  (CI `detect` 워크플로가 푸시 뒤 x86에서 잰다 — 판정은 M2와 KDPII로 이미 미달: F1을 넘는 veil은 510토큰 p95 214ms, M2에서 지연이 게이트 언저리인 atonlee는 KDPII F1 0.490)
+- [ ] (푸시 뒤, 다음 세션) x86 러너 숫자를 D-125 §6 표의 'x86' 칸에 옮긴다 — check-runs API의 `::notice` 주석. 판정은 바뀌지 않는다
 - [ ] 통과하면 게이트웨이에 `GATEWAY_DETECT_URL`, 타임아웃 50ms, 기본 detect(감사만) → 정책에서 mask. 이름·주소 대체값 생성기(성씨·이름 사전, 주소는 시·도 유지). 사이드카 장애 시 detect는 통과, mask는 설정에 따른다.
-- [ ] 미달이면 수치를 결정에 적고 v1.0에서 뺀다.
+  (미달이라 하지 않는다 — 설계는 D-125 §2-8에 남겼다)
+- [x] 미달이면 수치를 결정에 적고 v1.0에서 뺀다.
 
 완료 기준: 게이트 수치가 결정에 있다, 사이드카 꺼짐·켜짐 두 구성에서 전체 테스트 통과, 장애 시 동작 테스트.
 
@@ -796,6 +805,15 @@ traffic.py 장면. 값은 모두 합성이고 web/app.py·tests에 이미 있는
 완료 기준: 언어·유형별 수치 표, 관측 모드에서 차단 0과 점수 기록 테스트, 웹훅 타임아웃 테스트.
 
 근거: 옛 2·3차 기각(D-052 유사도, D-054 gemma3:4b Judge)은 특정 구성과 8GB VRAM 환경의 결과이고, 인코더 분류기는 시험하지 않았다.
+
+후보 조사(2026-11-01, 17단계 세션이 미리 함 — 에이전트 3, 메타데이터만. 재기 전에 리비전·라이선스를 다시 본다):
+- 기본 `protectai/deberta-v3-base-prompt-injection-v2` @90c9989b — Apache-2.0, 게이트 없음, `onnx/model.onnx`(fp32 738MB) 있음. 영어 전용 어휘·데이터, 프로젝트는 보관(archived) 상태.
+- `Horizon-Labs/prompt-injection-guard-small`(mmBERT-small, 임베딩 밖 42M) · `-base` — Apache-2.0, 학습 언어에 한국어(합성), ONNX 있음. 조사가 '가장 맞는 후보'로 꼽음.
+- `meta-llama/Llama-Prompt-Guard-2-86M`(mDeBERTa, 다국어) · `-22M`(영어 어휘) — Llama 4 Community, **수동 승인 게이트**(사용자 몫: HF에서 접근 신청 + 토큰).
+- `patronus-studio/wolf-defender-prompt-injection(-small)`(mmBERT, Apache-2.0 가중치, 학습 데이터 라이선스 불명확 — NotInject·deepset 출처 행은 빼고 볼 것),
+  `kor-prompt-injection-detection/KLUE_roBERTa_based_model`(한국어 전용, 라이선스 불명확 — 한국어 HF 셋과의 오염 확인용).
+- 뺀 것: protectai v1(비상업 데이터·gandalf 오염), deepset/deberta-v3-base-injection(우리 평가셋 출처로 학습), kakaocorp/kanana-safeguard-prompt-2.1b(CPU에 너무 큼 — 증류 교사 후보),
+  GPL·NC·라이선스 없는 것들. 탐지 사이드카·`detect/bench.py`·`eval/injection/score.py`(점수형 판정기)를 그대로 쓴다.
 
 ### 19. 보안 백서 + 법적 위치 메모 + PoC 키트
 
@@ -855,6 +873,7 @@ traffic.py 장면. 값은 모두 합성이고 web/app.py·tests에 이미 있는
 | 운영자 화면과 지표 수집기의 키를 나눠 달라는 요구 | 대시보드 전용 읽기 키(관리 키와 분리) |
 | 공개 출시 직전 클론 크기가 문제 | 새 히스토리 저장소 |
 | 목표 부하에서 게이트웨이 p95 > 50ms | 언어·런타임 교체 검토 |
+| KoELECTRA-small급(임베딩 밖 ~10M) 한국어 PII 모델이 KDPII F1 0.85를 넘거나, 고객이 GPU 사이드카를 두거나, 이름·주소 가림을 위해 지연을 받아들이기로 함 | 같은 `detect.evaluate`·`detect.bench`로 다시 재고(D-125), 넘으면 D-125 §2-8의 게이트웨이 연결을 단계로 올린다. 증류(veil → small)는 자체 학습이라 결정을 따로 적는다 |
 | embeddings·files 요구 | 결정적 대체값으로 경로 추가 |
 
 ## 하지 않는 것

@@ -2,6 +2,7 @@
 .git
 .env
 .venv
+.venv-*
 venv
 .claude
 .vscode
@@ -19,3 +20,4 @@ deploy
 **/__pycache__
 **/*.pyc
 **/.DS_Store
+models

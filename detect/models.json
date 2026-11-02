@@ -1,0 +1,152 @@
+{
+  "veil-ko-lite-int8": {
+    "id": "1T/veil-pii-ko-lite",
+    "revision": "a8343030ef774ad78d6f0481a6877a971cef759d",
+    "license": "Apache-2.0",
+    "base": "monologg/koelectra-base-v3-discriminator (110M)",
+    "onnx": "model.int8.onnx",
+    "files": {
+      "model.int8.onnx": "35f8fd66a328b32b67b79f93a4c29d790dddaa8f094a165efc095ef5e312194d",
+      "tokenizer.json": "6849f7236f75a1c86d5ce5ca28ef30ffeaa1addf5eb7ebf97302840e0f957e4a",
+      "config.json": "edf420fb9cb569823a096ff58f9d65a11b6ff94470537527555fbcee754084d2"
+    },
+    "kinds": {
+      "PERSON": "person",
+      "ADDRESS": "address",
+      "ORGANIZATION": "org"
+    },
+    "merge": [
+      "address"
+    ],
+    "decode": "viterbi",
+    "kinds_kdpii": {
+      "PERSON": "person",
+      "ADDRESS": "address",
+      "ORGANIZATION": "org"
+    }
+  },
+  "horizon-small-int8": {
+    "id": "Horizon-Labs/pii-redactor-small",
+    "revision": "a20835db9e671267b21a2951f5bf2c76e4901708",
+    "license": "Apache-2.0",
+    "base": "jhu-clsp/mmBERT-small (ModernBERT, 141M — 임베딩 밖 42M, 22층)",
+    "onnx": "onnx/model_quantized.onnx",
+    "files": {
+      "onnx/model_quantized.onnx": "0866ce86f352b1a1149049e87511aa68b1cb87958a3a4fa5ef5f63536d94ffa0",
+      "tokenizer.json": "ac6fc8196d1db9ef82e68f6088e8d77d711b8c6f07589cec7d9d59c4adfc9a1e",
+      "config.json": "9dcc63e7feee779caf79932f9e400b22aab11dcbd4d173453071a139b2603a62"
+    },
+    "specials": [
+      "<bos>",
+      "<eos>"
+    ],
+    "kinds": {
+      "PERSON": "person",
+      "STREET_ADDRESS": "address",
+      "LOCATION": "address",
+      "ORGANIZATION": "org"
+    },
+    "merge": [
+      "address"
+    ],
+    "decode": "argmax",
+    "kinds_kdpii": {
+      "PERSON": "person",
+      "STREET_ADDRESS": "address",
+      "LOCATION": "address",
+      "ORGANIZATION": "org"
+    }
+  },
+  "atonlee-small-int8": {
+    "id": "atonlee/koelectra-ko-pii-ner",
+    "revision": "1e75c01e707232401883cf364151bbe2e560c708",
+    "license": "Apache-2.0",
+    "base": "monologg/koelectra-small-v3-discriminator (14M — 임베딩 밖 9.5M, 12층·256)",
+    "onnx": "onnx/model_int8.onnx",
+    "files": {
+      "onnx/model_int8.onnx": "53cd2da73867d0a66ea2bec70b582d164115803788438bd63fd8a9ed365868e7",
+      "tokenizer.json": "9bc85a2412ae3694bffac69cb152a9aafd59fd0357e540a343fa9daa62099c38",
+      "config.json": "65b1c2e17c4eb6d4f5be29e4374784a03c7b886229af948757e55f3b79444a23"
+    },
+    "kinds": {
+      "NAME": "person",
+      "ADDRESS": "address",
+      "ORGANIZATION": "org"
+    },
+    "merge": [
+      "address"
+    ],
+    "decode": "argmax",
+    "kinds_kdpii": {
+      "NAME": "person",
+      "ADDRESS": "address",
+      "PLACE": "address",
+      "ORGANIZATION": "org",
+      "DEPARTMENT": "org"
+    }
+  },
+  "newmean-pii-large-q4": {
+    "id": "newmean-ai/pii-large",
+    "revision": "e3ae973feb033e3150efe9d33ec8ac875b8b13c7",
+    "license": "Apache-2.0",
+    "base": "mMiniLMv2-L6-H384 증류(24.4M — 임베딩 밖 10.7M, 6층·384)",
+    "onnx": "onnx/model_q4.onnx",
+    "files": {
+      "onnx/model_q4.onnx": "47a19f7031f439413bdb277f96f3f98e7006c1629a1f3f965b4be48f153753b5",
+      "tokenizer.json": "547c77a3f8f9ef1373006affb044bc8d487868a11e3cd199e72e6ba2266969fa",
+      "config.json": "8d920147e3e767b56d850f4afa4a17dad48958287d3239d6561ee79813ca3ce0"
+    },
+    "specials": [
+      "<s>",
+      "</s>"
+    ],
+    "max_len": 256,
+    "stride": 64,
+    "kinds": {
+      "PERSON": "person",
+      "ADDRESS": "address",
+      "ORG": "org"
+    },
+    "merge": [
+      "address"
+    ],
+    "decode": "argmax",
+    "kinds_kdpii": {
+      "PERSON": "person",
+      "ADDRESS": "address",
+      "ORG": "org"
+    }
+  },
+  "newmean-pii-small-q4": {
+    "id": "newmean-ai/pii-small",
+    "revision": "0aab1a9604161948d59951840240b17e46a3e964",
+    "license": "Apache-2.0",
+    "base": "mMiniLMv2-L6-H384 증류(9.6M — 임베딩 밖 7.1M, 4층·384)",
+    "onnx": "onnx/model_q4.onnx",
+    "files": {
+      "onnx/model_q4.onnx": "cc6157ba8e80991690eec169b5d4bcb05fe5acc74ceef01dfafc89ba527a8225",
+      "tokenizer.json": "547c77a3f8f9ef1373006affb044bc8d487868a11e3cd199e72e6ba2266969fa",
+      "config.json": "0c41bff50c6bfc840ace7e72f08703ed1e3c947863e9c758aed814433c8a5b6a"
+    },
+    "specials": [
+      "<s>",
+      "</s>"
+    ],
+    "max_len": 256,
+    "stride": 64,
+    "kinds": {
+      "PERSON": "person",
+      "ADDRESS": "address",
+      "ORG": "org"
+    },
+    "merge": [
+      "address"
+    ],
+    "decode": "argmax",
+    "kinds_kdpii": {
+      "PERSON": "person",
+      "ADDRESS": "address",
+      "ORG": "org"
+    }
+  }
+}

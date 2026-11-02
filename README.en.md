@@ -62,7 +62,8 @@ Recall is measured on the synthetic corpus with masking on (`eval/pii/`, 100 pos
 
 ## 2. What it does not stop
 
-- **Unstructured personal data and secrets** — only the twelve kinds above. Names, addresses, IBANs, IPv6 and free-text sensitive data pass through, as do the unsupported formats in the table.
+- **Names, addresses and workplaces** pass through — regexes cannot find them. Five Korean NER models were measured in a sidecar ([`detect/`](detect/README.md)), but none met the adoption gate (x86 CPU p95 +40 ms or less up to 512 tokens, F1 0.85 or more), so NER is not in v1.0 (D-125): the accurate model (KoELECTRA-base, F1 0.895 on real KDPII dialogue) takes p95 214 ms for one 510-token window even on an M2, and the fast one (KoELECTRA-small, around the 40 ms gate on an M2) scores F1 0.490 on KDPII.
+- **Unstructured personal data and secrets** — only the twelve kinds above. IBANs, IPv6 and free-text sensitive data pass through, as do the unsupported formats in the table.
   Full-width digits, zero-width characters and dash variants are normalized and caught.
 - **Ambiguous numbers are not masked** — see the "not masked" column. Those values reach the upstream; they are recorded as `unmasked`.
 - **Business, corporate, account numbers and IPs are sent by default** (audit only). Enable them with `GATEWAY_PII_DETECT_KINDS` when you handle customer access logs or payments.
@@ -194,7 +195,9 @@ deploy/       compose.yml (local trial) · k8s/ (kustomize)
 docs/         configuration · operations · api-compat · verification/ (real-provider check)
 scripts/      demo · SDK checks · real-provider two-turn check · dashboard test traffic (traffic.py)
 tests/        unit and integration tests, stub upstream (tests/stub_target.py)
-eval/         PII corpus and scoring (eval/pii/), injection eval set v1 with sources and licenses (eval/injection/), benign questions (eval/benign/)
+eval/         PII corpus and scoring (eval/pii/), injection eval set v1 with sources and licenses (eval/injection/), benign questions (eval/benign/),
+              NER eval sets — synthetic 200 sentences and KDPII test (eval/ner/)
+detect/       detection sidecar (experimental, not wired to the gateway) — Korean NER on ONNX Runtime, pinned models, F1 and latency tools
 web/          browser demo
 ```
 

@@ -22,7 +22,7 @@ class ChatRequestError(ValueError):
 def parse_chat_request(body: bytes) -> dict:
     try:
         payload = json.loads(body)
-    except (ValueError, UnicodeDecodeError) as exc:
+    except (ValueError, UnicodeDecodeError, RecursionError) as exc:
         raise ChatRequestError("request body must be valid JSON", "body", "invalid_json") from exc
     if not isinstance(payload, dict):
         raise ChatRequestError("request body must be an object", "body", "invalid_json")

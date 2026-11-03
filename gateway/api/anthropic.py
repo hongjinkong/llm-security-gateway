@@ -34,7 +34,7 @@ class MessagesAdapter(Adapter):
     def parse(self, body: bytes) -> dict:
         try:
             payload = json.loads(body)
-        except (ValueError, UnicodeDecodeError) as exc:
+        except (ValueError, UnicodeDecodeError, RecursionError) as exc:
             raise ApiError("request body must be valid JSON", "body", "invalid_json") from exc
         if not isinstance(payload, dict):
             raise ApiError("request body must be an object", "body", "invalid_json")
@@ -89,11 +89,12 @@ class MessagesAdapter(Adapter):
                         for ib in inner:
                             if isinstance(ib, dict) and ib.get("type") == "text" and isinstance(ib.get("text"), str):
                                 refs.append(str_ref(ib, "text", "tool", i, turn))
+                            elif isinstance(ib, dict):              # 도구 결과 안의 문서·검색 결과(D-127 재검증)
+                                _source_texts(ib, "tool", i, turn, refs)
                 elif t == "tool_use" and isinstance(b.get("input"), (dict, list)):   # 도구 호출 인자 = assistant(마스킹 대상)
                     walk_strings(b["input"], "assistant", i, turn, refs)
-                elif t == "document" and isinstance(b.get("source"), dict) and b["source"].get("type") == "text" \
-                        and isinstance(b["source"].get("data"), str):                  # 텍스트 문서(RAG) = system 문서처럼(D-112)
-                    refs.append(str_ref(b["source"], "data", "system", i, turn))
+                else:                                                   # 문서·검색 결과(RAG) = system 문서처럼(D-112)
+                    _source_texts(b, "system", i, turn, refs)
         return refs
 
     def error(self, status: int, message: str, type_: str, code: str, param: str | None = None) -> JSONResponse:
@@ -173,3 +174,27 @@ class MessagesShape:
     @staticmethod
     def full_text(obj: dict) -> bool:
         return False
+
+
+def _source_texts(b: dict, role: str, msg: int, turn: bool, refs: list[TextRef]) -> None:
+    """`document`(텍스트 원본 `data` · 내용 원본 문자열·text 블록 · `title`·`context`)와 `search_result`(`title`·text 블록)의 글 — 가림·인젝션 검사가 함께 본다(D-127 재검증).
+    image·PDF 원본(base64·URL·파일 ID)과 검색 결과의 `source`(주소)는 보지 않는다."""
+    t = b.get("type")
+    if t not in ("document", "search_result"):
+        return
+    for key in ("title", "context"):
+        if isinstance(b.get(key), str):
+            refs.append(str_ref(b, key, role, msg, turn))
+    blocks = b.get("content") if t == "search_result" else None
+    src = b.get("source") if t == "document" else None
+    if isinstance(src, dict):
+        if src.get("type") == "text" and isinstance(src.get("data"), str):
+            refs.append(str_ref(src, "data", role, msg, turn))
+        elif src.get("type") == "content":
+            if isinstance(src.get("content"), str):
+                refs.append(str_ref(src, "content", role, msg, turn))
+            else:
+                blocks = src.get("content")
+    for cb in blocks if isinstance(blocks, list) else []:
+        if isinstance(cb, dict) and cb.get("type") == "text" and isinstance(cb.get("text"), str):
+            refs.append(str_ref(cb, "text", role, msg, turn))

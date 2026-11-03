@@ -2,6 +2,18 @@
 
 ## 미출시
 
+- 인젝션 분류기 + 가드레일 웹훅(D-127): 게이트웨이가 이번 턴의 사용자 글·도구 결과·첨부 문서(공급자에게 갈 것과 같은 텍스트 — 체인의 마지막이라 정책이 가리는 종류만 가짜 값)를 웹훅에 보내 판정을 받는다 —
+  `GATEWAY_GUARD=off|observe|block`(기본 `off`, 정책 키 `guard`)·`GATEWAY_GUARD_URL`·`GATEWAY_GUARD_TIMEOUT`(5초)·`GATEWAY_GUARD_FAIL`(`open` 기본 / `closed` — block에서 503 `guard_unavailable`).
+  계약 `POST {"texts": [{"role","text"}]}` → `{"verdict": "allow"|"block", "score"}`. 관측은 감사 줄에 `guard_verdict`·`guard_score`(block 판정이면 `would_block`, 결과 `observed`/`injection_guard`),
+  차단은 룰 차단과 같은 200 차단 응답(`injection_guard_block`). 지표 `gateway_guard_errors_total{reason}`, stats `guard_errors`, 대시보드 줄 `guard`, `/__gateway/info`의 `guard`.
+  탐지 사이드카에 작업 `injection`(`Horizon-Labs/prompt-injection-guard-base` INT8, 512토큰 창 최댓값, 텍스트 점수 캐시)과 `POST /v1/guard`를 더했다 — 다섯 후보를 평가셋 v1로 재서 골랐다
+  (정상 오탐 1% 문턱에서 봉인 홀드아웃 한국어 61.7%·영어 55.1%, 룰은 dev 한국어 5.9%). 판정 조작 문구 양성대조에서 8.9%가 뒤집혀(기준 5%) **관측 전용**으로 권한다.
+  분류기는 이미지에 들어 있지만 기본으로 싣지 않는다(`DETECT_INJECTION_MODEL`로 켠다 — 사이드카 메모리 약 +1.2GiB).
+  평가 도구 `detect/evaluate_injection.py`(깨끗한 부분집합·D-054 양성대조), PG2 비교용 `detect/export.py`. compose·k8s 견본은 켜는 방법만 적었다(기본 꺼짐).
+  지표 `gateway_guard_verdicts_total{verdict}`, 웹훅 응답의 선택 키 `unscored`(재지 못한 텍스트 — block이면 막음).
+  **가림 범위를 넓혔다**: Anthropic `document`의 내용 원본·`title`·`context`, `search_result`, `tool_result` 안의 문서·검색 결과도 가린다(전에는 원문 그대로 나갔다).
+  깊게 중첩된 JSON 요청은 500이 아니라 400 `invalid_json`.
+  **바뀐 것**: 사이드카 이미지가 분류기 모델도 받는다(`ARG INJECTION_MODEL`), `python -m detect.fetch`는 이름을 꼭 받는다
 - 이름·주소 가림(D-126, 정책에서 켬): PII 종류 `person`·`address`·`org`를 더했다 — 정규식이 아니라 탐지 사이드카(`detect/`, 한국어 NER `1T/veil-pii-ko-lite` INT8)가 찾는다.
   **기본은 꺼짐**(`GATEWAY_PII_KINDS` 기본은 정규식 12종 그대로) — 정책 `pii_kinds`에 `person,address`를 더하고 `GATEWAY_DETECT_URL`을 주면 켜진다(없으면 기동 실패). `org`는 기본 감사만.
   새 환경변수 `GATEWAY_DETECT_URL`·`GATEWAY_DETECT_TIMEOUT`(10초)·`GATEWAY_DETECT_FAIL`(`closed` — 503 `detect_unavailable`·`open`). 가짜 이름은 성 + 이름(받침 부류 유지), 가짜 주소는 시·도·시·군·구 유지,

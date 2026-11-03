@@ -13,6 +13,8 @@ from gateway.settings import CLIENT_KEYS, POLICY_KEYS, UPSTREAM_KEYS, Settings
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ["README.md", "README.en.md", "SECURITY.md", "docs/configuration.md", "docs/operations.md", "docs/api-compat.md"]
 UVICORN = {"WEB_CONCURRENCY", "FORWARDED_ALLOW_IPS", "UVICORN_TIMEOUT_KEEP_ALIVE"}   # 이미지의 uvicorn이 읽는다 — 게이트웨이 코드가 아니다
+# 탐지 사이드카(detect/app.py)가 읽는다 — 견본의 사이드카 서비스·컨테이너가 쓴다(D-127)
+DETECT = {"DETECT_MODEL", "DETECT_INJECTION_MODEL", "DETECT_GUARD_THRESHOLD", "DETECT_MODEL_DIR", "DETECT_THREADS"}
 K8S = ROOT / "deploy" / "k8s"
 
 
@@ -53,7 +55,7 @@ def env_file_names(path: str | Path) -> set[str]:
 # ---------- S3 문서 = 코드 ----------
 
 def test_s3_recorder_sees_every_setting():
-    assert len(read_names()) == 25 and "GATEWAY_CONFIG" in read_names()      # D-126: GATEWAY_DETECT_URL·TIMEOUT·FAIL
+    assert len(read_names()) == 29 and "GATEWAY_CONFIG" in read_names()      # D-126: GATEWAY_DETECT_URL·TIMEOUT·FAIL, D-127: GATEWAY_GUARD·_URL·_TIMEOUT·_FAIL
 
 
 @pytest.mark.parametrize("path", ["docs/configuration.md", "README.en.md"])
@@ -81,8 +83,9 @@ def test_s3_samples_use_real_names():
     key_envs = {t["key_env"] for t in tomllib.loads(text(K8S / "gateway.toml"))["upstreams"].values()}
     assert env_file_names(".env.example") <= real
     assert env_file_names(K8S / "secret.env.example") <= real | key_envs
-    assert set(re.findall(r"^\s+([A-Z][A-Z0-9_]*): ", text("deploy/compose.yml"), re.M)) <= real   # environment:
-    assert set(re.findall(r"- name: ([A-Z][A-Z0-9_]*)$", text(K8S / "gateway.yaml"), re.M)) <= real | UVICORN   # env:
+    assert set(re.findall(r"^\s+([A-Z][A-Z0-9_]*): ", text("deploy/compose.yml"), re.M)) <= real | DETECT   # environment:
+    assert set(re.findall(r"- name: ([A-Z][A-Z0-9_]*)$", text(K8S / "gateway.yaml"), re.M)) <= real | UVICORN | DETECT   # env:
+    assert all(f'"{name}"' in text("detect/app.py") for name in DETECT)                                             # 사이드카가 실제로 읽는 이름
 
 
 def test_s3_k8s_config_loads_with_its_secret_and_not_without():

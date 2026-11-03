@@ -145,9 +145,10 @@ async def relay(request: Request, body: bytes, doc: Doc, chain: DetectorChain, s
         ))
     except ApiError as exc:       # 탐지 상한(413, D-110)·탐지 사이드카 실패(503 detect_unavailable, D-126) — 상류에 보내지 않는다
         request.state.upstream_error = exc.code
-        if exc.meta:              # 거절한 검사기의 메타(ner_error·ner_ms) — 체인이 끝나지 않아 chain_result가 없으므로 한 단계짜리 결과로 감사 줄에 남긴다
+        if exc.meta:              # 거절한 검사기의 메타(ner_error·guard_error) — 체인이 끝나지 않아 chain_result가 없으므로 앞 검사기들 + 거절 단계로 감사 줄에 남긴다
             meta = dict(exc.meta)
-            request.state.chain_result = ChainResult(body=body, steps=[Step(str(meta.pop("detector", "?")), "reject", 0.0, exc.code, meta)])
+            steps = [*getattr(exc, "chain_steps", []), Step(str(meta.pop("detector", "?")), "reject", 0.0, exc.code, meta)]
+            request.state.chain_result = ChainResult(body=body, steps=steps)
         response: Response = adapter.error(exc.status, str(exc), exc.type_, exc.code, exc.param)
         return busy(response) if exc.status == 503 else response
     except VaultFull:             # 볼트 세션 상한 — 진행 중인 세션을 밀어내지 않고 새 요청을 거절한다(D-110)

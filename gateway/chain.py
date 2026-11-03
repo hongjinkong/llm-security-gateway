@@ -94,7 +94,11 @@ class DetectorChain:
         for det in self.detectors:
             current = replace(insp, body=body, prior=_freeze(prior))
             t0 = time.perf_counter()
-            verdict = await det.inspect(current)   # 예외는 그대로 위로 올린다
+            try:
+                verdict = await det.inspect(current)   # 예외는 그대로 위로 올린다
+            except Exception as exc:
+                exc.chain_steps = list(steps)        # type: ignore[attr-defined]  # 거절(ApiError)이면 relay가 앞 검사기들의 기록도 감사 줄에 남긴다(D-127 리뷰)
+                raise
             ms = round((time.perf_counter() - t0) * 1000, 3)
             steps.append(Step(det.name, str(verdict.action), ms, verdict.reason, verdict.meta))
             # 자기 판정은 자기가 볼 수 없다 — 기록은 inspect가 끝난 **뒤에** 붙는다.

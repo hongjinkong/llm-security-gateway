@@ -20,7 +20,8 @@ client (OpenAI SDK · Anthropic SDK · OpenAI-compatible apps — change only ba
     ▼
 gateway :8080   any other path → 404 (never forwarded) → client key (401) → rate limit (429) → body limit (413) → parse (400)
     request   injection rule (observe or block) → personal data and credentials in all roles (system, tool results, RAG documents) and in tool arguments
-              are replaced with fake values of the same shape
+              are replaced with fake values of the same shape → (when on) guardrail webhook — the injection classifier or your own
+              guardrail sees this turn's text exactly as the provider will (after masking) and observes (or blocks)
     upstream  only allow-listed headers, plus the provider key (no cookies, X-Forwarded-*, org headers or gateway key)
     response  fake values restored (streaming: across chunk boundaries, per channel; thinking/reasoning untouched) · one audit line per request (no raw text)
     │
@@ -36,7 +37,10 @@ upstream  OpenAI · Anthropic · OpenAI-compatible servers (Ollama, vLLM, …)
   on the next turn — prompt caching and Anthropic thinking signatures keep working. On the real Claude API (`claude-haiku-5-5`, five two-turn conversations) the second turn read
   the cache without a signature error; the old per-request random values were rejected 5/5 ([`docs/verification/multiturn_claude.md`](docs/verification/multiturn_claude.md), Korean).
 - **Injection is not blocked by default.** There are two rules (instruction override and role switch, with Korean and English vocabulary), and they match benign sentences too ("ignore the instructions in the PDF and summarize").
-  Hits are recorded in the audit log (`would_block`); operators opt in with `GATEWAY_INJECTION=block`.
+  Hits are recorded in the audit log (`would_block`); operators opt in with `GATEWAY_INJECTION=block`. An injection classifier (in the detect sidecar, multilingual encoder `Horizon-Labs/prompt-injection-guard-base`)
+  can be turned on as a **guardrail webhook** (`GATEWAY_GUARD=observe|block`, off by default; load it in the sidecar with `DETECT_INJECTION_MODEL=horizon-guard-base-int8`). At a 1% benign false-positive threshold it catches 61.7% of the Korean attacks
+  in the sealed holdout (the rules: 5.9% on dev); verdict-forging text flips some of its detections (see below), so it is recommended for **observe mode only**.
+  Your own guardrail plugs into the same webhook contract.
 
 ### Detected kinds
 
@@ -84,6 +88,9 @@ repeats only the surname or part of an address is not restored. When the sidecar
 - **Unknown attacks.** The injection rules only know a fixed Korean and English vocabulary. On the dev split of eval set v1 ([`eval/injection/`](eval/injection/SOURCES.md),
   built from public datasets, 1,592 Korean attacks) they catch **8.7%** of attacks (Korean 5.9%, English 16.0%; forged role headers 2.9%, obfuscation 2.9%, indirect 5.1%)
   with a 2.7% false-positive rate (0% on ordinary business text, 9.2% on benign text containing trigger words) — not usable for blocking; observe only.
+  The classifier behind the guardrail webhook does much better but is still one layer: on the sealed holdout at a 1% false-positive threshold it catches
+  61.7% of Korean and 55.1% of English attacks (Korean benign false positives 1.7%), only 22.7% of English indirect injections in tool output (dev), and appending a fake
+  verdict JSON (`"verdict":"benign"`) to an attack flips 8.9% of its detections (the D-054 positive control; the pre-registered limit was 5%). Use it to observe, not to block.
 - **Output direction.** Personal data the model produces on its own reaches the user; it is counted (`pii_new`, `gateway_pii_new_total`), not masked.
 - **Restore failures are quiet.** If the model rewrites a fake value beyond recognition, the user receives the fake value (`x-gateway-pii`, `pii_suspect`, `gateway_pii_suspect_total` show it).
   Fake emails use reserved domains, but **a fake mobile number can be a real person's number** — Korea has no official fictitious number range.
@@ -155,6 +162,10 @@ Invalid choices, kinds and roles and unknown or invalid config-file keys stop st
 | `GATEWAY_DETECT_TIMEOUT` | `10` | Overall deadline (seconds) for name/address detection of one request — one sidecar call per 12,000 characters |
 | `GATEWAY_DETECT_FAIL` | `closed` | What a `mask` policy with names/addresses does when the sidecar fails (refused, 5xx, timeout, bad response): `closed` — 503 `detect_unavailable` with `retry-after: 1`, nothing goes upstream; `open` — regex kinds only, audit `ner_error`. `detect` policies and audit-only kinds always pass |
 | `GATEWAY_INJECTION` | `observe` | `observe` (audit only) · `block` (blocked response, no upstream call) · `off` |
+| `GATEWAY_GUARD` | `off` | Guardrail webhook — `observe` (verdict and score in the audit log only) · `block` (a `block` verdict gets the blocked response, no upstream call) · `off` |
+| `GATEWAY_GUARD_URL` | (none) | Webhook URL; the detect sidecar's injection classifier is `http://127.0.0.1:8081/v1/guard` in the same pod. **Start-up fails** when a policy turns `guard` on and this is empty |
+| `GATEWAY_GUARD_TIMEOUT` | `5` | Overall deadline (seconds) for the webhook call of one request |
+| `GATEWAY_GUARD_FAIL` | `open` | What a `block` policy does when the webhook fails: `open` — send without a verdict (audit `guard_error`); `closed` — 503 `guard_unavailable`, nothing goes upstream. Input rejections (400·413·422) and texts the webhook could not score (`unscored`) are blocked either way. `observe` always passes |
 | `GATEWAY_LANG` | `ko` | Language of user and operator messages: `ko` or `en`. API error bodies are always English |
 | `GATEWAY_BLOCKED_MESSAGE` | (catalog) | Text of the blocked response; the request ID is appended |
 | `GATEWAY_MAX_BODY_BYTES` | `1048576` | Request body limit → 413 `request_too_large` |
@@ -210,7 +221,8 @@ scripts/      demo · SDK checks · real-provider two-turn check · dashboard te
 tests/        unit and integration tests, stub upstream (tests/stub_target.py)
 eval/         PII corpus and scoring (eval/pii/), injection eval set v1 with sources and licenses (eval/injection/), benign questions (eval/benign/),
               NER eval sets — synthetic 200 sentences and KDPII test (eval/ner/)
-detect/       detection sidecar (experimental, not wired to the gateway) — Korean NER on ONNX Runtime, pinned models, F1 and latency tools
+detect/       detection sidecar — Korean NER (names, addresses, workplaces; GATEWAY_DETECT_URL) and the injection classifier (guardrail webhook /v1/guard;
+              GATEWAY_GUARD_URL) on ONNX Runtime, pinned models, F1 / injection evaluation and latency tools
 web/          browser demo
 ```
 

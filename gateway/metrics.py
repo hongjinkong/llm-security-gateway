@@ -3,7 +3,7 @@
 감사 레코드 하나에서 전부 센다(`AuditLog.on_write`). 프로세스 메모리의 카운터라 워커·재시작 단위다.
   gateway_requests_total{api,status,blocked}   요청 수
   gateway_outcomes_total{outcome,reason}       처리 결과 7가지와 사유(D-124, `outcome`)
-  gateway_injection_hits_total{mode}           인젝션 룰 적중(observe는 would_block, block은 차단·가림)
+  gateway_injection_hits_total{mode}           인젝션 룰·가드레일 적중(observe는 would_block, block은 차단·가림 — D-127부터 가드레일 판정도)
   gateway_pii_masked_total{kind}               실제로 가린 건수(종류별, pii_mask만 — D-124 전에는 detect 정책의 찾은 수가 섞였다)
   gateway_pii_unmasked_total{kind}             찾았지만 가리지 않은 건수(detect 정책 + 기본 감사만 종류, D-124)
   gateway_pii_restored_total / gateway_pii_residual_total   복원 건수 / 복원 뒤 남은 대체값 수
@@ -11,6 +11,8 @@
   gateway_pii_new_total                        응답에 새로 나온 PII·비밀(우리가 가린 원문·발급한 대체값이 아닌 것, D-120) — 가리지 않는다
   gateway_detect_errors_total{reason}          이름·주소 탐지 사이드카 실패(검사기 항목의 ner_error — connect·timeout·http_<상태>·bad_response, D-126). open·detect 정책에서는
                                                이것만이 장애 신호다(요청은 200으로 지나간다)
+  gateway_guard_errors_total{reason}           가드레일 웹훅 실패(검사기 항목의 guard_error, D-127) — observe·open에서는 이것만이 장애 신호다
+  gateway_guard_verdicts_total{verdict}        가드레일 판정(allow·block) — 관측 모드에서 차단을 켤지 정하는 숫자(D-127 리뷰)
   gateway_upstream_ms_sum/_count, gateway_total_ms_sum/_count   지연 합·횟수(평균은 나눠서)
   gateway_vault_sessions{policy}               진행 중인 대체값 세션(게이지, D-122) — 정책·워커당 2,000이면 503 gateway_busy
   gateway_upstream_connections_in_use{upstream} 빌려 간 상류 연결(게이지, D-122) — GATEWAY_MAX_CONNECTIONS면 기다리다 503 upstream_busy.
@@ -31,7 +33,7 @@ from gateway.audit import utcnow
 # 게이트웨이가 상류에 보내지 않고 거절한 요청의 감사 `error` 코드(D-124). 새 코드를 만들면 여기나 UPSTREAM_ERRORS에 넣는다 — 테스트가 소스를 훑어 지킨다.
 REJECTED = frozenset({"unauthorized", "rate_limited", "request_too_large", "too_many_findings", "model_not_allowed",
                       "invalid_json", "invalid_messages", "invalid_request", "invalid_stream", "not_found",
-                      "gateway_busy", "upstream_busy", "detect_unavailable"})
+                      "gateway_busy", "upstream_busy", "detect_unavailable", "guard_unavailable"})
 # 상류 호출 실패 — relay가 감사 `error`에 예외 이름을 적는다. 스트림 도중이면 상태가 200이다(이미 머리를 보냈다).
 # upstream_stream_error: 상류가 머리(200) 뒤 스트림 안에 보낸 오류 이벤트(Anthropic `event: error` overloaded_error 등, D-124).
 UPSTREAM_ERRORS = frozenset({c.__name__ for c in vars(httpx).values()
@@ -39,7 +41,7 @@ UPSTREAM_ERRORS = frozenset({c.__name__ for c in vars(httpx).values()
 OUTCOMES = ("masked", "passed", "observed", "blocked", "rejected", "upstream_error", "failed")
 RECENT = 200
 ROW_KEYS = ("ts", "request_id", "client", "policy", "api", "model", "status", "outcome", "reason", "gateway_ms", "upstream_ms",
-            "masked", "unmasked", "masked_turns", "rules", "issued", "restored", "suspect", "new", "ner_error")
+            "masked", "unmasked", "masked_turns", "rules", "issued", "restored", "suspect", "new", "ner_error", "guard")
 
 
 def _steps(rec: dict) -> list[dict]:
@@ -87,8 +89,8 @@ def outcome(rec: dict) -> tuple[str, str]:
         if any(d.get("masked_turns") for d in steps):
             return "masked", "masked_turns"
         return "masked", next((str(d.get("detector")) for d in steps if d.get("action") == "transform"), "transformed")
-    if any(d.get("would_block") for d in steps):
-        return "observed", "injection_observe"
+    if (flag := next((d for d in steps if d.get("would_block")), None)) is not None:     # 룰(injection_observe)이나 가드레일(injection_guard, D-127)
+        return "observed", str(flag.get("detector") or "injection_observe")
     if unmasked:
         return "observed", "unmasked"
     return "passed", "none"
@@ -114,6 +116,9 @@ def row(rec: dict, result: tuple[str, str]) -> dict:
         "issued": rec.get("pii_issued", 0), "restored": rec.get("pii_restored", 0),
         "suspect": rec.get("pii_suspect", 0), "new": rec.get("pii_new", 0),
         "ner_error": next((_cut(str(d["ner_error"]), 40) for d in steps if d.get("ner_error")), None),   # 사이드카 실패 사유(D-126)
+        "guard": next(({"verdict": _cut(d.get("guard_verdict"), 16), "score": d.get("guard_score"), "error": _cut(d.get("guard_error"), 40),
+                        "unscored": d.get("guard_unscored")}
+                       for d in steps if str(d.get("detector", "")).startswith("injection_guard")), None),   # 가드레일 판정·실패(D-127)
     }
 
 
@@ -126,6 +131,8 @@ class Metrics:
         self.unmasked: Counter = Counter()
         self.outcomes: Counter = Counter()
         self.detect_errors: Counter = Counter()   # 이름·주소 탐지 사이드카 실패 사유별(D-126)
+        self.guard_errors: Counter = Counter()    # 가드레일 웹훅 실패 사유별(D-127)
+        self.guard_verdicts: Counter = Counter()  # 가드레일 판정별(allow·block)
         # ponytail: 링은 하나다 — 부하 중에는 차단·거절 줄도 몇 초 안에 밀려난다. 필요해지면 passed·masked가 아닌 줄만 담는 두 번째 링을 둔다.
         self.recent: deque[dict] = deque(maxlen=RECENT)
         self.started = utcnow()                # 감사 줄 ts와 같은 형식. 이미지에서는 uvicorn이 PID 1이라 파드는 started로 가른다
@@ -140,12 +147,20 @@ class Metrics:
         with self._lock:
             try:
                 self.requests[(rec.get("api") or "other", rec.get("status"), bool(rec.get("blocked")))] += 1
+                modes = set()             # 요청 하나는 한 번만 센다 — 룰과 가드레일이 함께 걸려도(D-127 재검증)
                 for d in _steps(rec):
                     name = str(d.get("detector", ""))
-                    if name.startswith("injection") and (d.get("rules") or d.get("would_block")):
-                        self.injection["observe" if name == "injection_observe" else "block"] += 1
+                    if name.startswith("injection") and (d.get("rules") or d.get("would_block") or d.get("action") == "block"):
+                        modes.add("observe" if d.get("would_block") else "block")
                     if d.get("ner_error"):
                         self.detect_errors[str(d["ner_error"])[:40]] += 1
+                    if d.get("guard_error"):
+                        self.guard_errors[str(d["guard_error"])[:40]] += 1
+                    if d.get("guard_unscored"):           # 웹훅이 일부 텍스트를 재지 못했다(상한) — 관측에서는 이것도 판정 없이 지나간 글이다
+                        self.guard_errors["unscored"] += 1
+                    if name.startswith("injection_guard") and d.get("guard_verdict"):
+                        self.guard_verdicts[str(d["guard_verdict"])[:16]] += 1
+                self.injection.update(modes)
                 masked, unmasked = _kinds(rec)
                 self.masked.update(masked)
                 self.unmasked.update(unmasked)
@@ -182,6 +197,7 @@ class Metrics:
                 "requests": sum(self.requests.values()), "status": dict(status), "outcomes": outcomes,
                 "reasons": [{"outcome": o, "reason": r, "count": n} for (o, r), n in self.outcomes.most_common()],
                 "masked": dict(self.masked), "unmasked": dict(self.unmasked), "detect_errors": dict(self.detect_errors),
+                "guard_errors": dict(self.guard_errors), "guard_verdicts": dict(self.guard_verdicts),
                 "injection": {"observe": self.injection["observe"], "block": self.injection["block"]},
                 "restored": self.restored, "residual": self.residual, "suspect": self.suspect, "new": self.new,
                 "gateway_ms_avg": round((self.total_ms - self.upstream_ms) / self.total_n, 2) if self.total_n else None,
@@ -205,6 +221,10 @@ class Metrics:
             lines += [f'gateway_pii_unmasked_total{{kind="{_label(k)}"}} {n}' for k, n in sorted(self.unmasked.items())]
             lines.append("# TYPE gateway_detect_errors_total counter")
             lines += [f'gateway_detect_errors_total{{reason="{_label(r)}"}} {n}' for r, n in sorted(self.detect_errors.items())]
+            lines.append("# TYPE gateway_guard_errors_total counter")
+            lines += [f'gateway_guard_errors_total{{reason="{_label(r)}"}} {n}' for r, n in sorted(self.guard_errors.items())]
+            lines.append("# TYPE gateway_guard_verdicts_total counter")
+            lines += [f'gateway_guard_verdicts_total{{verdict="{_label(v)}"}} {n}' for v, n in sorted(self.guard_verdicts.items())]
             lines += ["# TYPE gateway_pii_restored_total counter", f"gateway_pii_restored_total {self.restored}",
                       "# TYPE gateway_pii_residual_total counter", f"gateway_pii_residual_total {self.residual}",
                       "# TYPE gateway_pii_suspect_total counter", f"gateway_pii_suspect_total {self.suspect}",

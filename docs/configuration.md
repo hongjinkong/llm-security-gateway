@@ -34,6 +34,10 @@
 | `GATEWAY_DETECT_TIMEOUT` | `10` | 한 요청의 이름·주소 탐지 전체 기한(초, 0보다 큰 수 — 아니면 기동 실패) — 긴 요청은 12,000자마다 사이드카 호출 하나(창 하나 1~6초, [운영](operations.md#탐지-사이드카)). 넘으면 아래 `GATEWAY_DETECT_FAIL` |
 | `GATEWAY_DETECT_FAIL` | `closed` | 사이드카가 실패(연결 거부·5xx·시간 초과·이상한 응답)했을 때 가리는 이름·주소가 켜진 `mask` 정책의 동작 — `closed`: 상류에 보내지 않고 503 `detect_unavailable`(`retry-after: 1`) · `open`: 정규식 종류만 가리고 보낸다(감사 `ner_error`). `detect` 정책과 감사만 종류(`org` 기본)는 늘 통과한다 |
 | `GATEWAY_INJECTION` | `observe` | `observe`(적중을 감사에만, `would_block`) · `block`(이번 턴이 걸리면 상류 없이 차단 응답, 이력의 걸린 턴은 가림) · `off` |
+| `GATEWAY_GUARD` | `off` | 가드레일 웹훅(아래 '가드레일 웹훅') — `observe`(판정·점수를 감사에만, block 판정이면 `would_block`) · `block`(block 판정이면 상류 없이 차단 응답) · `off` |
+| `GATEWAY_GUARD_URL` | (없음) | 웹훅 주소 — 탐지 사이드카의 인젝션 분류기면 `http://127.0.0.1:8081/v1/guard`(k8s 같은 파드)·`http://detect:8081/v1/guard`(compose). 어느 정책이든 `guard`를 켰는데 비어 있으면 **기동 실패**. 모양은 `http(s)://호스트[:포트][/경로]` — 쿼리·조각·다른 스킴은 기동 실패 |
+| `GATEWAY_GUARD_TIMEOUT` | `5` | 한 요청의 웹훅 전체 기한(초, 0보다 큰 수). 넘으면 아래 `GATEWAY_GUARD_FAIL` |
+| `GATEWAY_GUARD_FAIL` | `open` | 웹훅이 실패(연결 거부·200 아닌 응답·시간 초과·이상한 응답)했을 때 `block` 정책의 동작 — `open`: 판정 없이 보낸다(감사 `guard_error`) · `closed`: 상류에 보내지 않고 503 `guard_unavailable`(`retry-after: 1`). `observe`는 늘 통과한다 |
 | `GATEWAY_LANG` | `ko` | 사용자·운영자 문구 — `ko`·`en`(차단 문구·가린 이력 자리표시·기동 거부·설정 오류). API 오류 본문은 언제나 영어 |
 | `GATEWAY_BLOCKED_MESSAGE` | (카탈로그 문구) | 차단 응답 문구. 끝에 `(요청 ID: …)`가 붙는다 |
 | `GATEWAY_MAX_BODY_BYTES` | `1048576`(1MiB) | 요청 본문 상한. 넘으면 검사기·상류 없이 413 `request_too_large`. 긴 문맥 모델을 쓰면 올린다(메모리는 [운영 — 용량](operations.md#용량)) |
@@ -66,6 +70,7 @@
 | `[[clients]] key_sha256` | 소문자 16진 64자 | (필수) | 클라이언트 키의 SHA-256(`keygen --hash`의 둘째 줄). 같은 해시가 두 번이면 기동 실패 |
 | `[[clients]] policy` | 정책 이름 | `default` | 이 클라이언트에 쓸 정책 |
 | `[policies.<이름>] injection` | `observe`·`block`·`off` | `GATEWAY_INJECTION` | |
+| `[policies.<이름>] guard` | `observe`·`block`·`off` | `GATEWAY_GUARD` | 켜면 `GATEWAY_GUARD_URL` 필수 |
 | `[policies.<이름>] pii_mode` | `mask`·`detect`·`off` | `GATEWAY_PII` | |
 | `[policies.<이름>] pii_kinds` | 종류 목록 | `GATEWAY_PII_KINDS` | `person`·`address`를 더하면 이 정책만 이름·주소를 가린다 |
 | `[policies.<이름>] pii_detect_kinds` | 종류 목록 | `GATEWAY_PII_DETECT_KINDS` | 빈 목록이면 모두 가린다 |
@@ -124,3 +129,32 @@ k8s 견본 설정은 [`deploy/k8s/gateway.toml`](../deploy/k8s/gateway.toml)이�
 - `address`는 번지·건물 번호·동·호·층처럼 숫자가 든 토큰이 있을 때만 가리고, 시·도·구·역·나라 이름뿐이면 감사만이다('서울 날씨'를 가리면 질문이 바뀐다).
 - 가짜 이름은 성 + 이름(마지막 글자의 받침 부류가 원문과 같아 뒤따르는 조사가 맞는다), 가짜 주소는 시·도·시·군·구를 두고 도로·동·건물·번호를 바꾼다(번호는 자릿수와 마지막 자리 유지).
 - 사이드카가 실패하면 `GATEWAY_DETECT_FAIL`(`closed` 기본 — 503 `detect_unavailable`, `open` — 정규식 종류만 가리고 보냄). `detect` 정책은 늘 통과한다.
+
+## 가드레일 웹훅 (`GATEWAY_GUARD`)
+
+인젝션을 룰 말고 다른 판정기(분류기·사내 가드레일 서비스)로도 본다(D-127). **기본은 꺼져 있다** — `GATEWAY_GUARD`(또는 정책 키 `guard`)를 `observe`나 `block`으로 두고
+`GATEWAY_GUARD_URL`을 주면 켜진다. 게이트웨이는 요청마다 웹훅을 한 번 부른다:
+
+```
+POST GATEWAY_GUARD_URL  {"texts": [{"role": "user", "text": "…"}, {"role": "tool", "text": "…"}]}
+→ 200 {"verdict": "allow" | "block", "score": 0~1}        (그 밖의 키는 무시한다)
+```
+
+- **보내는 텍스트**: 이번 턴(글이 든 마지막 user 메시지부터 끝까지 — 빈 user 메시지를 덧붙여도 앞 글이 빠지지 않는다)의 사용자 글(`user`)과 도구 결과·첨부 문서(`tool` — Anthropic `document`·`search_result` 포함, 범위는 [API 호환 — 검사 범위](api-compat.md#api별-검사복원-범위))뿐이다. 같은 메시지의 파트는 하나로 이어
+  메시지마다 항목 하나다. system 프롬프트·모델의 답(assistant)·이전 턴은 보내지 않는다(이전 턴은 그 턴일 때 이미 판정했다). 텍스트가 없으면 부르지 않는다.
+- **웹훅은 공급자와 같은 텍스트를 본다**: 체인의 마지막(PII 뒤)에 서므로 **정책이 가리는 종류만 가짜 값**이다. 감사만 종류(기본 계좌·사업자·법인·IP·직장), 켜지 않은 종류(이름·주소는 기본 꺼짐),
+  `pii_mode`가 `detect`·`off`인 정책의 텍스트는 원문 그대로 웹훅에 간다 — 외부 서비스를 웹훅으로 쓰면 그곳이 또 하나의 처리자가 된다. 같은 파드·내부망의 판정기를 권한다.
+- `observe`: 막지 않는다. 감사 줄 검사기 항목(`injection_guard`)에 `guard_verdict`·`guard_score`, `block` 판정이면 `would_block: true`(대시보드 결과 '기록만', 사유 `injection_guard`).
+- `block`: `block` 판정이면 룰 차단과 같은 200 차단 응답(`gateway_blocked: true`, 사유·점수는 응답에 없고 감사에만), 상류는 부르지 않는다(사유 `injection_guard_block`).
+- 실패(연결 거부·200 아닌 응답·`GATEWAY_GUARD_TIMEOUT` 초과·모양이 틀린 응답)는 감사 `guard_error`(`connect`·`http_<상태>`·`timeout`·`bad_response`)와 지표
+  `gateway_guard_errors_total{reason}`에 남고, `observe`는 판정 없이 보낸다. `block`에서 웹훅이 **입력을 거절**하면(400·413·422 — 너무 크거나 많다) `GATEWAY_GUARD_FAIL`과 상관없이
+  막는다 — 통과시키면 글을 부풀리기만 해도 판정을 피한다. 그 밖의 실패는 `open`(기본)이면 판정 없이 보내고 `closed`면 503 `guard_unavailable`(`retry-after: 1`).
+  웹훅이 일부 텍스트를 재지 못했다고 하면(응답의 선택 키 `unscored` — 판정하지 못한 텍스트 수) `block`은 막고 `observe`는 감사 `guard_unscored`로 남긴다.
+  `block`을 쓰면 `closed`를 권한다 — `open`이면 웹훅을 바쁘게 만들거나(동시 요청) 끊어 판정을 피할 수 있다.
+- 웹훅에는 인증 헤더를 달지 않는다 — 같은 파드나 내부망에 둔다. 외부 가드레일 서비스는 계약이 다르므로 이 계약을 받는 작은 어댑터를 같은 클러스터에 두고, 어댑터가 그 서비스의 키를 든다.
+
+**탐지 사이드카의 인젝션 분류기를 웹훅으로**: 사이드카([`detect/`](../detect/README.md))의 `POST /v1/guard`가 이 계약을 구현한다. 분류기는 이미지에 들어 있지만 기본으로 싣지 않는다 —
+사이드카에 `DETECT_INJECTION_MODEL=horizon-guard-base-int8`(메모리 약 +1.2GiB), 게이트웨이에 `GATEWAY_GUARD=observe`와 `GATEWAY_GUARD_URL`(같은 파드면 `http://127.0.0.1:8081/v1/guard`,
+compose면 `http://detect:8081/v1/guard`). 점수는 텍스트들의 (512토큰 창들의) 최댓값이고, 문턱(`DETECT_GUARD_THRESHOLD`, 기본은 모델의 운영 문턱 — dev 정상셋 오탐 1%)을 넘으면 `block`이다.
+한 요청에서 캐시에 없는 글은 새 글부터 비용 상한 `DETECT_INJECTION_MAX_TOKENS`(기본 2,048)까지만 재고 나머지는 `unscored`로 알린다. **이 분류기로는 `block`을 권하지 않는다** — 공격 문장 뒤에 가짜 판정 JSON을 붙이면
+잡힌 공격의 8.9%가 빠져나간다(D-127 양성대조). 정확도·지연·메모리·한계는 [운영 — 가드레일 웹훅](operations.md#가드레일-웹훅)과 DECISIONS D-127.

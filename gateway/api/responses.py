@@ -34,7 +34,7 @@ class ResponsesAdapter(Adapter):
     def parse(self, body: bytes) -> dict:
         try:
             payload = json.loads(body)
-        except (ValueError, UnicodeDecodeError) as exc:
+        except (ValueError, UnicodeDecodeError, RecursionError) as exc:
             raise ApiError("request body must be valid JSON", "body", "invalid_json") from exc
         if not isinstance(payload, dict):
             raise ApiError("request body must be an object", "body", "invalid_json")

@@ -227,7 +227,7 @@ CASES = {
 }
 CODE_STATUS = {"unauthorized": 401, "rate_limited": 429, "request_too_large": 413, "too_many_findings": 413, "model_not_allowed": 403,
                "invalid_json": 400, "invalid_messages": 400, "invalid_request": 400, "invalid_stream": 400, "not_found": 404,
-               "gateway_busy": 503, "upstream_busy": 503, "detect_unavailable": 503}
+               "gateway_busy": 503, "upstream_busy": 503, "detect_unavailable": 503, "guard_unavailable": 503}
 
 
 @pytest.mark.parametrize("record, expected", CASES.values(), ids=list(CASES))
@@ -236,7 +236,7 @@ def test_w3_outcome_takes_the_first_rule_that_fits(record, expected):
     assert set(row(record, expected)) == set(ROW_KEYS)
 
 
-def test_w3_rejected_codes_are_the_13_in_the_spec():
+def test_w3_rejected_codes_are_the_14_in_the_spec():
     assert REJECTED == set(CODE_STATUS)          # D-124 §2-3 글자 그대로 — 코드를 빼거나 UPSTREAM_ERRORS로 옮겨도 여기서 안다
 
 
@@ -300,23 +300,26 @@ def test_w4_stats_has_no_original_or_surrogate_values(gw):
     assert (line["outcome"], line["reason"]) == ("masked", "pii_mask") and "R1" in {h["rule"] for h in line["rules"]}   # 가림이 기록만보다 먼저(§2-3)
 
 
-def test_w4_row_keys_are_the_20_in_the_spec():
-    """D-124 §2-4 글자 그대로(+ D-126의 ner_error) — 구현 상수(ROW_KEYS)와만 비교하면 상수와 row()에 ip를 함께 더해도 통과한다."""
+def test_w4_row_keys_are_the_21_in_the_spec():
+    """D-124 §2-4 글자 그대로(+ D-126의 ner_error, D-127의 guard) — 구현 상수(ROW_KEYS)와만 비교하면 상수와 row()에 ip를 함께 더해도 통과한다."""
     assert ROW_KEYS == ("ts", "request_id", "client", "policy", "api", "model", "status", "outcome", "reason", "gateway_ms",
-                        "upstream_ms", "masked", "unmasked", "masked_turns", "rules", "issued", "restored", "suspect", "new", "ner_error")
+                        "upstream_ms", "masked", "unmasked", "masked_turns", "rules", "issued", "restored", "suspect", "new", "ner_error",
+                        "guard")
     omitted = {"ip", "path", "query_keys", "req_sha256_12", "findings", "usage", "upstream_request_id", "config"}   # 싣지 않는 것
     assert not omitted & set(ROW_KEYS) and not omitted & set(row(rec(), ("passed", "none")))
 
 
 def test_w4_row_takes_each_value_from_its_own_field():
     """값이 모두 다른 레코드 하나로 줄 전체 — 복원/발급·게이트웨이 ms·시각을 다른 필드에서 읽으면 화면의 칸이 틀린다."""
-    r = rec(detectors=[{**TURN, "masked_turns": 5}, {**MASK, "unmasked": {"account": 6}}], transformed=True,
+    guard = {"detector": "injection_guard", "action": "allow", "ms": 3.0, "guard_verdict": "block", "guard_score": 0.97, "would_block": True}
+    r = rec(detectors=[{**TURN, "masked_turns": 5}, {**MASK, "unmasked": {"account": 6}}, guard], transformed=True,
             pii_issued=3, pii_restored=2, pii_suspect=1, pii_new=4, total_ms=900.0, upstream_ms=880.0, gateway_ms=20.0)
     assert row(r, ("masked", "pii_mask")) == {
         "ts": r["ts"], "request_id": r["request_id"], "client": "app", "policy": "default", "api": "chat", "model": "stub-model",
         "status": 200, "outcome": "masked", "reason": "pii_mask", "gateway_ms": 20.0, "upstream_ms": 880.0,
         "masked": {"phone": 1, "email": 1}, "unmasked": {"account": 6}, "masked_turns": 5, "rules": [HIT],
-        "issued": 3, "restored": 2, "suspect": 1, "new": 4, "ner_error": None}
+        "issued": 3, "restored": 2, "suspect": 1, "new": 4, "ner_error": None, "guard": {"verdict": "block", "score": 0.97, "error": None, "unscored": None}}
+    assert row(rec(), ("passed", "none"))["guard"] is None
 
 
 LONG = "가" * 1000
@@ -470,7 +473,7 @@ def test_stats_body_keeps_the_contract(fresh):
     assert httpx.post(fresh.gateway + CHAT, json=chat("hi"), headers={"Authorization": "Bearer wrong"}).status_code == 401
     st, lines, info = stats(fresh), fresh.log_lines(), fresh.info()
     assert set(st) == {"started", "now", "pid", "max_connections", "requests", "status", "outcomes", "reasons", "masked", "unmasked",
-                       "detect_errors", "injection", "restored", "residual", "suspect", "new", "gateway_ms_avg", "upstream_ms_avg",
+                       "detect_errors", "guard_errors", "guard_verdicts", "injection", "restored", "residual", "suspect", "new", "gateway_ms_avg", "upstream_ms_avg",
                        "vault_sessions", "upstreams", "recent"}                        # 호스트 이름은 싣지 않는다 — 프로세스는 started·pid로 가른다
     assert st["max_connections"] == 7 and st["status"] == Counter(str(x["status"]) for x in lines)
     assert set(st["vault_sessions"]) == set(info["policies"]) and set(st["upstreams"]) == set(info["upstreams"].values())
@@ -636,10 +639,12 @@ RULE_LABELS = {"R1": "지시 무효화", "R2": "역할 전환·제약 해제"}
 REASON_LABELS = {"unauthorized": "키 없음·틀림", "rate_limited": "분당 한도", "request_too_large": "본문 상한",
                  "too_many_findings": "개인정보가 너무 많음", "model_not_allowed": "허용 안 된 모델", "not_found": "허용 목록 밖 경로",
                  "gateway_busy": "게이트웨이 바쁨", "upstream_busy": "AI 연결 가득", "detect_unavailable": "이름·주소 탐지기 응답 없음",
+                 "guard_unavailable": "가드레일 응답 없음",
                  "response_too_large": "AI 응답이 너무 큼",
                  "upstream_stream_error": "AI 회사가 스트림 도중 오류를 보냄", "ClientDisconnect": "클라이언트가 끊음",
                  "CancelledError": "처리 중 취소됨", "injection_rule_turn": "이번 턴의 수상한 지시", "pii_mask": "개인정보를 가짜 값으로 바꿈",
                  "masked_turns": "이력의 수상한 턴을 가림", "injection_observe": "수상한 지시 — 기록만",
+                 "injection_guard": "가드레일 위험 판정 — 기록만", "injection_guard_block": "가드레일 차단",
                  "unmasked": "가리지 않는 개인정보 — 기록만", "none": "해당 없음"}
 
 

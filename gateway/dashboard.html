@@ -131,10 +131,11 @@ const KIND = {rrn: "주민등록번호", frn: "외국인등록번호", passport:
 const RULE = {R1: "지시 무효화", R2: "역할 전환·제약 해제"};
 const REASON = {unauthorized: "키 없음·틀림", rate_limited: "분당 한도", request_too_large: "본문 상한",
   too_many_findings: "개인정보가 너무 많음", model_not_allowed: "허용 안 된 모델", not_found: "허용 목록 밖 경로",
-  gateway_busy: "게이트웨이 바쁨", upstream_busy: "AI 연결 가득", detect_unavailable: "이름·주소 탐지기 응답 없음",
+  gateway_busy: "게이트웨이 바쁨", upstream_busy: "AI 연결 가득", detect_unavailable: "이름·주소 탐지기 응답 없음", guard_unavailable: "가드레일 응답 없음",
   response_too_large: "AI 응답이 너무 큼", upstream_stream_error: "AI 회사가 스트림 도중 오류를 보냄",
   ClientDisconnect: "클라이언트가 끊음", CancelledError: "처리 중 취소됨", injection_rule_turn: "이번 턴의 수상한 지시",
   pii_mask: "개인정보를 가짜 값으로 바꿈", masked_turns: "이력의 수상한 턴을 가림", injection_observe: "수상한 지시 — 기록만",
+  injection_guard: "가드레일 위험 판정 — 기록만", injection_guard_block: "가드레일 차단",
   unmasked: "가리지 않는 개인정보 — 기록만", none: "해당 없음"};
 const TIMEOUTS = ["ConnectTimeout", "ReadTimeout", "WriteTimeout", "PoolTimeout"];
 const GONE = Symbol("gone");
@@ -169,7 +170,10 @@ function reasonLabel(o, r) {
 // '어떻게 처리했나' — D-124 §2-7 문장 규칙. '상류 호출 없음'은 blocked·rejected 줄에만 붙는다(upstream_ms가 늘 null).
 function how(r) {
   const rs = String(r.reason), st = r.status, rules = r.rules || [], um = kinds(r.unmasked),
-    tail = (um ? ` · 기록만: ${um}` : "") + (r.ner_error ? ` · 이름·주소 탐지 실패(${r.ner_error}) — 이름·주소는 가리지 못함` : "");
+    g = r.guard || {}, gs = g.score == null ? "" : `점수 ${g.score}`,
+    tail = (um ? ` · 기록만: ${um}` : "") + (r.ner_error ? ` · 이름·주소 탐지 실패(${r.ner_error}) — 이름·주소는 가리지 못함` : "") +
+      (g.error ? ` · 가드레일 응답 없음(${g.error}) — 판정 없이 보냄` : g.verdict === "block" && rs !== "injection_guard" ? ` · 가드레일 위험 판정(${gs}, 기록만)` : "") +
+      (g.unscored ? ` · 가드레일이 글 ${g.unscored}개를 재지 못함(상한)` : "");
   const codes = [...new Set(rules.map(h => h.rule))].join(" · "), named = [...new Set(rules.map(rname))].join(" · ");
   const turns = r.masked_turns ? `이력 ${r.masked_turns}턴 가림` + (named ? `(${named})` : "") : "";
   const at = st === 200 ? `스트림 도중, ${rs}` : `${st} ${rs}`;
@@ -180,10 +184,12 @@ function how(r) {
       return `가짜 값으로 바꿔 보냄 — ${kinds(r.masked)} → ${r.restored}개 되돌림` + tail +
         (turns ? ` · ${turns}` : codes ? ` · 인젝션 룰 ${codes} 적중(기록만)` : "");
     case "blocked":
+      if (rs === "injection_guard_block") return g.error || (g.unscored && g.verdict !== "block") ? `가드레일이 판정하지 못한 입력(${g.error || `글 ${g.unscored}개를 재지 못함`}) — 차단, 상류 호출 없음` : `가드레일 차단(${gs}) — 상류 호출 없음`;
       if (!rs.startsWith("injection")) return `${rs} 차단 — 상류 호출 없음`;
       return `인젝션 룰 ${rules.map(h => `${rname(h)}(${h.object ? `${h.trigger} + ${h.object}` : h.trigger})`).join(" · ") || "적중"} — 이번 턴 차단, 상류 호출 없음`;
     case "observed":
-      if (rs !== "injection_observe") return `${um} 찾음 — 가리지 않음(원래 값이 나감, 기록만)`;
+      if (rs === "injection_guard") return `가드레일 위험 판정(${gs}) — 기록만(차단 꺼짐), 그대로 보냄` + tail;
+      if (rs !== "injection_observe") return `${um} 찾음 — 가리지 않음(원래 값이 나감, 기록만)` + tail.replace(` · 기록만: ${um}`, "");
       return `인젝션 룰 ${codes} 적중 — 기록만(차단 꺼짐), 그대로 보냄` + tail;
     case "rejected":
       return `${reasonLabel("rejected", rs)}(${st} ${rs}) — 상류 호출 없음`;
@@ -194,8 +200,8 @@ function how(r) {
     case "failed":   // 끊김은 상태로 가른다 — 200이면 응답(스트림) 도중, 아니면 응답 전(본문을 올리다 끊음 등)
       if (rs === "ClientDisconnect" || rs === "CancelledError") return st === 200 ? `응답 도중 끊김(${rs})` : `${REASON[rs]}(${st} ${rs})`;
       return `게이트웨이 내부 오류(${at})`;
-    default:
-      return "그대로 보냄 — 찾은 것 없음";
+    default:   // 탐지기·가드레일이 실패해도 결과는 '그대로'다 — 그 사실은 꼬리로 보인다(D-127 리뷰)
+      return "그대로 보냄 — 찾은 것 없음" + tail;
   }
 }
 

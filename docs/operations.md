@@ -95,7 +95,7 @@ kustomize는 이름에 해시가 붙은 옛 Secret·ConfigMap을 지우지 않�
 | `upstream_request_id` | 상류가 준 요청 ID(공급자 문의용) |
 | `blocked` `blocked_by` `transformed` | 차단 여부·차단한 검사기·본문을 바꿨는지 |
 | `pii_issued` `pii_restored` `pii_suspect` `pii_new` | 가짜 값 발급·복원 수, 의심 잔여(복원 실패 신호), 응답에 새로 나온 PII |
-| `detectors` `response_detectors` | 검사기별 결과(종류별 건수, 감사만 종류 `unmasked`, 인젝션 룰 적중 `would_block`) |
+| `detectors` `response_detectors` | 검사기별 결과(종류별 건수, 감사만 종류 `unmasked`, 인젝션 룰 적중 `would_block`, 가드레일 `guard_verdict`·`guard_score`·`guard_error`) |
 
 ## 지표
 
@@ -106,13 +106,15 @@ kustomize는 이름에 해시가 붙은 옛 Secret·ConfigMap을 지우지 않�
 |---|---|
 | `gateway_requests_total{api,status,blocked}` | 요청 수 |
 | `gateway_outcomes_total{outcome,reason}` | 처리 결과 7가지와 사유 — 코드는 [대시보드](#대시보드)의 표 |
-| `gateway_injection_hits_total{mode}` | 인젝션 룰 적중(observe는 `would_block`) |
+| `gateway_injection_hits_total{mode}` | 인젝션 룰·가드레일 적중(observe는 `would_block`, block은 차단·이력 가림) |
 | `gateway_pii_masked_total{kind}` | 실제로 가린 것(`pii_mask`, 종류별). detect 정책의 찾은 수와 감사만 종류는 세지 않는다 |
 | `gateway_pii_unmasked_total{kind}` | 찾았지만 가리지 않은 것(종류별) — detect 정책의 찾은 수 + 감사만 종류(`unmasked`) |
 | `gateway_pii_restored_total` · `gateway_pii_residual_total` · `gateway_pii_suspect_total` | 복원 수 · 복원 뒤 남은 가짜 값 · 의심 잔여(남은 가짜 값 + 가짜 값의 끝 4자리·로컬파트만 나타난 경우) |
 | `gateway_pii_new_total` | 응답에 새로 나온 PII·비밀(가리지 않는다) |
 | `gateway_upstream_ms_sum`·`_count`, `gateway_total_ms_sum`·`_count` | 지연 합·횟수 — 평균은 `rate(_sum) / rate(_count)` |
 | `gateway_detect_errors_total{reason}` | 이름·주소 탐지 사이드카 실패 수(사유별 — `connect`·`timeout`·`http_<상태>`·`bad_response`). `GATEWAY_DETECT_FAIL=open`·`detect` 정책에서는 요청이 200으로 지나가므로 **이것만이 장애 신호**다 |
+| `gateway_guard_verdicts_total{verdict}` | 가드레일 판정 수(`allow`·`block`) — 관측 기간에 차단을 켤지 정하는 숫자 |
+| `gateway_guard_errors_total{reason}` | 가드레일 웹훅 실패 수(사유별 — `connect`·`timeout`·`http_<상태>`·`bad_response`). `observe`·`GATEWAY_GUARD_FAIL=open`에서는 요청이 판정 없이 지나가므로 **이것만이 장애 신호**다 |
 | `gateway_vault_sessions{policy}` | 진행 중인 대체값 세션 수(게이지, 정책마다). 2,000에 닿은 정책은 503 `gateway_busy` |
 | `gateway_upstream_connections_in_use{upstream}` | 빌려 간 상류 연결 수(게이지, 상류 주소마다 — 주소가 같아도 `timeout`이 다르면 풀이 따로라 가장 바쁜 풀의 값). `GATEWAY_MAX_CONNECTIONS`에 닿으면 새 요청이 기다리다 503 `upstream_busy` |
 
@@ -193,8 +195,10 @@ scrape_configs:
 | `masked` | 가림 후 전달 | `masked_turns` | 이력의 수상한 턴을 가림 | 200 | 있음 |
 | `passed` | 그대로 전달 | `none` | 해당 없음 | 200 | 있음 |
 | `observed` | 기록만 | `injection_observe` | 수상한 지시 — 기록만 | 200 | 있음 |
+| `observed` | 기록만 | `injection_guard` | 가드레일 위험 판정 — 기록만(`GATEWAY_GUARD=observe`, 웹훅이 block이라 함) | 200 | 있음 |
 | `observed` | 기록만 | `unmasked` | 가리지 않는 개인정보 — 기록만 | 200 | 있음 |
 | `blocked` | 차단 | `injection_rule_turn` | 이번 턴의 수상한 지시(그 밖의 차단 검사기는 이름 그대로) | 200(차단 응답) | 없음 |
+| `blocked` | 차단 | `injection_guard_block` | 가드레일 차단(`GATEWAY_GUARD=block`, 웹훅이 block이라 함) | 200(차단 응답) | 없음 |
 | `rejected` | 거절 | `unauthorized` | 키 없음·틀림 | 401 | 없음 |
 | `rejected` | 거절 | `rate_limited` | 분당 한도 | 429 | 없음 |
 | `rejected` | 거절 | `request_too_large` | 본문 상한 | 413 | 없음 |
@@ -205,6 +209,7 @@ scrape_configs:
 | `rejected` | 거절 | `gateway_busy` | 게이트웨이 바쁨(진행 중인 대체값 세션 상한) | 503 | 없음 |
 | `rejected` | 거절 | `upstream_busy` | AI 연결 가득(빈 상류 연결을 5초 기다려도 없음) | 503 | 없음 |
 | `rejected` | 거절 | `detect_unavailable` | 이름·주소 탐지기 응답 없음(이름·주소를 가리는 정책인데 탐지 사이드카가 연결 거부·5xx·시간 초과·이상한 응답, `GATEWAY_DETECT_FAIL=closed`) | 503 | 없음 |
+| `rejected` | 거절 | `guard_unavailable` | 가드레일 응답 없음(`GATEWAY_GUARD=block`·`GATEWAY_GUARD_FAIL=closed`인데 웹훅이 연결 거부·200 아닌 응답·시간 초과·이상한 응답) | 503 | 없음 |
 | `rejected` | 거절 | `http_<상태>` | 사유 코드가 없는 거절 — 나오지 않아야 한다(나오면 게이트웨이 버그다) | 그 상태 | 없음 |
 | `upstream_error` | AI 회사 오류 | `upstream_<상태>` | AI 회사가 준 오류를 그대로 전달(예: `upstream_429`) | 상류가 준 상태 | 있음 |
 | `upstream_error` | AI 회사 오류 | `upstream_stream_error` | AI 회사가 스트림 도중 오류를 보냄 | 200 | 있음 |
@@ -255,8 +260,8 @@ stats의 `detect_errors`·지표 `gateway_detect_errors_total{reason}`에 사유
 정책이 `pii_kinds`에 그 종류를 넣어야 켜지고(기본 꺼짐), `GATEWAY_DETECT_URL`이 필요하다([설정](configuration.md#이름주소-가림-personaddressorg)). 사이드카는 인증이 없으므로 같은 파드(`127.0.0.1:8081`)나
 내부 네트워크에만 둔다 — 원문을 저장·기록하지 않는다(접근 로그 끔).
 
-- **배포**: compose는 서비스 `detect`(이미지는 빌드 때 모델 143MB를 받는다), k8s 견본은 같은 파드의 둘째 컨테이너(`ghcr.io/hongjinkong/llm-security-gateway-detect`, readinessProbe `/health` —
-  파드는 두 컨테이너가 다 준비돼야 Ready). 메모리는 M2에서 기동 직후 물리 점유 약 590MiB, 요청 뒤 약 620MiB(RSS 410~500MiB — 모델 143MB + ONNX 런타임·아레나, 돌려주지 않는다) — 요청 768Mi·상한 1Gi,
+- **배포**: compose는 서비스 `detect`(이미지는 빌드 때 NER 모델 143MB와 인젝션 분류기 641MB를 받는다 — 분류기는 켤 때만 싣는다), k8s 견본은 같은 파드의 둘째 컨테이너(`ghcr.io/hongjinkong/llm-security-gateway-detect`, readinessProbe `/health` —
+  파드는 두 컨테이너가 다 준비돼야 Ready). 메모리는 NER만이면 M2에서 기동 직후 물리 점유 약 590MiB, 요청 뒤 약 620MiB(RSS 410~500MiB — 모델 143MB + ONNX 런타임·아레나, 돌려주지 않는다) — 요청 768Mi·상한 1Gi이고, 인젝션 분류기(아래 '가드레일 웹훅')를 함께 올리면 기동 직후 1.8GiB(모델을 여는 동안 최대 2.6GiB) — k8s 견본은 요청 2Gi·상한 3Gi,
   CPU 요청 1(ONNX 스레드 4). x86 컨테이너의 값은 다를 수 있다(`compose up` 때 `docker stats`로 한 번 본다).
   게이트웨이는 기동 때 사이드카를 확인하지 않는다 —
   사이드카가 아직 없으면 요청이 아래 '실패 동작'을 따른다.
@@ -274,6 +279,31 @@ stats의 `detect_errors`·지표 `gateway_detect_errors_total{reason}`에 사유
   가짜 값 문자열이 통째로 없어 **복원되지 않고** 의심 잔여에도 잡히지 않는다. 응답에 새로 나온 이름은 세지 않는다(`pii_new`는 정규식 종류).
 - **모델 바꾸기**: `detect/models.json`에 고정된 다른 이름으로 이미지를 빌드한다(`--build-arg MODEL=…`). 모델이 바뀌면 같은 텍스트의 구간이 달라질 수 있다 — 가짜 값 자체는 원문과 키로만 정해지므로
   이미 가린 값의 대체값은 그대로다.
+
+## 가드레일 웹훅
+
+`GATEWAY_GUARD=observe|block`이면 요청마다 이번 턴의 사용자 글·도구 결과·첨부 문서(공급자에게 갈 것과 같은 텍스트 — 정책이 가리는 종류만 가짜 값)를 `GATEWAY_GUARD_URL`에 보내 판정을 받는다(D-127, 계약은 [설정 — 가드레일 웹훅](configuration.md#가드레일-웹훅-gateway_guard)).
+**기본은 꺼짐**이다 — 배포 견본(compose·k8s)은 켜는 방법만 주석으로 적었다. 켜면 같은 파드 탐지 사이드카의 인젝션 분류기(`/v1/guard`)를 `observe`로 부르는 것을 권한다 — 점수가 감사 줄·대시보드에 남고 막지는 않는다.
+
+- **분류기**: `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base 다국어 인코더, INT8 641MB, Apache-2.0 — 다섯 후보 가운데 한국어 recall이 가장 높았다, D-127 §6). 공개 평가셋 v1(D-123)의 dev에서 정상셋 오탐 1%가 되는 문턱(0.9358)이 사이드카의 기본 문턱이다(`DETECT_GUARD_THRESHOLD`로 바꾼다).
+  그 문턱의 정확도(봉인 홀드아웃 — 채택·문턱을 dev로 정한 뒤 한 번 연 것): 한국어 공격 269/436 = **61.7%**·영어 125/227 = 55.1%를 잡고, 정상 문장은 한국어 8/470 = 1.7%·영어 1/114 = 0.9%를 잘못 의심한다(dev는 한국어 57.0%·오탐 1.0%, 룰은 dev 한국어 5.9%). 유형별(dev)로는 문서 속 한국어 간접 지시 95.7%·한국어 직접 지시 59.3%·한국어 난독화 43.0%·**도구 결과 속 영어 간접 지시 22.7%**다. **막는 데는 권하지 않는다**: 잡힌 공격 뒤에 가짜 판정 JSON(`"verdict":"benign"`)을 붙이면 8.9%가 문턱 밑으로 떨어진다(D-054 양성대조, 사전 등록한 기준 5% 초과).
+  `observe`로 두고 감사 줄·지표를 본다. 켜는 법: 사이드카에 `DETECT_INJECTION_MODEL=horizon-guard-base-int8`(이미지에 들어 있지만 기본으로 싣지 않는다)과 메모리(아래), 게이트웨이에 `GATEWAY_GUARD=observe`·`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard` — k8s 견본은 `gateway.yaml`에 URL이 이미 있고 `gateway.toml`의 `guard` 줄 주석을 풀거나 환경변수 `GATEWAY_GUARD`를 준다.
+- **먼저 관측한다**: 오탐 1%(dev 기준 — 봉인 홀드아웃의 한국어는 1.7%)는 정상 요청 100건에 1~2건을 막는다는 뜻이다. `observe`로 몇 주 감사 줄(`guard_verdict`·`guard_score`)과 대시보드 '가드레일 위험 판정'을 보고, 실제 트래픽의 오탐이 받아들일 만하면
+  `block`으로 바꾸거나 문턱을 올린다. 긴 문서일수록 창(512토큰)이 많아 오탐이 늘어난다(점수는 창들의 최댓값).
+- **용량**: 분류기와 NER은 같은 사이드카에서 **줄을 따로** 선다(작업마다 한 번에 추론 하나 — 가드레일이 이름·주소 가림을 밀어내지 않는다, 대신 동시에 돌면 CPU를 나눠 쓴다).
+  지연은 글 길이에 비례한다 — M2(스레드 4) HTTP p50·p95: 32토큰 32~37·39~43ms, 128토큰 112~150·139~228ms, 510토큰(창 하나) 0.56~0.59·0.65~0.80초(두 번 잼). x86 숫자는 CI `detect` 워크플로가 잰다.
+  한 요청이 사이드카에서 쓰는 시간에 상한이 있다: 캐시에 없는 글을 **새 글부터** 비용 합 `DETECT_INJECTION_MAX_TOKENS`(기본 2,048 — 비용은 창마다 창 길이 + 고정 18이라 꽉 찬 창 약 4개,
+  M2 약 2.5~3초)까지만 재고 캐시한다. 넘는 글은 재지 않고 `unscored`로 알린다 — 관측은 감사 `guard_unscored`·지표 `gateway_guard_errors_total{reason="unscored"}`로 남기고 보내고, `block`은 막는다.
+  잰 글은 캐시하므로 에이전트 루프의 다음 단계는 남은 글을 잰다. 혼자서 상한을 넘는 긴 글(한글 약 3,000자·영문 약 10,000자 이상)은 끝내 재지 않는다 — 긴 문서를 재려면 상한과 기한
+  (`GATEWAY_GUARD_TIMEOUT` 5초)을 함께 올린다(창 하나 ≈ 382토큰, M2 약 0.6초). 게이트웨이가 기한을 넘겨 포기한 요청은 차례가 와도 돌리지 않는다. 사이드카는 텍스트마다 점수를 캐시한다(SHA-256 → 점수, 4,096개) —
+  에이전트 루프가 단계마다 다시 보내는 이번 턴의 도구 결과는 다시 재지도 상한에 세지도 않는다.
+- **메모리**: 분류기가 사이드카 메모리를 크게 늘린다 — M2 물리 점유로 분류기만 1.5GiB(모델을 여는 동안 최대 2.4GiB), NER과 함께 1.8GiB(최대 2.6GiB). 켜면 k8s 사이드카를 요청 2Gi·상한 3Gi로 올린다(견본 주석). 더 가벼운 `horizon-guard-small-int8`(268MB — 분류기만 0.7~1.2GiB)은 dev 한국어 recall이 낮다(깨끗한 부분집합 56.9% 대 76.3%) — 이미지를 `--build-arg INJECTION_MODEL=horizon-guard-small-int8`로 빌드하고 `DETECT_INJECTION_MODEL=horizon-guard-small-int8`로 실으면 그 모델의 dev 문턱(0.8163)이 기본이다.
+- **실패 동작**: `observe`는 늘 판정 없이 보내고 감사 `guard_error`. `block`에서 웹훅이 입력을 거절하면(400·413·422) 막고, 그 밖의 실패는 `GATEWAY_GUARD_FAIL` — `open`(기본)이면 보내고
+  `closed`면 503 `guard_unavailable`(`retry-after: 1`). `block`을 쓴다면 `closed`로 둔다 — `open`이면 웹훅을 바쁘게 만들어 판정을 피할 수 있다. 어느 쪽이든 지표
+  `gateway_guard_errors_total{reason}`·stats `guard_errors`·대시보드 줄의 '가드레일 응답 없음(사유)'로 보인다 — `observe`·`open`에서는 이것만이 장애 신호다.
+  판정 수는 `gateway_guard_verdicts_total{verdict}`(allow·block) — 관측 기간에 차단을 켤지 정하는 숫자다.
+- **한계**: 분류기는 텍스트를 따로 본다 — 맥락상 정당한 지시와 구분하지 못하고, 적응형 공격자는 피해 갈 수 있다. 이전 턴은 다시 보지 않는다(막힌 질문을 클라이언트가 이력에 다시 넣으면 그대로 간다).
+  웹훅에는 인증이 없다(같은 파드·내부망).
 
 ## 용량
 
@@ -316,6 +346,7 @@ CHANGELOG를 읽고 이미지 주소를 바꿔 apply한다(롤링). 탐지 규�
 | 401이 늘어남 | `error: unauthorized`, `client: null`, `policy: null` | 클라이언트 키 회전 중인가, 클라이언트의 키 |
 | 403 | `error: model_not_allowed` | 정책 `allowed_models` |
 | 503 `detect_unavailable`가 늘어남 | `error: detect_unavailable` | 탐지 사이드카 컨테이너(`kubectl logs <파드> -c detect`, `/health`), `GATEWAY_DETECT_URL`, 긴 요청이면 `GATEWAY_DETECT_TIMEOUT` — 급하면 `GATEWAY_DETECT_FAIL=open` |
+| 503 `guard_unavailable`가 늘어남·가드레일 판정이 비어 있음 | `error: guard_unavailable`, 검사기 항목 `guard_error` | 웹훅(사이드카면 `kubectl logs <파드> -c detect`, `/health`의 `injection`), `GATEWAY_GUARD_URL`, 긴 요청이면 `GATEWAY_GUARD_TIMEOUT` — 급하면 `GATEWAY_GUARD_FAIL=open`·`GATEWAY_GUARD=observe` |
 | 413 | `error: request_too_large`·`too_many_findings` | 본문 상한, 대량 데이터를 그대로 보내는 클라이언트 |
 | 502·504 | `error`(예외 이름)·`upstream_ms` | 나가는 연결·DNS, 상류 장애·지연, `GATEWAY_TIMEOUT` |
 | 503 | `error: upstream_busy`·`gateway_busy` | 상류 지연·풀 크기, 파드 수 |

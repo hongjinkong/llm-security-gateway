@@ -8,7 +8,10 @@
 #   브라우저로 http://127.0.0.1:8080/__gateway/dashboard  # 운영 대시보드(읽기 전용) — 관리 키 local-admin-key
 #
 # 인젝션 차단까지 보려면 GATEWAY_INJECTION=block, 호스트 포트가 겹치면 HOST_PORT=18080 STUB_HOST_PORT=18000을 앞에 붙인다.
-# 이름·주소 가림(D-126)도 켜져 있다 — 서비스 detect(탐지 사이드카)가 함께 뜬다. 첫 빌드는 모델 143MB를 받는다(detect/Dockerfile). 게이트웨이는 detect가 건강해진 뒤 뜬다.
+# 이름·주소 가림(D-126)도 켜져 있다 — 서비스 detect(탐지 사이드카)가 함께 뜬다. 첫 빌드는 모델 둘(NER 143MB·인젝션 분류기 641MB)을 받는다(detect/Dockerfile).
+# 게이트웨이는 detect가 건강해진 뒤 뜬다. 가드레일 웹훅(D-127 — 같은 사이드카의 인젝션 분류기 /v1/guard)은 기본 꺼짐이다. 관측으로 켜려면(사이드카 메모리 약 1.8GiB):
+#   GATEWAY_GUARD=observe DETECT_INJECTION_MODEL=horizon-guard-base-int8 docker compose -f deploy/compose.yml up --build
+# 점수가 감사 줄·대시보드에 남고 막지는 않는다. 이 분류기로 막는 것(block)은 권하지 않는다 — 판정 조작 문구에 뒤집힌다(D-127 §6 양성대조).
 name: llm-security-gateway
 
 services:
@@ -27,6 +30,8 @@ services:
       # 체험 정책은 정규식 12종 + 이름·주소(org는 기본 감사만이라 넣지 않는다). 기본값(이름·주소 꺼짐)으로 돌리려면 이 두 줄을 지운다
       GATEWAY_PII_KINDS: rrn,frn,passport,driver,card,phone,email,secret,brn,crn,account,ipv4,person,address
       GATEWAY_DETECT_URL: http://detect:8081
+      GATEWAY_GUARD: ${GATEWAY_GUARD:-off}
+      GATEWAY_GUARD_URL: http://detect:8081/v1/guard
     ports:
       - "127.0.0.1:${HOST_PORT:-8080}:8080"
     depends_on:
@@ -47,10 +52,12 @@ services:
     healthcheck:
       disable: true
 
-  # 탐지 사이드카(D-125·D-126) — 한국어 NER(ONNX). 포트는 밖으로 열지 않는다(인증이 없다). 헬스체크는 이미지의 것(/health, 시작 유예 30초)
+  # 탐지 사이드카(D-125·D-126·D-127) — 한국어 NER + 인젝션 분류기(ONNX). 포트는 밖으로 열지 않는다(인증이 없다). 헬스체크는 이미지의 것(/health, 시작 유예 30초)
   detect:
     build:
       context: ..
       dockerfile: detect/Dockerfile
     image: llm-security-gateway-detect:local
     read_only: true
+    environment:
+      DETECT_INJECTION_MODEL: ${DETECT_INJECTION_MODEL:-}       # 인젝션 분류기(가드레일 웹훅) — 비우면 싣지 않는다(이미지 기본)

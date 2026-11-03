@@ -1,6 +1,6 @@
 """LLM Security Gateway — 세 API(Chat Completions·Responses·Messages)의 검사 프록시.
 
-요청: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 어댑터 파싱(400) → 검사기 체인(인젝션 → PII) → 상류.
+요청: 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 어댑터 파싱(400) → 검사기 체인(인젝션 → PII → 가드레일 웹훅) → 상류.
 응답: 대체값 복원(스트리밍은 조각 경계·채널별, gateway/streaming.py) → 감사 한 줄(원문 없음).
 
 D-107 A: 클라이언트 키 인증(GATEWAY_CLIENT_KEYS, 없으면 기동 실패 — GATEWAY_AUTH=off로만 연다)과 상류 키 보관
@@ -42,7 +42,7 @@ from gateway.messages import t
 from gateway.metrics import Metrics
 from gateway.ratelimit import RateLimiter
 from gateway.relay import UpstreamClient, UpstreamPool, downstream, read_body, read_capped, relay, send
-from gateway.settings import API_NAMES, DETECTOR_REGISTRY, Registry, Settings, build_chain, ner_policies
+from gateway.settings import API_NAMES, DETECTOR_REGISTRY, Registry, Settings, build_chain, guard_policies, ner_policies
 from gateway.version import VERSION, code_fingerprint
 
 # 게이트웨이 자체 경로. 감사 로그에서 제외한다 — 헬스체크가 초당 여러 번 때리면 지연 통계가 오염된다.
@@ -97,6 +97,8 @@ def create_app(settings: Settings, registry: Registry = DETECTOR_REGISTRY) -> Fa
         app.state.policies = s.policy_settings()
         if (ner := ner_policies(s)) and not s.detect_url:        # 이름·주소를 켰는데 사이드카 주소가 없다(D-126)
             raise RuntimeError(t("no_detect_url", s.lang, policies=", ".join(ner)))
+        if (guarded := guard_policies(s)) and not s.guard_url:   # 가드레일을 켰는데 웹훅 주소가 없다(D-127)
+            raise RuntimeError(t("no_guard_url", s.lang, policies=", ".join(guarded)))
         app.state.chains = {name: build_chain(p, registry) for name, p in app.state.policies.items()}   # 정책마다 체인(D-119)
         app.state.chain = app.state.chains["default"]
         masks = any(isinstance(d, PIIDetector) and d.mode == "mask" for c in app.state.chains.values() for d in c.detectors)
@@ -244,6 +246,7 @@ async def info(request: Request) -> Response:
         "detectors": list(request.app.state.chain.names),
         "policies": {name: list(chain.names) for name, chain in request.app.state.chains.items()},
         "detect": s.detect_url or None,                                 # 탐지 사이드카 주소(D-126), 없으면 null
+        "guard": s.guard_url or None,                                   # 가드레일 웹훅 주소(D-127), 없으면 null
     })
 
 

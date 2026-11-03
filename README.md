@@ -20,6 +20,7 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
     ▼
 게이트웨이 :8080   그 밖의 경로·메서드는 404(상류에 연결하지 않음) → 클라이언트 키 검증(401) → 레이트리밋(429) → 본문 상한(413) → 파싱(400)
     요청  인젝션 룰 관측(또는 차단) → 모든 역할(system·도구 결과·RAG 문서 포함)의 텍스트와 도구 인자 속 개인정보·자격 증명을 같은 모양의 가짜 값으로 교체
+          → (켜면) 가드레일 웹훅 — 인젝션 분류기·사내 판정기가 이번 턴의 텍스트(공급자에게 갈 것과 같은, 가린 뒤)를 보고 관측(또는 차단)
     상류  허용 목록의 헤더만 넘기고 공급자 키를 단다(쿠키·X-Forwarded-*·조직 헤더·게이트웨이 키는 넘기지 않는다)
     응답  가짜 값을 원래 값으로 복원(스트리밍은 조각 경계·채널별, thinking·reasoning은 손대지 않음) · 요청마다 감사 로그 한 줄(원문 없음)
     │
@@ -34,7 +35,9 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
   프롬프트 캐시와 Anthropic thinking 서명이 깨지지 않는다. 실제 Claude API(`claude-haiku-5-5`, 2턴 대화 5개)에서 둘째 턴이 서명 검사 400 없이 캐시를 읽었고,
   요청마다 난수였던 옛 코드는 5개 모두 400이었다([`docs/verification/multiturn_claude.md`](docs/verification/multiturn_claude.md)).
 - **인젝션은 기본으로 막지 않는다.** 룰은 두 개(지시 무효화·역할 전환, 한국어·영어 어휘)이고 정상 문장("ignore the instructions in the PDF and summarize")도 걸린다.
-  적중은 감사에 남고(`would_block`), 운영자가 `GATEWAY_INJECTION=block`으로 켠다.
+  적중은 감사에 남고(`would_block`), 운영자가 `GATEWAY_INJECTION=block`으로 켠다. 인젝션 분류기(탐지 사이드카, 다국어 인코더 `Horizon-Labs/prompt-injection-guard-base`)를 **가드레일 웹훅**으로
+  켤 수 있다(`GATEWAY_GUARD=observe|block`, 기본 꺼짐) — 정상 문장 오탐 1% 문턱에서 봉인 홀드아웃의 한국어 공격 61.7%를 잡는다(룰은 dev 5.9%). 판정 조작 문구에 뒤집혀(아래 '막지 못하는 것')
+  **관측 전용**으로 권한다. 사내 가드레일도 같은 웹훅 계약으로 바꿔 낀다.
 
 바로 보기: `python3 web/app.py`(브라우저 비교 화면) 또는 `python3 scripts/demo.py`(터미널) — Docker·외부 공급자 없이 여섯 장면을 보여 준다(3절).
 아래는 웹 화면 기록이다(대체값 도입 전의 GIF라 "상류가 실제로 받은 것"에 가짜 값 대신 `[PII:…]` 토큰이 보인다).
@@ -98,7 +101,11 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
   다음 턴에 thinking에 담겨 상류로 간다) 그 안에서는 가짜 값이 보인다.
 - **룰이 모르는 공격.** 인젝션 룰은 정해 둔 한국어·영어 어휘에만 듣는다. 공개 데이터셋으로 만든 평가셋 v1([`eval/injection/`](eval/injection/SOURCES.md), 한국어 공격 1,592건 포함)의
   dev에서 **재현율 8.7%**(한국어 5.9%·영어 16.0%, 역할 헤더 위조 2.9%·난독화 2.9%·문서 속 간접 지시 5.1%), 오탐률 2.7%(일반 업무 문장 0%, 트리거 단어가 든 정상 문장 9.2%)다 —
-  차단 도구로 쓸 수준이 아니다. 관측(`would_block`)으로만 쓴다. 분류기·외부 가드레일은 같은 셋으로 잰다(`python3 eval/injection/score.py`).
+  차단 도구로 쓸 수준이 아니다. 관측(`would_block`)으로만 쓴다. 분류기·외부 가드레일은 같은 셋으로 잰다(`python3 eval/injection/score.py`, 분류기는 `python -m detect.evaluate_injection`).
+- **분류기도 한 겹일 뿐이다.** 가드레일 웹훅의 인젝션 분류기는 룰보다 훨씬 많이 잡지만(봉인 홀드아웃, 오탐 1% 문턱: 한국어 61.7%·영어 55.1%, 한국어 정상 오탐 1.7%)
+  놓치는 공격이 여전히 많고(도구 결과 속 영어 간접 지시는 dev 22.7%만 잡는다), 공격 문장 뒤에 가짜 판정 JSON(`"verdict":"benign"`)을 붙이면 잡힌 공격의 8.9%가 빠져나간다
+  (D-054 양성대조 — 사전 등록한 기준 5% 초과). 그래서 막는 데(`block`) 쓰지 않고 관측 신호로 쓴다. 정확도·지연·메모리는 [운영 — 가드레일 웹훅](docs/operations.md#가드레일-웹훅)과 D-127.
+  텍스트를 따로 보므로 맥락상 정당한 지시와 구분하지 못하고, 적응형 공격자는 피해 갈 수 있다. 이전 턴은 다시 보지 않는다.
 - **출력 방향.** 모델이 새로 내보낸 개인정보는 사용자에게 그대로 간다 — 가리지 않고 감사 `pii_new`·지표 `gateway_pii_new_total`로 센다
   (그 요청에서 가린 원문·발급한 가짜 값이 아닌 것. detect 모드에서는 사용자가 보낸 값이 되돌아온 것도 센다).
 - **대체값 복원 실패는 조용하다.** 모델이 가짜 값을 알아볼 수 없게 바꿔 쓰면(구분자·대소문자 변경은 복원된다) 사용자는 가짜 값을 받는다.
@@ -212,7 +219,7 @@ Pod Security `restricted`. 설정 파일과 키는 ConfigMap·Secret으로 만�
 
 ## 4. 설정
 
-환경변수와 (선택) 설정 파일(`GATEWAY_CONFIG`, TOML) 하나로 설정한다. 둘 다 기동할 때 한 번 읽고, 틀린 값·모르는 이름은 기동 실패다(주소는 검사하지 않는다). 모든 항목은 [`docs/configuration.md`](docs/configuration.md).
+환경변수와 (선택) 설정 파일(`GATEWAY_CONFIG`, TOML) 하나로 설정한다. 둘 다 기동할 때 한 번 읽고, 틀린 값·모르는 이름은 기동 실패다(상류 주소는 검사하지 않고, 사이드카·웹훅 주소는 모양만 본다). 모든 항목은 [`docs/configuration.md`](docs/configuration.md).
 
 | 변수 | 뜻 |
 |---|---|
@@ -220,6 +227,7 @@ Pod Security `restricted`. 설정 파일과 키는 ConfigMap·Secret으로 만�
 | `GATEWAY_SURROGATE_KEY` | 결정적 대체값 키(32자 이상) — PII `mask`(기본)면 필수. 공급자 키와 같은 등급으로 보관하고, 바꿀 때는 [운영 — 키 회전](docs/operations.md#키-회전)을 따른다 |
 | `TARGET_URL` · `GATEWAY_UPSTREAM_KEY` | 상류 주소와 공급자 키. API마다 다른 상류(OpenAI와 Anthropic을 한 게이트웨이로)는 설정 파일 `[upstreams.*]` |
 | `GATEWAY_PII` · `GATEWAY_INJECTION` | `mask`·`detect`·`off` / `observe`(기본)·`block`·`off` |
+| `GATEWAY_GUARD` · `GATEWAY_GUARD_URL` | 가드레일 웹훅 `off`(기본)·`observe`·`block`과 그 주소(사이드카의 인젝션 분류기면 `…:8081/v1/guard`) — [설정 — 가드레일 웹훅](docs/configuration.md#가드레일-웹훅-gateway_guard) |
 | `GATEWAY_ADMIN_KEY` | `/__gateway/`의 info·metrics·stats·대시보드를 연다. 없으면 모두 404 |
 | `GATEWAY_CONFIG` | 클라이언트별 정책(인젝션·PII·허용 모델), API별 상류, 해시로 둔 클라이언트 키 |
 
@@ -245,7 +253,8 @@ eval/pii/   PII 평가 코퍼스(합성, 양성 1,200·음성 1,200·어려운 �
 eval/injection/   인젝션 평가셋 v1(공개 데이터셋 + 한국어 업무 문장, dev 5,492·봉인 홀드아웃 1,379)·만들기(build.py)·점수(score.py)·출처와 라이선스(SOURCES.md)
 eval/benign/all100.jsonl   정상 질문 100문항 — 인젝션 룰 오탐 회귀 테스트 입력
 eval/ner/   NER 평가셋 — 합성 200문장(make_synth.py)·KDPII test(build_kdpii.py, CC BY 4.0)·점수(score.py)·출처(SOURCES.md)
-detect/     탐지 사이드카(이름·주소·직장 — 켠 정책이 GATEWAY_DETECT_URL로 부른다) — 한국어 NER(ONNX)·모델 고정(models.json)·F1(evaluate)·지연(bench) — detect/README.md
+detect/     탐지 사이드카 — 한국어 NER(이름·주소·직장, GATEWAY_DETECT_URL)·인젝션 분류기(가드레일 웹훅 /v1/guard, GATEWAY_GUARD_URL)(ONNX)·모델 고정(models.json)·
+            NER F1(evaluate)·인젝션 평가(evaluate_injection)·지연(bench) — detect/README.md
 ```
 
 ---

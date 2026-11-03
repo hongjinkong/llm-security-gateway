@@ -39,7 +39,8 @@ info·metrics·stats는 `Authorization: Bearer` 관리 키가 맞을 때만 200�
 **Responses** (`/v1/responses`)
 - 가린다: `instructions`(system), `input` 문자열, 항목 목록의 메시지 파트(`input_text`·`output_text`·`text`), `function_call.arguments`, `function_call_output.output`.
 - 보지 않는다: `input_image`·`input_file` 파트, `reasoning` 항목(`encrypted_content` 포함), 서버 측 도구 항목(`web_search_call`·`file_search_call`·`code_interpreter_call`·`mcp_call` 등),
-  사용자 정의 도구(`custom_tool_call`·`custom_tool_call_output`) — **사용자 정의 도구의 입출력에 든 개인정보는 그대로 나간다**.
+  사용자 정의 도구(`custom_tool_call`·`custom_tool_call_output`), 셸·패치 도구 결과(`local_shell_call_output`·`shell_call_output`·`apply_patch_call_output`) —
+  **이 입출력에 든 개인정보는 그대로 나가고 가드레일 웹훅도 보지 않는다**.
 - 스트리밍: 출력·내용 번호마다 채널, 전체 텍스트를 담은 `*.done`·`response.completed` 이벤트도 복원한다.
 - `previous_response_id`·`conversation`: 상류로 넘기지만, 상류에 저장된 이전 턴은 게이트웨이가 볼 수 없다. 이전 턴은 이미 가짜 값으로 저장돼 있고(같은 원문 = 같은 가짜 값),
   **이번 요청에 없던 값이 답에 나오면 가짜 값 그대로 받는다** — 복원은 이번 요청에서 가린 값만 한다. 대화 이력을 클라이언트가 매번 보내는 방식(`input` 목록)을 권한다.
@@ -47,8 +48,9 @@ info·metrics·stats는 `Authorization: Bearer` 관리 키가 맞을 때만 200�
 
 **Messages** (`/v1/messages`)
 - 가린다: `system`(문자열·text 블록), `messages[].content`의 문자열·text 블록, `tool_result` 내용(문자열·text 블록 — tool 역할), `tool_use.input`의 문자열 값,
-  텍스트 `document`(`source.type: text` — system 역할로 다룬다).
-- 보지 않는다: image·PDF `document`(base64·URL·파일 ID), `search_result` 블록, 서버 도구 블록(`server_tool_use`·`web_search_tool_result` 등), 도구 정의.
+  `document`의 텍스트 원본(`source.type: text`)·내용 원본(`source.type: content`의 문자열·text 블록)·`title`·`context`, `search_result`의 `title`·text 블록 —
+  메시지에 있으면 system 역할, `tool_result` 안에 있으면 tool 역할로 다룬다(D-127).
+- 보지 않는다: image·PDF `document`(base64·URL·파일 ID), `search_result`의 `source`(주소), 서버 도구 블록(`server_tool_use`·`web_search_tool_result` 등), 도구 정의.
 - 스트리밍: content block 번호가 채널이다. thinking 블록은 건너뛴다.
 
 ## 서버 측 도구와 원격 MCP
@@ -99,12 +101,13 @@ info·metrics·stats는 `Authorization: Bearer` 관리 키가 맞을 때만 200�
 | 429 | `rate_limit_exceeded` | 분당 상한(`retry-after`) | 없음 |
 | 500 | `internal_error` | 게이트웨이 내부 예외 — `x-gateway-request-id`로 감사 줄을 찾는다 | — |
 | 502 | `upstream_unavailable` · `upstream_response_too_large` | 상류 연결 실패 · 비스트리밍 응답이 32MiB 초과 | 시도함 |
-| 503 | `upstream_busy` · `gateway_busy` · `detect_unavailable` | 빈 상류 연결을 5초 기다려도 없음 · 진행 중인 대체값 세션이 상한(워커·정책당 2,000) · 이름·주소를 가리는 정책인데 탐지 사이드카가 답하지 못함(`GATEWAY_DETECT_FAIL=closed`) — 모두 `retry-after: 1` | 없음 |
+| 503 | `upstream_busy` · `gateway_busy` · `detect_unavailable` · `guard_unavailable` | 빈 상류 연결을 5초 기다려도 없음 · 진행 중인 대체값 세션이 상한(워커·정책당 2,000) · 이름·주소를 가리는 정책인데 탐지 사이드카가 답하지 못함(`GATEWAY_DETECT_FAIL=closed`) · 가드레일 웹훅이 답하지 못함(`GATEWAY_GUARD=block`·`GATEWAY_GUARD_FAIL=closed`) — 모두 `retry-after: 1` | 없음 |
 | 504 | `upstream_timeout` | 상류 연결(5초)·쓰기(30초)·읽기(`GATEWAY_TIMEOUT`) 시간 초과. 스트림 도중이면 이미 200을 보냈으므로 스트림이 끊기고 감사 `error`에 남는다 | 시도함 |
 
-## 차단 응답 (`GATEWAY_INJECTION=block`)
+## 차단 응답 (`GATEWAY_INJECTION=block`·`GATEWAY_GUARD=block`)
 
-차단은 HTTP 200의 정상 응답 모양으로 돌려준다 — SDK가 오류로 다루지 않는다. 상류는 부르지 않는다. 사유는 넣지 않고(감사에만) 문구 끝에 `(요청 ID: …)`를 붙인다.
+차단은 HTTP 200의 정상 응답 모양으로 돌려준다 — SDK가 오류로 다루지 않는다. 상류는 부르지 않는다. 사유(룰·가드레일 점수)는 넣지 않고(감사에만) 문구 끝에 `(요청 ID: …)`를 붙인다.
+룰 차단과 가드레일 차단(웹훅이 `block`이라 함, D-127)은 같은 모양이다.
 
 | API | 모양 |
 |---|---|

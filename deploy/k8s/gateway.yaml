@@ -48,6 +48,9 @@ spec:
             # 같은 파드의 탐지 사이드카(아래 detect 컨테이너). 인증이 없으므로 파드 밖으로 열지 않는다
             - name: GATEWAY_DETECT_URL
               value: http://127.0.0.1:8081
+            # 같은 사이드카의 인젝션 분류기를 가드레일 웹훅으로(D-127) — 켜고 끄는 것은 gateway.toml의 정책 키 guard(기본 off, 사이드카에 분류기를 실어야 한다)
+            - name: GATEWAY_GUARD_URL
+              value: http://127.0.0.1:8081/v1/guard
             # 쉬는 연결을 75초 붙잡는다(uvicorn 기본 5초) — 인그레스·LB의 유휴 시간(ingress-nginx·AWS ALB 60초)보다 짧으면
             # LB가 게이트웨이가 막 닫은 연결로 POST를 보내 502가 난다. LB 없이 클라이언트를 직접 받으면 기본값이 낫다(D-122).
             - name: UVICORN_TIMEOUT_KEEP_ALIVE
@@ -92,7 +95,12 @@ spec:
               path: /health
               port: detect
             periodSeconds: 5
-          # 잠정값: 모델 143MB + ONNX 런타임 — M2에서 기동 직후 물리 점유 약 590MiB, 요청 뒤 약 620MiB(D-126 §6), 한 번에 추론 하나(스레드 4)
+          # 인젝션 분류기(가드레일 웹훅, D-127)는 이미지에 있지만 싣지 않는다. 켜려면 아래 env의 주석을 풀고 메모리를 요청 2Gi·상한 3Gi로 올린다
+          # (NER + 분류기 — M2 물리 점유 기동 직후 1.8GiB, 모델을 여는 동안 최대 2.6GiB), gateway.toml의 guard = "observe"
+          # env:
+          #   - name: DETECT_INJECTION_MODEL
+          #     value: horizon-guard-base-int8
+          # 잠정값(NER만): 모델 143MB + ONNX 런타임 — M2에서 기동 직후 물리 점유 약 590MiB, 요청 뒤 약 620MiB(D-126 §6), 한 번에 추론 하나(스레드 4)
           resources:
             requests:
               cpu: "1"

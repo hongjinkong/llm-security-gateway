@@ -84,7 +84,8 @@ class DetectClient:
 
     async def prepare(self) -> None:
         self._client = httpx.AsyncClient(base_url=self.url, timeout=httpx.Timeout(self.timeout, connect=2.0),
-                                         limits=httpx.Limits(max_connections=4, max_keepalive_connections=4))
+                                         # 쉬는 연결은 4초 뒤 버린다 — 사이드카(uvicorn 기본 5초)가 닫는 순간 그 연결로 보내지 않게(D-122와 같은 이유, D-127 리뷰)
+                                         limits=httpx.Limits(max_connections=4, max_keepalive_connections=4, keepalive_expiry=4))
 
     async def aclose(self) -> None:
         if self._client is not None:

@@ -30,12 +30,16 @@ CATALOG: dict[str, dict[str, str]] = {
               "그 종류를 pii_kinds에서 뺀다",
         "en": "GATEWAY_DETECT_URL is empty — policy {policies} enables person/address/org (name and address masking). "
               "Set the detect sidecar (detect/) URL or remove those kinds from pii_kinds"},
+    "no_guard_url": {
+        "ko": "GATEWAY_GUARD_URL이 없다 — 정책 {policies}이(가) 가드레일 웹훅(guard)을 켰다(D-127). 웹훅 주소(사이드카면 http://127.0.0.1:8081/v1/guard)를 넣거나 "
+              "guard를 off로 둔다",
+        "en": "GATEWAY_GUARD_URL is empty — policy {policies} turns on the guardrail webhook (guard). "
+              "Set the webhook URL (the detect sidecar's is http://127.0.0.1:8081/v1/guard) or set guard to off"},
     # 설정 오류
     "choice": {"ko": "{var}는 {allowed} 중 하나여야 한다: {value!r}", "en": "{var} must be one of {allowed}: {value!r}"},
     "kinds": {"ko": "{where}는 {kinds} 중에서 고른다: {items!r}", "en": "{where}: choose from {kinds}: {items!r}"},
     "positive": {"ko": "{var}는 0보다 큰 초(유한한 수)여야 한다: {value!r}", "en": "{var} must be a finite number of seconds greater than 0: {value!r}"},
-    "detect_url": {"ko": "GATEWAY_DETECT_URL은 `http(s)://호스트[:포트]` 모양이어야 한다(경로·쿼리 없이): {value!r}",
-                   "en": "GATEWAY_DETECT_URL must look like `http(s)://host[:port]` (no path or query): {value!r}"},
+    "url": {"ko": "{var}는 `{form}` 모양이어야 한다(쿼리·조각 없이): {value!r}", "en": "{var} must look like `{form}` (no query or fragment): {value!r}"},
     "roles": {"ko": "GATEWAY_PII_ROLES는 {roles}(developer = system) 중에서 고른다: {spec!r}",
               "en": "GATEWAY_PII_ROLES: choose from {roles} (developer = system): {spec!r}"},
     "empty_client_key": {"ko": "GATEWAY_CLIENT_KEYS: 빈 키가 있다 (형식: 이름=키,이름2=키2)",

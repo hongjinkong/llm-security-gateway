@@ -23,6 +23,7 @@ from typing import Any
 from gateway.auth import parse_client_keys
 from gateway.chain import DetectorChain
 from gateway.detectors.base import Detector
+from gateway.detectors.guard import FAIL_MODES as GUARD_FAIL, GuardDetector
 from gateway.detectors.injection import InjectionRuleDetector
 from gateway.detect_client import DetectClient
 from gateway.detectors.patterns import NER_KINDS
@@ -33,6 +34,7 @@ from gateway.openai_api import PII_ROLES
 from gateway.vault import TokenVault
 
 INJECTION_MODES = ("observe", "block", "off")
+GUARD_MODES = ("off", "observe", "block")
 PII_MODES = ("mask", "detect", "off")
 API_NAMES = ("chat", "responses", "messages")     # 상류를 고르는 이름 = 어댑터 이름(D-119)
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -84,6 +86,10 @@ class Settings:
     detect_url: str = ""                                 # GATEWAY_DETECT_URL — 탐지 사이드카(detect/) 주소. 비면 NER 없음(D-126)
     detect_timeout: float = 10.0                         # GATEWAY_DETECT_TIMEOUT — 한 요청의 NER 전체 기한(초)
     detect_fail: str = "closed"                          # GATEWAY_DETECT_FAIL — closed(503 detect_unavailable)|open(정규식 종류만 가리고 보냄)
+    guard: str = "off"                                   # GATEWAY_GUARD — off|observe|block, 가드레일 웹훅(D-127, 정책 키 guard)
+    guard_url: str = ""                                  # GATEWAY_GUARD_URL — 웹훅 주소(사이드카면 …/v1/guard)
+    guard_timeout: float = 5.0                           # GATEWAY_GUARD_TIMEOUT — 한 요청의 웹훅 전체 기한(초)
+    guard_fail: str = "open"                             # GATEWAY_GUARD_FAIL — open(판정 없이 통과)|closed(block 모드에서 503 guard_unavailable)
     # 저수준 검사기 목록 — 있으면 injection·pii보다 우선, 빈 튜플은 검사기 없음. 환경변수가 없다(테스트·임베딩용, D-118)
     detectors: tuple[str, ...] | None = None
     allowed_models: tuple[str, ...] | None = None        # 정책의 허용 모델(fnmatch 글롭, D-119). None = 모두
@@ -137,9 +143,13 @@ class Settings:
             pii_kinds=_kinds(env, "GATEWAY_PII_KINDS", REGEX_KINDS),
             pii_detect_kinds=_kinds(env, "GATEWAY_PII_DETECT_KINDS", DETECT_ONLY),
             pii_roles=_roles(env.get("GATEWAY_PII_ROLES")),
-            detect_url=_detect_url(get("GATEWAY_DETECT_URL", "")),
+            detect_url=_url("GATEWAY_DETECT_URL", get("GATEWAY_DETECT_URL", "")),
             detect_timeout=_positive("GATEWAY_DETECT_TIMEOUT", get("GATEWAY_DETECT_TIMEOUT", "10")),
             detect_fail=_choice("GATEWAY_DETECT_FAIL", get("GATEWAY_DETECT_FAIL", "closed").lower(), FAIL_MODES),
+            guard=_choice("GATEWAY_GUARD", get("GATEWAY_GUARD", "off").lower(), GUARD_MODES),
+            guard_url=_url("GATEWAY_GUARD_URL", get("GATEWAY_GUARD_URL", ""), path=True),
+            guard_timeout=_positive("GATEWAY_GUARD_TIMEOUT", get("GATEWAY_GUARD_TIMEOUT", "5")),
+            guard_fail=_choice("GATEWAY_GUARD_FAIL", get("GATEWAY_GUARD_FAIL", "open").lower(), GUARD_FAIL),
         )
         path = env.get("GATEWAY_CONFIG", "").strip()
         return _with_config(base, Path(path), env) if path else base
@@ -148,7 +158,7 @@ class Settings:
 # --- 설정 파일(D-119) ---------------------------------------------------------------
 # 표마다 쓸 수 있는 키 — 문서의 설정 키 표가 이것과 같은지 테스트가 본다(D-121)
 CLIENT_KEYS = {"name", "key_sha256", "policy"}
-POLICY_KEYS = {"injection", "pii_mode", "pii_kinds", "pii_detect_kinds", "pii_roles", "allowed_models"}
+POLICY_KEYS = {"injection", "pii_mode", "pii_kinds", "pii_detect_kinds", "pii_roles", "allowed_models", "guard"}
 UPSTREAM_KEYS = {"base_url", "key_env", "timeout"}
 
 
@@ -204,6 +214,8 @@ def _policy(base: Settings, t: Any, where: str) -> Settings:
     changes: dict[str, Any] = {}
     if "injection" in t:
         changes["injection"] = _choice(f"{where} injection", _str(t["injection"], where).lower(), INJECTION_MODES)
+    if "guard" in t:
+        changes["guard"] = _choice(f"{where} guard", _str(t["guard"], where).lower(), GUARD_MODES)
     if "pii_mode" in t:
         changes["pii"] = _choice(f"{where} pii_mode", _str(t["pii_mode"], where).lower(), PII_MODES)
     for key in ("pii_kinds", "pii_detect_kinds"):
@@ -271,14 +283,20 @@ def _positive(var: str, value: str) -> float:
     return seconds
 
 
-def _detect_url(value: str) -> str:
-    """`http(s)://호스트[:포트]` 모양만(D-126 리뷰) — 경로·쿼리가 붙으면 `/v1/detect`가 그 뒤에 붙어 404가 되고, 스킴이 없으면 첫 요청에서야 connect로 드러난다."""
+def _url(var: str, value: str, path: bool = False) -> str:
+    """`http(s)://호스트[:포트]` 모양만(D-126 리뷰) — 경로·쿼리가 붙으면 `/v1/detect`가 그 뒤에 붙어 404가 되고, 스킴이 없으면 첫 요청에서야 connect로 드러난다.
+    웹훅(GATEWAY_GUARD_URL, D-127)은 주소 그대로 부르므로 경로를 받는다. 쿼리·조각은 어느 쪽도 받지 않는다(info에 그대로 보인다)."""
     if not value:
         return ""
     u = urllib.parse.urlsplit(value)
-    if u.scheme not in ("http", "https") or not u.netloc or u.path not in ("", "/") or u.query or u.fragment:
-        raise ConfigError("detect_url", value=value)
-    return value.rstrip("/")
+    try:
+        port_ok = u.port is None or 0 < u.port      # 숫자가 아니거나 범위 밖이면 ValueError — 놓아두면 요청마다 InvalidURL·OverflowError로 500이다(D-127 리뷰)
+    except ValueError:
+        port_ok = False
+    if (u.scheme not in ("http", "https") or not u.hostname or not port_ok or u.username is not None or u.password is not None
+            or (not path and u.path not in ("", "/")) or u.query or u.fragment):     # 사용자 정보(user:token@)도 받지 않는다 — info에 그대로 보인다
+        raise ConfigError("url", var=var, value=value, form="http(s)://host[:port]" + ("[/path]" if path else ""))
+    return value if path else value.rstrip("/")
 
 
 def _roles(spec: str | None) -> frozenset[str]:
@@ -296,17 +314,23 @@ def ner_policies(settings: Settings) -> list[str]:
     return [name for name, p in settings.policy_settings().items() if p.pii != "off" and set(p.pii_kinds) & set(NER_KINDS)]
 
 
+def guard_policies(settings: Settings) -> list[str]:
+    """가드레일 웹훅(D-127)을 켠 정책 이름. 비어 있지 않은데 GATEWAY_GUARD_URL이 없으면 기동 거부(main)."""
+    return [name for name, p in settings.policy_settings().items() if p.guard != "off"]
+
+
 def _detect(s: Settings) -> DetectClient | None:
     """정책이 NER 종류를 켰고 사이드카 주소가 있을 때만 클라이언트(캐시는 검사기마다, D-126)."""
     return DetectClient(s.detect_url, s.detect_timeout) if s.detect_url and set(s.pii_kinds) & set(NER_KINDS) else None
 
 
 def detector_names(settings: Settings) -> list[str]:
-    """체인 순서는 고정이다: injection → pii(D-107 D). 차단은 늘 이번 턴만 본다(D-118 — 이력까지 보는 차단은 제품 설정에서 뺐다)."""
+    """체인 순서는 고정이다: injection → pii(D-107 D) → 가드레일(D-127 — PII 뒤라 웹훅은 공급자와 같은 텍스트를 본다). 차단은 늘 이번 턴만 본다(D-118 — 이력까지 보는 차단은 제품 설정에서 뺐다)."""
     if settings.detectors is not None:
         return list(settings.detectors)
     names = {"observe": ["injection_observe"], "block": ["injection_rule_turn"], "off": []}[settings.injection]
-    return names + {"mask": ["pii_mask"], "detect": ["pii"], "off": []}[settings.pii]
+    return (names + {"mask": ["pii_mask"], "detect": ["pii"], "off": []}[settings.pii]
+            + {"observe": ["injection_guard"], "block": ["injection_guard_block"], "off": []}[settings.guard])
 
 
 # 이름 → 생성자(설정을 받는다). 테스트는 tests/chain_app.py에서 시험용 검사기를 더한 사전을 넘긴다.
@@ -321,6 +345,8 @@ DETECTOR_REGISTRY: Registry = {
     "injection_observe": lambda s: InjectionRuleDetector(mode="observe"),
     "injection_rule": lambda s: InjectionRuleDetector(),           # 이력까지 본다 — 제품 설정에는 없다(테스트용)
     "injection_rule_turn": lambda s: InjectionRuleDetector(scope="turn", redacted=messages.t("redacted_turn", s.lang)),
+    "injection_guard": lambda s: GuardDetector(s.guard_url, "observe", s.guard_timeout, s.guard_fail),
+    "injection_guard_block": lambda s: GuardDetector(s.guard_url, "block", s.guard_timeout, s.guard_fail),
 }
 
 

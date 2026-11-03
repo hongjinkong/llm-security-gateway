@@ -11,6 +11,9 @@
 [policies.default]
 injection = "observe"       # observe | block | off
 pii_mode = "mask"           # mask | detect | off
+# 가드레일 웹훅(D-127, GATEWAY_GUARD_URL — 같은 파드 사이드카의 인젝션 분류기): off | observe | block. 기본 꺼짐 — observe로 켜려면 gateway.yaml의 detect 컨테이너에
+# DETECT_INJECTION_MODEL과 메모리(요청 2Gi·상한 3Gi)도 함께 바꾼다. 이 분류기로 막는 것(block)은 권하지 않는다(판정 조작 문구에 뒤집힌다, D-127 §6)
+# guard = "observe"     # 기본(줄을 비우면)은 GATEWAY_GUARD — 꺼짐. 여기 적으면 환경변수보다 이 값이 이긴다
 
 # 이름·주소까지 가리는 정책(D-126) — 같은 파드의 탐지 사이드카(GATEWAY_DETECT_URL)가 찾는다. 요청마다 수백 ms가 더해질 수 있다(docs/operations.md '탐지 사이드카').
 # 필요한 클라이언트만 policy = "names"로 묶는다. org(직장)는 넣지 않았다 — 넣어도 기본은 감사만이다.

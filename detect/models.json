@@ -148,5 +148,77 @@
       "ADDRESS": "address",
       "ORG": "org"
     }
+  },
+  "protectai-v2": {
+    "task": "injection",
+    "id": "protectai/deberta-v3-base-prompt-injection-v2",
+    "revision": "90c9989b1a342275dd0d1a95aad283c04e075671",
+    "license": "Apache-2.0",
+    "base": "microsoft/deberta-v3-base (184M — 임베딩 밖 86M, 12×768), 영어 전용",
+    "onnx": "onnx/model.onnx",
+    "tokenizer": "onnx/tokenizer.json",
+    "files": {
+      "onnx/model.onnx": "f0ea7f239f765aedbde7c9e163a7cb38a79c5b8853d3f76db5152172047b228c",
+      "onnx/tokenizer.json": "752fe5f0d5678ad563e1bd2ecc1ddf7a3ba7e2024d0ac1dba1a72975e26dff2f",
+      "onnx/config.json": "3093743035223c46b1497a72e939e56fa0a50afbd7bafbf7eb8aad060b8d23f8"
+    }
+  },
+  "horizon-guard-small-int8": {
+    "task": "injection",
+    "id": "Horizon-Labs/prompt-injection-guard-small",
+    "revision": "5ed691c28fc37db51f4e80fb81311b7d2b5d4646",
+    "license": "Apache-2.0",
+    "base": "jhu-clsp/mmBERT-small (141M — 임베딩 밖 42M, 22×384), 다국어(한국어 합성 포함)",
+    "onnx": "onnx/model_quantized.onnx",
+    "threshold": 0.8162506742726282,
+    "files": {
+      "onnx/model_quantized.onnx": "61cd0741cdbfcc229e32e1de1392f352736d87d1e8b3c2b67ad9836bb7910d5d",
+      "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
+      "config.json": "d6264037c9aa4b3d821c1c9a0329572033adbdb622788ecca91c3636066d9622"
+    }
+  },
+  "horizon-guard-base-int8": {
+    "task": "injection",
+    "id": "Horizon-Labs/prompt-injection-guard-base",
+    "revision": "8c321b08c01102a0a3a377f8eecda0cab80e8758",
+    "license": "Apache-2.0",
+    "base": "jhu-clsp/mmBERT-base (308M — 임베딩 밖 110M, 22×768), 다국어(한국어 합성 포함)",
+    "onnx": "onnx/model_quantized.onnx",
+    "threshold": 0.9357725303620347,
+    "files": {
+      "onnx/model_quantized.onnx": "682d805f93f823d5a1ac73bd55808719c5489f14846faf20b97fd40dfc28b4be",
+      "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
+      "config.json": "34fbf08b5c26d800bb55d6f1de0d3a39c35eb8b5d4208c681361a20f93923f54"
+    }
+  },
+  "pg2-86m": {
+    "task": "injection",
+    "id": "meta-llama/Llama-Prompt-Guard-2-86M",
+    "revision": "a8ded8e697ce7c355e395a0df51f94adb4a2fd27",
+    "license": "Llama-4-Community",
+    "gated": true,
+    "export": "torch",
+    "base": "microsoft/mdeberta-v3-base (279M — 임베딩 밖 86M, 12×768), 다국어(평가 8개 언어에 한국어 없음)",
+    "onnx": "model.onnx",
+    "files": {
+      "model.safetensors": "e72017dbbe89c1232dcbc4a74ce0c389db5b468c42afd05850347b2a8c5f6b09",
+      "tokenizer.json": "3e7e96867c2acdd575f0862c74822e05d1d15b93d9d9a4a2144b1ce83ae3339f",
+      "config.json": "cd54ac39a1f2c3c5146bd5295b34038f8b4d9069e2f844450da014a523bb7653"
+    }
+  },
+  "pg2-22m": {
+    "task": "injection",
+    "id": "meta-llama/Llama-Prompt-Guard-2-22M",
+    "revision": "11614a155199674a0a95e6602d6ab0417b790ed0",
+    "license": "Llama-4-Community",
+    "gated": true,
+    "export": "torch",
+    "base": "microsoft/deberta-v3-xsmall (70M — 임베딩 밖 22M, 12×384), 영어 어휘",
+    "onnx": "model.onnx",
+    "files": {
+      "model.safetensors": "5120e30bcd536ce285345d9ec104bea6bd6e8f94365b99a340c764f417ea5fa1",
+      "tokenizer.json": "6eb983352e73f1697b883a8c3f6b66bdfa336ab3d29dd3687f8316d0ff2789c1",
+      "config.json": "1dc4742d04507072cafffb7235dc5dba5af9ba126f7a9830b95ed7ec00fd9104"
+    }
   }
 }

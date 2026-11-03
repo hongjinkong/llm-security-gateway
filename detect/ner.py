@@ -5,7 +5,6 @@ SHA-256을 재고 그 바이트로 연다 — 목록과 다르면 기동하지 �
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import unicodedata
 from pathlib import Path
@@ -16,19 +15,15 @@ from tokenizers import Regex, Tokenizer, normalizers, pre_tokenizers
 from tokenizers.models import WordPiece
 
 from detect.decode import log_softmax, scheme, tag_spans, tidy, viterbi, windows
-from detect.fetch import MODELS
+from detect.fetch import MODELS, verified
 
 
 class NER:
     def __init__(self, name: str, root: Path, threads: int = 4, max_len: int = 512, stride: int = 128) -> None:
         spec = MODELS[name]
-        folder = root / name
-        data: dict[str, bytes] = {}
-        for file, want in spec["files"].items():
-            data[file] = (folder / file).read_bytes()
-            got = hashlib.sha256(data[file]).hexdigest()
-            if got != want:
-                raise RuntimeError(f"{name}: {file}의 SHA-256이 목록과 다르다({got[:12]} != {want[:12]}) — fetch.py로 다시 받는다")
+        if spec.get("task", "pii_ner") != "pii_ner":
+            raise RuntimeError(f"{name}은(는) NER 모델이 아니다(task {spec.get('task')}) — DETECT_MODEL을 확인한다")
+        data = verified(name, root, {"config.json", "tokenizer.json", spec["onnx"]})
         self.name, self.spec, self.sha256 = name, spec, spec["files"][spec["onnx"]]
         self.tok = Tokenizer.from_str(data["tokenizer.json"].decode("utf-8"))
         # 풀어 쓴 한글(NFD 자모 — macOS 파일 이름·복사한 글에서 흔하다)은 모든 후보가 낱말째 [UNK]나 처음 보는 조각으로 보고, 이름 뒤 결합 부호 하나(U+0301)도

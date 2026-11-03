@@ -100,6 +100,8 @@ def test_n6_sidecar_pins():
     """N6: 사이드카가 기대는 고정값 — 모델은 커밋 SHA 리비전과 파일 SHA-256, 의존성은 정확한 버전, 이미지는 접근 로그를 끄고, CI는 x86에서 F1·지연을 잰다."""
     models = json.loads((ROOT / "detect" / "models.json").read_text(encoding="utf-8"))
     for name, m in models.items():
+        if m.get("task") == "injection":           # 인젝션 분류기(D-127)의 고정값은 tests/test_d127_guard.py가 본다
+            continue
         assert re.fullmatch(r"[0-9a-f]{40}", m["revision"]), name
         assert m["onnx"] in m["files"] and {"tokenizer.json", "config.json"} <= set(m["files"]), name
         assert all(re.fullmatch(r"[0-9a-f]{64}", h) for h in m["files"].values()), name
@@ -111,7 +113,7 @@ def test_n6_sidecar_pins():
     docker = (ROOT / "detect" / "Dockerfile").read_text()
     assert "--no-access-log" in docker and "USER 10001" in docker and re.search(r"FROM python:\S+@sha256:[0-9a-f]{64}", docker)
     ci = (ROOT / ".github" / "workflows" / "detect.yml").read_text()
-    for step in ("detect/requirements.txt", "python -m detect.fetch", "-m pytest -q", "detect/tests", "python -m detect.evaluate",
+    for step in ("detect/requirements.txt", "python -m detect.fetch", "-m pytest -q", "detect/tests", "python -m detect.evaluate --model veil-ko-lite-int8",
                  "--threads 4 --github", "--threads 2 --github", "docker build -f detect/Dockerfile"):
         assert step in ci, step
     assert re.findall(r"uses: (\S+)", ci) and all(re.search(r"@[0-9a-f]{40}$", u) for u in re.findall(r"uses: (\S+)", ci))   # 액션은 SHA로

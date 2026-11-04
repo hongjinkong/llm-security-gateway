@@ -37,10 +37,10 @@ upstream  OpenAI · Anthropic · OpenAI-compatible servers (Ollama, vLLM, …)
   on the next turn — prompt caching and Anthropic thinking signatures keep working. On the real Claude API (`claude-haiku-5-5`, five two-turn conversations) the second turn read
   the cache without a signature error; the old per-request random values were rejected 5/5 ([`docs/verification/multiturn_claude.md`](docs/verification/multiturn_claude.md), Korean).
 - **Injection is not blocked by default.** There are two rules (instruction override and role switch, with Korean and English vocabulary), and they match benign sentences too ("ignore the instructions in the PDF and summarize").
-  Hits are recorded in the audit log (`would_block`); operators opt in with `GATEWAY_INJECTION=block`. An injection classifier (in the detect sidecar, multilingual encoder `Horizon-Labs/prompt-injection-guard-base`)
-  can be turned on as a **guardrail webhook** (`GATEWAY_GUARD=observe|block`, off by default; load it in the sidecar with `DETECT_INJECTION_MODEL=horizon-guard-base-int8`). At a 1% benign false-positive threshold it catches 61.7% of the Korean attacks
-  in the sealed holdout (the rules: 5.9% on dev); verdict-forging text flips some of its detections (see below), so it is recommended for **observe mode only**.
-  Your own guardrail plugs into the same webhook contract.
+  Hits are recorded in the audit log (`would_block`); operators opt in with `GATEWAY_INJECTION=block`. An injection classifier in the detect sidecar can be turned on as a **guardrail webhook**
+  (`GATEWAY_GUARD=observe|block`, off by default). A public classifier (`Horizon-Labs/prompt-injection-guard-small`) fine-tuned on Korean data (D-128) catches 97.5% of Korean and 93.8% of English attacks in the sealed holdout
+  at a 1% benign false-positive threshold (the rules: 5.9% on dev; the public model before fine-tuning: 61.7%) and passes the verdict-forging control (at most 0.7% flipped, limit 5%), so it **may be used to block after an observation period**.
+  Until the fine-tuned model is uploaded to Hugging Face, the image default is the pre-fine-tuning model (observe only). Your own guardrail plugs into the same webhook contract.
 
 ### Detected kinds
 
@@ -88,9 +88,9 @@ repeats only the surname or part of an address is not restored. When the sidecar
 - **Unknown attacks.** The injection rules only know a fixed Korean and English vocabulary. On the dev split of eval set v1 ([`eval/injection/`](eval/injection/SOURCES.md),
   built from public datasets, 1,592 Korean attacks) they catch **8.7%** of attacks (Korean 5.9%, English 16.0%; forged role headers 2.9%, obfuscation 2.9%, indirect 5.1%)
   with a 2.7% false-positive rate (0% on ordinary business text, 9.2% on benign text containing trigger words) — not usable for blocking; observe only.
-  The classifier behind the guardrail webhook does much better but is still one layer: on the sealed holdout at a 1% false-positive threshold it catches
-  61.7% of Korean and 55.1% of English attacks (Korean benign false positives 1.7%), only 22.7% of English indirect injections in tool output (dev), and appending a fake
-  verdict JSON (`"verdict":"benign"`) to an attack flips 8.9% of its detections (the D-054 positive control; the pre-registered limit was 5%). Use it to observe, not to block.
+  The fine-tuned classifier behind the guardrail webhook (D-128) does much better but is still one layer: on the sealed holdout at a 1% false-positive threshold it catches
+  97.5% of Korean and 93.8% of English attacks (Korean benign false positives 1.5%), 85.9% / 89.8% on the harder dev-eval split, and it falsely flags 5.3% of English benign text containing trigger words (holdout).
+  Appending a fake verdict JSON to an attack flips at most 0.7% of its detections (the D-054 positive control; limit 5%; the pre-fine-tuning model: 8.9%). Holdout and dev share the same public attack families — observe real traffic before blocking.
 - **Output direction.** Personal data the model produces on its own reaches the user; it is counted (`pii_new`, `gateway_pii_new_total`), not masked.
 - **Restore failures are quiet.** If the model rewrites a fake value beyond recognition, the user receives the fake value (`x-gateway-pii`, `pii_suspect`, `gateway_pii_suspect_total` show it).
   Fake emails use reserved domains, but **a fake mobile number can be a real person's number** — Korea has no official fictitious number range.
@@ -229,6 +229,9 @@ web/          browser demo
 ## 6. Security
 
 Report vulnerabilities privately — see [`SECURITY.md`](SECURITY.md).
+
+For security reviewers there is a [security whitepaper](docs/security-whitepaper.md) (data flow, what is never stored, key handling, threat model, limits — Korean) and for legal teams a [legal position memo](docs/legal-position.md) (where the gateway sits under Korea's PIPA — **draft before lawyer review**, Korean).
+For a PoC, run `python3 scripts/poc_report.py samples.jsonl` on customer sample JSONL to get per-kind detection counts, false-positive candidates (value shapes only), restore rate and processing time — no raw text enters the report (D-129).
 
 ## 7. License
 

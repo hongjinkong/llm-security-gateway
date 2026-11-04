@@ -220,5 +220,49 @@
       "tokenizer.json": "6eb983352e73f1697b883a8c3f6b66bdfa336ab3d29dd3687f8316d0ff2789c1",
       "config.json": "1dc4742d04507072cafffb7235dc5dba5af9ba126f7a9830b95ed7ec00fd9104"
     }
+  },
+  "horizon-guard-base-src": {
+    "purpose": "train-base",
+    "id": "Horizon-Labs/prompt-injection-guard-base",
+    "revision": "8c321b08c01102a0a3a377f8eecda0cab80e8758",
+    "license": "Apache-2.0",
+    "base": "D-128 이어 학습의 기준 가중치(safetensors fp32 1.23GB) — 제작자 SHA256SUMS와 같다. 사이드카가 싣는 모델이 아니다",
+    "files": {
+      "model.safetensors": "d0c0f899f118481855cfe34ba718cf5e44613d266270721c380d54741626d405",
+      "config.json": "34fbf08b5c26d800bb55d6f1de0d3a39c35eb8b5d4208c681361a20f93923f54",
+      "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
+      "tokenizer_config.json": "1d2f82c1341a79748e00efe82e67690f99d00b3c2a894f2b23128fd9d3519da3",
+      "special_tokens_map.json": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351"
+    }
+  },
+  "horizon-guard-small-src": {
+    "purpose": "train-base",
+    "id": "Horizon-Labs/prompt-injection-guard-small",
+    "revision": "5ed691c28fc37db51f4e80fb81311b7d2b5d4646",
+    "license": "Apache-2.0",
+    "base": "D-128 이어 학습의 기준 가중치(safetensors fp32 563MB) — 제작자 SHA256SUMS와 같다. 사이드카가 싣는 모델이 아니다",
+    "files": {
+      "model.safetensors": "a23196c117baf414b4b8abd138c5f5656e728877c0bdb2775c361ee89df16deb",
+      "config.json": "d6264037c9aa4b3d821c1c9a0329572033adbdb622788ecca91c3636066d9622",
+      "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
+      "tokenizer_config.json": "ea349495764b24570b4560fe2e4a557e5c0a47e6bce782c2409b1d6445cf8633",
+      "special_tokens_map.json": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351"
+    }
+  },
+  "injection-ko-small-int8": {
+    "task": "injection",
+    "id": "hongjinkong/llm-gateway-injection-ko-small",
+    "revision": "",
+    "license": "Apache-2.0",
+    "trained": "D-128",
+    "published": false,
+    "base": "jhu-clsp/mmBERT-small(141M — 임베딩 밖 42M, 22×384) ← Horizon-Labs/prompt-injection-guard-small@5ed691c2를 eval/injection/train/으로 이어 학습(D-128, 시드 20261104·CPU·길이 256), INT8은 임베딩(Gather)만",
+    "onnx": "onnx/model_quantized.onnx",
+    "files": {
+      "onnx/model_quantized.onnx": "7d87c2ea04987bfd2ff27115548828c58c3cc725eb598b831a703a19aae9b888",
+      "tokenizer.json": "d1a272a3b438756fbf53374131e92bc09db043909766241da5877441e6202379",
+      "config.json": "877ae4f8cd2bfde07b7ad238a7d01647cd93bb8290abf5952ed5d956a7dba7fa"
+    },
+    "threshold": 0.9833213367983539
   }
 }

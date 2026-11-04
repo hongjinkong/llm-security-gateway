@@ -156,5 +156,6 @@ POST GATEWAY_GUARD_URL  {"texts": [{"role": "user", "text": "…"}, {"role": "to
 **탐지 사이드카의 인젝션 분류기를 웹훅으로**: 사이드카([`detect/`](../detect/README.md))의 `POST /v1/guard`가 이 계약을 구현한다. 분류기는 이미지에 들어 있지만 기본으로 싣지 않는다 —
 사이드카에 `DETECT_INJECTION_MODEL=horizon-guard-base-int8`(메모리 약 +1.2GiB), 게이트웨이에 `GATEWAY_GUARD=observe`와 `GATEWAY_GUARD_URL`(같은 파드면 `http://127.0.0.1:8081/v1/guard`,
 compose면 `http://detect:8081/v1/guard`). 점수는 텍스트들의 (512토큰 창들의) 최댓값이고, 문턱(`DETECT_GUARD_THRESHOLD`, 기본은 모델의 운영 문턱 — dev 정상셋 오탐 1%)을 넘으면 `block`이다.
-한 요청에서 캐시에 없는 글은 새 글부터 비용 상한 `DETECT_INJECTION_MAX_TOKENS`(기본 2,048)까지만 재고 나머지는 `unscored`로 알린다. **이 분류기로는 `block`을 권하지 않는다** — 공격 문장 뒤에 가짜 판정 JSON을 붙이면
-잡힌 공격의 8.9%가 빠져나간다(D-127 양성대조). 정확도·지연·메모리·한계는 [운영 — 가드레일 웹훅](operations.md#가드레일-웹훅)과 DECISIONS D-127.
+한 요청에서 캐시에 없는 글은 새 글부터 비용 상한 `DETECT_INJECTION_MAX_TOKENS`(기본 2,048)까지만 재고 나머지는 `unscored`로 알린다. 이미지 기본 모델(`horizon-guard-base-int8`, 이어 학습 전)로는 `block`을 권하지 않는다 — 가짜 판정 JSON을 붙이면
+잡힌 공격의 8.9%가 빠져나간다(D-127 양성대조). 한국어 데이터로 이어 학습한 `injection-ko-small-int8`(D-128 — 양성대조 최대 0.7%, 봉인 홀드아웃 한국어 97.5%)은 Hugging Face에 올라간 뒤 기본이 된다 — 그때까지는 `models.json`의 `published: false`
+항목이라 `DETECT_INJECTION_MODEL=injection-ko-small-int8`로 실으려면 `models/`에 학습 결과 폴더가 있어야 한다. 정확도·지연·메모리·한계는 [운영 — 가드레일 웹훅](operations.md#가드레일-웹훅)과 DECISIONS D-127·D-128.

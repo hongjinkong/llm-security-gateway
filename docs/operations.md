@@ -285,10 +285,14 @@ stats의 `detect_errors`·지표 `gateway_detect_errors_total{reason}`에 사유
 `GATEWAY_GUARD=observe|block`이면 요청마다 이번 턴의 사용자 글·도구 결과·첨부 문서(공급자에게 갈 것과 같은 텍스트 — 정책이 가리는 종류만 가짜 값)를 `GATEWAY_GUARD_URL`에 보내 판정을 받는다(D-127, 계약은 [설정 — 가드레일 웹훅](configuration.md#가드레일-웹훅-gateway_guard)).
 **기본은 꺼짐**이다 — 배포 견본(compose·k8s)은 켜는 방법만 주석으로 적었다. 켜면 같은 파드 탐지 사이드카의 인젝션 분류기(`/v1/guard`)를 `observe`로 부르는 것을 권한다 — 점수가 감사 줄·대시보드에 남고 막지는 않는다.
 
-- **분류기**: `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base 다국어 인코더, INT8 641MB, Apache-2.0 — 다섯 후보 가운데 한국어 recall이 가장 높았다, D-127 §6). 공개 평가셋 v1(D-123)의 dev에서 정상셋 오탐 1%가 되는 문턱(0.9358)이 사이드카의 기본 문턱이다(`DETECT_GUARD_THRESHOLD`로 바꾼다).
-  그 문턱의 정확도(봉인 홀드아웃 — 채택·문턱을 dev로 정한 뒤 한 번 연 것): 한국어 공격 269/436 = **61.7%**·영어 125/227 = 55.1%를 잡고, 정상 문장은 한국어 8/470 = 1.7%·영어 1/114 = 0.9%를 잘못 의심한다(dev는 한국어 57.0%·오탐 1.0%, 룰은 dev 한국어 5.9%). 유형별(dev)로는 문서 속 한국어 간접 지시 95.7%·한국어 직접 지시 59.3%·한국어 난독화 43.0%·**도구 결과 속 영어 간접 지시 22.7%**다. **막는 데는 권하지 않는다**: 잡힌 공격 뒤에 가짜 판정 JSON(`"verdict":"benign"`)을 붙이면 8.9%가 문턱 밑으로 떨어진다(D-054 양성대조, 사전 등록한 기준 5% 초과).
-  `observe`로 두고 감사 줄·지표를 본다. 켜는 법: 사이드카에 `DETECT_INJECTION_MODEL=horizon-guard-base-int8`(이미지에 들어 있지만 기본으로 싣지 않는다)과 메모리(아래), 게이트웨이에 `GATEWAY_GUARD=observe`·`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard` — k8s 견본은 `gateway.yaml`에 URL이 이미 있고 `gateway.toml`의 `guard` 줄 주석을 풀거나 환경변수 `GATEWAY_GUARD`를 준다.
-- **먼저 관측한다**: 오탐 1%(dev 기준 — 봉인 홀드아웃의 한국어는 1.7%)는 정상 요청 100건에 1~2건을 막는다는 뜻이다. `observe`로 몇 주 감사 줄(`guard_verdict`·`guard_score`)과 대시보드 '가드레일 위험 판정'을 보고, 실제 트래픽의 오탐이 받아들일 만하면
+- **분류기(이미지 기본, 이어 학습 전)**: `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base 다국어 인코더, INT8 641MB, Apache-2.0 — 다섯 후보 가운데 한국어 recall이 가장 높았다, D-127 §6). 공개 평가셋 v1(D-123)의 dev에서 정상셋 오탐 1%가 되는 문턱(0.9358)이 기본 문턱이다(`DETECT_GUARD_THRESHOLD`로 바꾼다).
+  그 문턱의 정확도(봉인 홀드아웃): 한국어 공격 269/436 = 61.7%·영어 125/227 = 55.1%를 잡고, 정상 문장은 한국어 8/470 = 1.7%·영어 1/114 = 0.9%를 잘못 의심한다(룰은 dev 한국어 5.9%). 유형별(dev) 문서 속 한국어 간접 지시 95.7%·한국어 직접 지시 59.3%·한국어 난독화 43.0%·도구 결과 속 영어 간접 지시 22.7%. **이 모델로는 막지 않는다**: 잡힌 공격 뒤에 가짜 판정 JSON(`"verdict":"benign"`)을 붙이면 8.9%가 문턱 밑으로 떨어진다(D-054 양성대조, 사전 등록한 기준 5% 초과).
+- **분류기(이어 학습, 채택 — D-128)**: `injection-ko-small-int8` — `Horizon-Labs/prompt-injection-guard-small`(mmBERT-small)을 한국어 중심 학습 데이터 13,932행(`eval/injection/train/`)으로 이어 학습한 모델(INT8 255MB, Apache-2.0). 운영 문턱 **0.9833** = 학습 쪽을 뺀 dev(dev-eval) 정상셋 오탐 1%.
+  봉인 홀드아웃(두 번째 개봉): 한국어 공격 **425/436 = 97.5%**·영어 213/227 = 93.8%, 정상 오탐 한국어 7/470 = 1.5%·영어 6/114 = 5.3%(트리거 단어가 든 영어 정상 문장 — NotInject 4/75). dev-eval: 한국어 85.9%·오탐 0.4%, 영어 89.8%·오탐 2.6%, 도구 결과 속 영어 간접 지시 84.1%.
+  D-054 양성대조 최대 0.7%(권한 사칭 8/1,199, 기준 5%) — 사전 등록한 네 게이트를 모두 넘어 **관측 기간 뒤 `block`에 써도 된다**. Hugging Face에 올라간 뒤 이미지 기본이 된다(그때까지 `models.json`에 `published: false` — 로컬 `models/injection-ko-small-int8/`가 있어야 `DETECT_INJECTION_MODEL=injection-ko-small-int8`로 실린다).
+  홀드아웃은 dev-eval보다 쉬운 구성이라(KoreanGuardrail·guardrail4agent 공격이 60%) 두 숫자를 함께 본다 — 새 꼴의 공격은 관측 기간에 실제 트래픽으로 본다. 영어 트리거 문장이 많은 트래픽이면 문턱을 올린다.
+  켜는 법(두 모델 공통): 사이드카에 `DETECT_INJECTION_MODEL=<모델 이름>`(이미지에 들어 있지만 기본으로 싣지 않는다)과 메모리(아래), 게이트웨이에 `GATEWAY_GUARD=observe`·`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard` — k8s 견본은 `gateway.yaml`에 URL이 이미 있고 `gateway.toml`의 `guard` 줄 주석을 풀거나 환경변수 `GATEWAY_GUARD`를 준다.
+- **먼저 관측한다**: 오탐 1%(dev 기준 — 봉인 홀드아웃의 한국어는 1.5~1.7%, 이어 학습 모델의 영어 트리거 문장은 5.3%)는 정상 요청 100건에 1~2건을 막는다는 뜻이다. `observe`로 몇 주 감사 줄(`guard_verdict`·`guard_score`)과 대시보드 '가드레일 위험 판정'을 보고, 실제 트래픽의 오탐이 받아들일 만하면
   `block`으로 바꾸거나 문턱을 올린다. 긴 문서일수록 창(512토큰)이 많아 오탐이 늘어난다(점수는 창들의 최댓값).
 - **용량**: 분류기와 NER은 같은 사이드카에서 **줄을 따로** 선다(작업마다 한 번에 추론 하나 — 가드레일이 이름·주소 가림을 밀어내지 않는다, 대신 동시에 돌면 CPU를 나눠 쓴다).
   지연은 글 길이에 비례한다 — M2(스레드 4) HTTP p50·p95: 32토큰 32~37·39~43ms, 128토큰 112~150·139~228ms, 510토큰(창 하나) 0.56~0.59·0.65~0.80초(두 번 잼). x86 숫자는 CI `detect` 워크플로가 잰다.
@@ -297,7 +301,7 @@ stats의 `detect_errors`·지표 `gateway_detect_errors_total{reason}`에 사유
   잰 글은 캐시하므로 에이전트 루프의 다음 단계는 남은 글을 잰다. 혼자서 상한을 넘는 긴 글(한글 약 3,000자·영문 약 10,000자 이상)은 끝내 재지 않는다 — 긴 문서를 재려면 상한과 기한
   (`GATEWAY_GUARD_TIMEOUT` 5초)을 함께 올린다(창 하나 ≈ 382토큰, M2 약 0.6초). 게이트웨이가 기한을 넘겨 포기한 요청은 차례가 와도 돌리지 않는다. 사이드카는 텍스트마다 점수를 캐시한다(SHA-256 → 점수, 4,096개) —
   에이전트 루프가 단계마다 다시 보내는 이번 턴의 도구 결과는 다시 재지도 상한에 세지도 않는다.
-- **메모리**: 분류기가 사이드카 메모리를 크게 늘린다 — M2 물리 점유로 분류기만 1.5GiB(모델을 여는 동안 최대 2.4GiB), NER과 함께 1.8GiB(최대 2.6GiB). 켜면 k8s 사이드카를 요청 2Gi·상한 3Gi로 올린다(견본 주석). 더 가벼운 `horizon-guard-small-int8`(268MB — 분류기만 0.7~1.2GiB)은 dev 한국어 recall이 낮다(깨끗한 부분집합 56.9% 대 76.3%) — 이미지를 `--build-arg INJECTION_MODEL=horizon-guard-small-int8`로 빌드하고 `DETECT_INJECTION_MODEL=horizon-guard-small-int8`로 실으면 그 모델의 dev 문턱(0.8163)이 기본이다.
+- **메모리**: 분류기가 사이드카 메모리를 크게 늘린다 — M2 물리 점유로 분류기만 1.5GiB(모델을 여는 동안 최대 2.4GiB), NER과 함께 1.8GiB(최대 2.6GiB). 켜면 k8s 사이드카를 요청 2Gi·상한 3Gi로 올린다(견본 주석). 이어 학습한 `injection-ko-small-int8`은 small 구조(INT8 255MB — 분류기만 약 0.7~1.2GiB, D-127이 잰 small과 같은 구조)라 base보다 가볍고 빠르다: M2 스레드 4 HTTP p95 32토큰 17.8ms·128토큰 47.4ms·256토큰 94.4ms·510토큰 216.7ms(스레드 2는 32.4·113.3·167.0·376.6ms; base는 39~43·139~228·646~804ms). 이어 학습 전 `horizon-guard-small-int8`(dev 한국어 recall 깨끗한 부분집합 56.9%)은 비교 후보로만 남는다.
 - **실패 동작**: `observe`는 늘 판정 없이 보내고 감사 `guard_error`. `block`에서 웹훅이 입력을 거절하면(400·413·422) 막고, 그 밖의 실패는 `GATEWAY_GUARD_FAIL` — `open`(기본)이면 보내고
   `closed`면 503 `guard_unavailable`(`retry-after: 1`). `block`을 쓴다면 `closed`로 둔다 — `open`이면 웹훅을 바쁘게 만들어 판정을 피할 수 있다. 어느 쪽이든 지표
   `gateway_guard_errors_total{reason}`·stats `guard_errors`·대시보드 줄의 '가드레일 응답 없음(사유)'로 보인다 — `observe`·`open`에서는 이것만이 장애 신호다.

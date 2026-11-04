@@ -442,3 +442,30 @@ def test_c11_a_model_without_a_threshold_needs_one(guard_client, monkeypatch):
             assert c.get("/health").json()["tasks"]["injection"]["threshold"] == 0.7
     finally:
         clf.threshold = saved
+
+
+# --- 이어 학습(D-128) ----------------------------------------------------------------------------
+def test_t7_train_script_runs_end_to_end_on_a_tiny_slice(tmp_path):
+    """T7: `python -m detect.train`이 아주 작은 데이터(48행·1 epoch·길이 64·CPU)로 저장·ONNX·INT8(Gather만)·manifest까지 끝난다 — torch가 없거나 기준 모델이 없으면 건너뛴다.
+    manifest의 파일 해시가 실제 파일과 같고, INT8은 fp32와 0.5 판정이 거의 같다(제작자 측정은 0.9975)."""
+    import hashlib
+    import subprocess
+    import sys
+    pytest.importorskip("torch")
+    pytest.importorskip("transformers")
+    base = MODEL_DIR / "horizon-guard-small-src"
+    if not (base / "model.safetensors").exists():
+        pytest.skip(f"기준 모델 없음: {base}(python -m detect.fetch horizon-guard-small-src)")
+    out = tmp_path / "tiny"
+    cmd = [sys.executable, "-m", "detect.train", "--base", "horizon-guard-small-src", "--dir", str(MODEL_DIR), "--out", str(out),
+           "--limit", "48", "--epochs", "1", "--max-len", "64", "--batch", "8", "--accum", "1", "--device", "cpu", "--threads", "2"]
+    run = subprocess.run(cmd, cwd=Path(__file__).resolve().parents[2], capture_output=True, text=True, timeout=900)
+    assert run.returncode == 0, run.stderr[-2000:]
+    m = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert m["decision"] == "D-128" and m["base"]["name"] == "horizon-guard-small-src" and m["train"]["seed"] == 20261104
+    for rel, want in m["files"].items():
+        assert hashlib.sha256((out / rel).read_bytes()).hexdigest() == want, rel
+    assert {"model.safetensors", "config.json", "tokenizer.json", "onnx/model.onnx", "onnx/model_quantized.onnx", "train_log.json"} <= set(m["files"])
+    assert m["export"]["quantization"].startswith("dynamic int8, Gather only") and m["quantization_check"]["agree"] >= 0.99
+    assert (out / "onnx" / "model_quantized.onnx").stat().st_size < (out / "onnx" / "model.onnx").stat().st_size * 0.6
+    assert "SHA-256" in (out / "README.md").read_text(encoding="utf-8") and len(m["train"]["log"]) == 1

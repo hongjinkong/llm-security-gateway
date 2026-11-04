@@ -5,9 +5,10 @@
 기본 모델은 측정한 다섯 가운데 F1이 합성 문장·실제 대화(KDPII) 둘 다 0.85를 넘은 유일한 `1T/veil-pii-ko-lite` INT8(0.963·0.895)이다 — x86 4 vCPU에서 510토큰 HTTP p95 201.5ms로
 처음의 '+40ms' 게이트는 넘지 못했다(D-125). 빠른 모델(KoELECTRA-small)은 실제 대화에서 많이 틀린다(KDPII 정밀도 0.45·재현율 0.55). 수치와 근거는 [`DECISIONS.md`](../DECISIONS.md)의 D-125·D-126.
 같은 사이드카의 둘째 작업은 **인젝션 분류기**다(D-127) — 텍스트 하나에 인젝션 점수(0~1)를 내고, 게이트웨이의 가드레일 웹훅 계약(`POST /v1/guard`)을 구현한다
-(`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard`). 모델은 다섯 후보를 공개 평가셋 v1(D-123)로 재서 고른 `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base, INT8 641MB, Apache-2.0)다(라이선스·한국어 recall@FPR 1% 기준 — D-127 §6).
-**기본으로 싣지 않는다** — 메모리가 약 1.2GiB 늘고(M2 물리 점유: NER만 0.6GiB → 함께 1.8GiB, 여는 동안 최대 2.6GiB) 창 하나(512토큰)가 M2에서 약 0.6초다. `DETECT_INJECTION_MODEL=horizon-guard-base-int8`로 켠다.
-판정 조작 문구 양성대조(D-054)에서 잡힌 공격의 8.9%가 뒤집혀 게이트웨이의 `block`에는 권하지 않는다(관측 전용).
+(`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard`). 이미지 기본 모델은 다섯 후보를 공개 평가셋 v1(D-123)로 재서 고른 `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base, INT8 641MB, Apache-2.0)다(D-127 §6) —
+판정 조작 문구 양성대조(D-054)에서 잡힌 공격의 8.9%가 뒤집혀 게이트웨이의 `block`에는 권하지 않는다(관측 전용). **기본으로 싣지 않는다** — 메모리가 약 1.2GiB 늘고(M2 물리 점유: NER만 0.6GiB → 함께 1.8GiB, 여는 동안 최대 2.6GiB) 창 하나(512토큰)가 M2에서 약 0.6초다.
+`DETECT_INJECTION_MODEL=horizon-guard-base-int8`로 켠다. **이어 학습한 모델 `injection-ko-small-int8`**(D-128, 아래 '이어 학습')은 봉인 홀드아웃 한국어 97.5%·영어 93.8%, 양성대조 최대 0.7%로 네 게이트를 넘어 채택됐다 —
+Hugging Face에 올라간 뒤 이미지 기본이 된다(그때까지 `models.json`에 `published: false`, 로컬 결과 폴더로만 싣는다). INT8 255MB, M2 스레드 4 p95 32토큰 17.8ms·510토큰 216.7ms(base의 약 1/3).
 긴 텍스트는 512토큰 창을 128토큰 겹쳐 밀고 창들의 최댓값을 낸다. 텍스트마다 점수를 캐시한다(SHA-256 → 점수 4,096개, 원문 없음).
 
 ```
@@ -45,6 +46,23 @@ torch가 있는 스크래치 가상환경에서 `python -m detect.export pg2-86m
 홀드아웃(`--holdout`)은 채택·문턱을 dev로 정한 뒤 단계의 최종 측정에서만 연다(D-123 §2-3).
 
 CI의 `detect` 워크플로가 `detect/`·`eval/ner/`·`eval/injection/`이 바뀔 때 x86 러너에서 같은 것(분류기는 채택 모델의 dev 점수와 지연)을 재고 작업 요약에 남긴다.
+
+## 이어 학습(D-128)
+
+인젝션 분류기를 한국어 데이터로 이어 학습한다(PLAN 18-1). 학습은 torch가 필요해 **따로 둔 가상환경**(`.venv-train`, 정확히 고정한 `requirements-train.txt`)에서 돌리고, 사이드카 이미지에는 torch가 들어가지 않는다.
+학습 데이터는 `eval/injection/train/`(빌더 `build.py` — dev의 학습 쪽 절반 + 평가셋이 쓰지 않은 공개 행 + 에이전트가 쓴 한국어 정상 + 결정적 변형·판정 조작 꼬리, 출처·라이선스는 그 폴더의 `SOURCES.md`)이고
+평가 그룹(dev-eval·홀드아웃)과 그룹·문장이 겹치지 않는다(`tests/test_d128_train.py`). 기준 가중치는 `models.json`의 `purpose: train-base` 항목(`horizon-guard-base-src`·`-small-src`, safetensors, 제작자 SHA256SUMS와 같은 해시).
+
+```bash
+python3.12 -m venv .venv-train && .venv-train/bin/pip install -r detect/requirements-train.txt
+.venv-train/bin/python -m detect.fetch horizon-guard-base-src --dir models                        # 기준 가중치(1.23GB), small은 horizon-guard-small-src(563MB)
+.venv-train/bin/python -m detect.train --base horizon-guard-base-src --out models/injection-ko-base   # 기본 설정 = D-128 §2-2(시드·학습률·3 epoch·임베딩 동결), GPU 길이 512
+.venv-train/bin/python -m detect.train --base horizon-guard-small-src --out models/injection-ko-small --max-len 256 --batch 8 --accum 4   # 맥북(M2 8GB)용
+.venv-detect/bin/python -m detect.evaluate_injection --model <models.json 이름> --dir models --exclude-train   # dev-eval(학습 그룹 뺌)로 운영 문턱·표
+```
+
+결과 폴더에 safetensors·토크나이저·`onnx/model.onnx`(fp32)·`onnx/model_quantized.onnx`(INT8 — 임베딩 Gather만, 제작자와 같은 설정)·`manifest.json`(학습 설정·데이터 SHA-256·코드 커밋·파일 해시·양자화 확인)·`README.md`(모델 카드)·`train_log.json`이 남는다.
+같은 명령·시드·데이터·장치면 같은 결과가 나온다(장치가 다르면 점수 ±1%p 안을 재현으로 본다). 사이드카가 쓰려면 `models.json`에 그 이름(`task: injection`·`trained`·`threshold`·파일 해시)을 더하고 HF 저장소에 올린 뒤 `revision`을 채운다 — 게이트·수치는 DECISIONS D-128 §6.
 
 ## 출처
 

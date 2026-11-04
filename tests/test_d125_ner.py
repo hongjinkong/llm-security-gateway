@@ -100,7 +100,7 @@ def test_n6_sidecar_pins():
     """N6: 사이드카가 기대는 고정값 — 모델은 커밋 SHA 리비전과 파일 SHA-256, 의존성은 정확한 버전, 이미지는 접근 로그를 끄고, CI는 x86에서 F1·지연을 잰다."""
     models = json.loads((ROOT / "detect" / "models.json").read_text(encoding="utf-8"))
     for name, m in models.items():
-        if m.get("task") == "injection":           # 인젝션 분류기(D-127)의 고정값은 tests/test_d127_guard.py가 본다
+        if m.get("task") == "injection" or m.get("purpose") == "train-base":   # 인젝션 분류기(D-127)는 tests/test_d127_guard.py, 학습 기준 가중치(D-128)는 tests/test_d128_train.py가 본다
             continue
         assert re.fullmatch(r"[0-9a-f]{40}", m["revision"]), name
         assert m["onnx"] in m["files"] and {"tokenizer.json", "config.json"} <= set(m["files"]), name

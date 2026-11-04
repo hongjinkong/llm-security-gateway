@@ -1,0 +1,12 @@
+# 학습 가상환경 의존성(D-128) — 사이드카(requirements.txt)와 따로 설치한다: python3.12 -m venv .venv-train && .venv-train/bin/pip install -r detect/requirements-train.txt
+# torch는 macOS arm64·Linux x86_64(CUDA 포함 휠) 공통 버전이다. 정확히 고정하고, 올릴 때는 DECISIONS에 근거를 남긴다.
+huggingface_hub==2.4.0
+numpy==2.5.4
+onnx==1.23.2
+onnx-ir==1.1.0
+onnxruntime==1.31.1
+onnxscript==0.7.2
+safetensors==0.8.0
+tokenizers==0.23.3
+torch==2.15.0
+transformers==5.22.1

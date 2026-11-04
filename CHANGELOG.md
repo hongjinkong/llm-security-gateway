@@ -2,6 +2,11 @@
 
 ## 미출시
 
+- 인젝션 분류기 한국어 이어 학습(D-128): `Horizon-Labs/prompt-injection-guard-small`을 한국어 중심 학습 데이터 13,932행으로 이어 학습한 `injection-ko-small-int8`(INT8 255MB, 운영 문턱 0.9833)이 사전 등록한 네 게이트를 넘어 **채택** —
+  봉인 홀드아웃(두 번째 개봉) 한국어 공격 97.5%(이어 학습 전 61.7%)·영어 93.8%, 한국어 정상 오탐 1.5%(경계), D-054 양성대조 최대 0.7%(전 8.9%). 학습 쪽을 뺀 dev(dev-eval)는 한국어 85.9%·오탐 0.4%. 영어 트리거 정상 문장 오탐 5.3%(홀드아웃)는 주의.
+  **관측 기간 뒤 `block`에 써도 된다**. 이미지 기본값은 Hugging Face에 올린 뒤 바꾼다(그때까지 `models.json`에 `published: false`). 학습 데이터 빌더 `eval/injection/train/build.py`(dev의 학습 쪽 절반 + 평가셋이 쓰지 않은 공개 행 + 에이전트 작성 한국어 정상 543 +
+  결정적 변형 7종·판정 조작 꼬리 12종 — 평가 그룹과 그룹·문장이 겹치지 않고 D-054 문구는 쓰지 않는다, `tests/test_d128_train.py`), 학습 스크립트 `detect/train.py`(따로 둔 가상환경 `detect/requirements-train.txt`, 기준 모델 safetensors 항목 `horizon-guard-base-src`·`-small-src`,
+  safetensors → ONNX → INT8(Gather만) → manifest·모델 카드, M2 CPU 25분), 평가 `detect.evaluate_injection --exclude-train`(dev-eval). base(308M) 이어 학습은 GPU 기계 몫으로 남았다.
 - 인젝션 분류기 + 가드레일 웹훅(D-127): 게이트웨이가 이번 턴의 사용자 글·도구 결과·첨부 문서(공급자에게 갈 것과 같은 텍스트 — 체인의 마지막이라 정책이 가리는 종류만 가짜 값)를 웹훅에 보내 판정을 받는다 —
   `GATEWAY_GUARD=off|observe|block`(기본 `off`, 정책 키 `guard`)·`GATEWAY_GUARD_URL`·`GATEWAY_GUARD_TIMEOUT`(5초)·`GATEWAY_GUARD_FAIL`(`open` 기본 / `closed` — block에서 503 `guard_unavailable`).
   계약 `POST {"texts": [{"role","text"}]}` → `{"verdict": "allow"|"block", "score"}`. 관측은 감사 줄에 `guard_verdict`·`guard_score`(block 판정이면 `would_block`, 결과 `observed`/`injection_guard`),

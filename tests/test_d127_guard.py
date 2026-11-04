@@ -405,7 +405,7 @@ ADOPTED = "horizon-guard-base-int8"
 def test_r9_injection_model_pins_and_the_adopted_name_agree():
     """분류기 후보의 고정값(리비전·파일 SHA-256)과 채택 모델 이름이 이미지·CI·사이드카 테스트에서 같다. 채택 모델의 문턱은 dev 전체 오탐 1% 문턱(D-127 §6)."""
     models = json.loads((ROOT / "detect" / "models.json").read_text(encoding="utf-8"))
-    inj = {n: m for n, m in models.items() if m.get("task") == "injection"}
+    inj = {n: m for n, m in models.items() if m.get("task") == "injection" and not m.get("trained")}     # D-128 학습 산출(trained)은 test_d128_train T6이 본다
     assert set(inj) == {"protectai-v2", "horizon-guard-small-int8", "horizon-guard-base-int8", "pg2-86m", "pg2-22m"}
     for name, m in inj.items():
         assert re.fullmatch(r"[0-9a-f]{40}", m["revision"]) and all(re.fullmatch(r"[0-9a-f]{64}", h) for h in m["files"].values()), name

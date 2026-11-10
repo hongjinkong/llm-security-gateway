@@ -32,6 +32,8 @@ docker compose -f deploy/compose.yml up --build
 | `kustomization.yaml` | 위 둘로 ConfigMap·Secret을 만든다. 이름에 내용 해시가 붙어 바꾸고 apply하면 롤링 재시작된다 |
 
 1. 이미지 — `gateway.yaml`의 `image`는 릴리스가 올리는 GHCR 주소다. 릴리스 전이거나 사내 레지스트리를 쓰면 직접 빌드해 올리고 그 주소로 바꾼다.
+   공개 이미지는 `linux/amd64` 하나다. Apple Silicon 맥의 Docker Desktop Kubernetes에서는 에뮬레이션(Rosetta)으로 돌고, 사이드카(`detect`)가 읽기 전용 루트에서 임시 파일을 못 만들어 재시작을 반복한다(2026-11-10 확인 — 운영 x86 노드와 상관없다).
+   맥에서 시험할 때는 저장소 루트에서 `docker build -f gateway/Dockerfile -t llm-security-gateway:local .`·`docker build -f detect/Dockerfile -t llm-security-gateway-detect:local .`로 빌드하고 kustomization의 `images:`로 두 주소를 이 태그로 바꾼다(Docker Desktop은 로컬 이미지를 그대로 쓴다).
 2. 비밀 — `cp deploy/k8s/secret.env.example deploy/k8s/secret.env` 뒤 채운다. 대체값 키·관리 키는 `python -m gateway keygen`(패키지가 없으면 `docker run --rm <이미지> python -m gateway keygen`).
    쓰지 않는 공급자는 `gateway.toml`에서 그 상류 표를 지운다 — `key_env`가 가리키는 값이 비면 기동하지 않는다.
 3. 클라이언트 — `python -m gateway keygen --hash`의 첫 줄(키)은 클라이언트에게 주고, 둘째 줄을 `gateway.toml`의 `[[clients]]`에 넣는다. 클라이언트가 없으면 기동하지 않는다.

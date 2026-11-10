@@ -2583,3 +2583,11 @@ PLAN 완료 기준의 '사이드카 꺼짐·켜짐 두 구성에서 전체 테�
   첫 전체 실행에서 `test_d117_kr_ids.py::test_k4…[brn-…]`가 한 번 실패했다 — 단독 25회·BRN 대체값 2만 개 재검출 모두 통과, 다음 전체 실행 둘은 통과(이 결정과 무관한 코드, 재현 못 함).
 - **문서**: README 두 언어·configuration·operations(분류기 두 항목·메모리·서명 확인 예시 0.2.1)·`detect/README.md`(소개·명령)·백서 6절·compose·k8s(toml·yaml — 이미지 태그 0.2.1)·Dockerfile 주석·설명서 HTML(일곱 곳) → PDF 22쪽(Chrome headless, 쪽수 그대로)·CHANGELOG `0.2.1`.
 - **못 한 것**: 이미지 빌드·기동·x86 메모리(CI `detect`), 태그 `v0.2.1`(사용자 — CI 초록 뒤). k8s 견본의 사이드카 메모리 권고(요청 2Gi·상한 3Gi)는 base로 정한 값 그대로 — small의 x86 실측(CI 주석)을 보고 줄일지 정한다.
+- **푸시 뒤 CI**(`ba33563`, 세션이 `gh api`로 확인): `ci` 넷·`detect` 둘 모두 성공 — CI가 HF 리비전에서 새 모델을 받아 해시를 맞췄고(P1), 이미지가 새 분류기로 떠 `/v1/guard` block(P6).
+  x86(AMD EPYC 9V74, 4 CPU): 이미지 메모리 NER + 분류기 **1.015GiB**/3GiB(base 때 M2 1.8GiB), 분류기 510토큰 p95 290.8ms(스레드 2)·307.2ms(스레드 4), 32토큰 22.4·23.3ms.
+  dev-eval을 x86에서 다시 잰 값이 D-128 §6과 같다 — 문턱 0.9833에서 1,199/1,369·정상 오탐 14/1,489. k8s 사이드카 메모리 권고(2Gi·3Gi)는 그대로 둔다 — 여는 동안의 최대치를 아직 재지 않았다.
+- **릴리스 `v0.2.1`**(사용자가 `ba33563`에 태그): `release` run `42795132318` build·scan·publish 모두 성공(4분) — 게이트 둘 통과, 목록은 이미지마다 미수정 HIGH 47·CRITICAL 0(0.2.0과 같은 수).
+  GitHub 릴리스 `v0.2.1`(latest, SBOM 둘). ghcr.io 익명 확인: 게이트웨이 `sha256:1b582ad2be07c322a8a6dd50d7e104479b257ae92f7bd982f774c741e55e5c7c`,
+  사이드카 `sha256:3440c9c19d9a7ed7058dd1b297b371d16c6ac37e505774a7d4536fab4f81eb83` — 둘 다 `0.2.1` = `latest` = 릴리스 본문의 다이제스트.
+  referrers 색인에 이미지마다 서명(`https://sigstore.dev/cosign/sign/v1`)·SBOM 증명(`https://spdx.dev/Document`) 번들 — 인증서 신원 `…/release.yml@refs/tags/v0.2.1`·GitHub OIDC 발급자·대상 다이제스트 일치·Rekor 항목 넷.
+  공개 사이드카 이미지의 빌드 기록에 `INJECTION_MODEL=injection-ko-small-int8`, 환경 `DETECT_INJECTION_MODEL=`(기본 꺼짐) — **D-136 남은 일 없음**.

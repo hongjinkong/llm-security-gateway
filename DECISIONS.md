@@ -2170,6 +2170,9 @@ PLAN 완료 기준의 '사이드카 꺼짐·켜짐 두 구성에서 전체 테�
   이번에는 허용 목록 밖 추적 파일을 파이썬으로 근사 검사했다(공급자 키 꼴 0건, 일반 비밀 꼴 후보는 `detect/models.json`의 SHA-256 17개뿐 — 규칙 허용 목록이 덮는다). 첫 푸시의 `secrets` 작업이 실제 확인이다. GHCR 패키지 공개 설정은 사용자 몫.
 - **R4 첫 시도**(2026-11-10, `v0.2.0` → `30700da`, run `42747992644`): build 성공 → scan의 게이트(게이트웨이)에서 멈춤 — 고칠 수 있는 HIGH 셋(apt CVE-2026-109518, zlib CVE-2026-76844·CVE-2026-85091), 아무것도 올라가지 않았다(설계대로). 위 '못 한 것'이 예상한 처방(베이스 다이제스트)만으로는 zlib가 남아 D-135(빌드 때 Debian 보안 갱신 + 다이제스트)로 고쳤다. 태그를 지우고 D-135 커밋에 다시 단다.
 - **R4 결과**(2026-11-10, `v0.2.0` → `59fa637`, run `42751325343`, 03:44~03:50 UTC — 세션이 `gh api`로 확인): build·scan·publish **모두 성공**. 게이트 둘 통과(고칠 수 있는 HIGH·CRITICAL 0), 목록 단계는 두 이미지 모두 미수정 HIGH 47·CRITICAL 0. GitHub 릴리스 `v0.2.0`(SBOM 둘 첨부, CHANGELOG 0.2.0 절 + 다이제스트 + 검증 명령): `ghcr.io/hongjinkong/llm-security-gateway@sha256:389866e6d1b6891b07bcafed389abcbbfa91be7ee0c4b2b7f5c3d3609486f90c`, `ghcr.io/hongjinkong/llm-security-gateway-detect@sha256:7d7c371b013d4400f9e0730663d614eb8dc599e2ff841f23b14bb2a1d7233096`. **못 한 것**: cosign 검증 실행(외부 바이너리 — 받는 쪽 몫, 명령은 릴리스 본문), 패키지 공개(사용자 — 처음 올린 패키지는 비공개).
+- **공개 뒤 확인**(같은 날, 사용자가 두 패키지를 Public으로 바꾼 뒤 — 세션이 ghcr.io 익명 토큰으로): 두 이미지 모두 로그인 없이 manifest 200, `0.2.0`·`latest`가 위 다이제스트와 같다.
+  태그 `sha256-<다이제스트>`(OCI referrers 대체 색인)에 sigstore 번들 둘씩 — 서명(`https://sigstore.dev/cosign/sign/v1`)·SBOM 증명(`https://spdx.dev/Document`). 번들 넷 모두 인증서 신원이 `…/.github/workflows/release.yml@refs/tags/v0.2.0`, 발급자 `https://token.actions.githubusercontent.com`, 서명 대상이 그 이미지 다이제스트, Rekor 항목 있음(logIndex 3777113814~3777119973).
+  이것은 구조·신원 확인이다 — 인증서 체인·Rekor 포함 증명까지의 암호 검증은 `cosign verify`(릴리스 본문의 명령)가 한다(세션은 외부 바이너리를 못 돌린다).
 
 ## D-131. 공개 데모 — 데모 웹의 공개 모드(스텁 고정·본문 상한·레이트리밋·방문자 분리), 데모 이미지, Fly.io 견본 (2026-11-10, PLAN 21단계)
 

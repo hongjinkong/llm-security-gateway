@@ -91,6 +91,7 @@
 | 2026-11-10 | 20 뒤(확인) | D-134 | `30700da`(D-133·D-134) 푸시 뒤 CI를 `gh api`로 확인: `ci` 네 작업(test 3.12·3.14·docker·secrets)·`detect` 두 작업(image·detect) **모두 성공**. dependabot이 받아들인 PR 여섯을 스스로 닫음, 보류 넷(#7·#9·#11·#13)은 열려 있음. `detect`가 세 번째 러너 CPU(AMD EPYC 9V74)에서 veil 510토큰 p95 320.4ms — 문서의 '약 200~370ms' 안, 분류기 669.9ms·이미지 메모리 1.891GiB(D-125·D-127 §6). 태그·릴리스는 아직 없음 | 사용자: 보류 PR 넷 닫기 → `git tag v0.2.0 30700da` 푸시 → GHCR 패키지 공개 → "릴리스 냈다" |
 | 2026-11-10 | 20(R4 첫 시도) | D-135 | 사용자가 보류 PR 넷을 닫고 `v0.2.0`을 `30700da`에 태그 → `release`가 scan의 게이트(게이트웨이)에서 멈춤, **아무것도 올라가지 않음**(설계대로 — 스캔이 푸시 앞). 고칠 수 있는 HIGH 셋은 베이스 빌드(11-05) 뒤에 나온 Debian 보안 수정(apt DSA-6607·zlib DSA-6613, 파이썬 패키지 쪽 0) — 오늘의 베이스 다이제스트도 zlib는 옛 판이라(레지스트리 레이어의 dpkg 상태로 확인) 세 Dockerfile이 빌드 때 Debian 보안 갱신(`apt-get upgrade`)을 하고 다이제스트도 올림. 로컬 Docker amd64 빌드: zlib1g `+deb13u1`·apt 3.0.4, health ok·`healthy`, uid 10001. 새 테스트 S1(되돌리면 실패), pytest 929(+1)·ruff·mypy 통과 | 사용자: 커밋·푸시 → `ci`·`detect` 초록 → 태그 지우고 그 커밋에 다시 → Packages 공개 → "릴리스 냈다" |
 | 2026-11-10 | 20(R4) | D-130·D-135 | `59fa637`의 `ci`·`detect` 여섯 작업 초록 → 사용자가 태그를 다시 담 → `release` run `42751325343` **build·scan·publish 모두 성공**(6분): 게이트 둘 통과(목록은 미수정 HIGH 47·CRITICAL 0), GitHub 릴리스 `v0.2.0`(SBOM 둘), GHCR 이미지 둘(서명·SBOM 증명, 다이제스트는 D-130 §6) | 사용자: Packages 둘 Public → 알려 주면 세션이 익명 받기·서명 태그 확인. 그 뒤는 22단계(사용자 몫)와 주마다 dependabot·CI |
+| 2026-11-10 | 20(공개) | D-130 | 사용자가 Packages 둘을 Public으로 → 세션이 ghcr.io 익명으로 확인: manifest 200, `0.2.0`=`latest`=릴리스 다이제스트, referrers 색인에 서명·SBOM 증명 번들(신원 `release.yml@refs/tags/v0.2.0`·GitHub OIDC 발급자·대상 다이제스트 일치·Rekor 항목). **20단계 남은 일 없음** | 22단계 — 사용자 몫(디자인 파트너·가격 셋). 세션 일은 신호 뒤(HF 업로드·데모 주소·PoC 오탐 표)와 주마다 dependabot·CI |
 
 ## 사용자 할 일
 
@@ -156,7 +157,7 @@
   `llm-security-gateway`·`llm-security-gateway-detect` 둘을 **Public**으로 바꾼다(Package settings → Change visibility — 처음 올린 패키지는 비공개다). 다음 세션에 "릴리스 냈다"고 알려 주면 세션이 릴리스·서명 검증 명령을 확인하고 D-130 §6을 채운다.
   빨간색일 때: **'취약점 게이트'에서 멈췄으면** 정상 동작이다(베이스 이미지에 고칠 수 있는 취약점이 생겼다) — 그 단계 표의 줄을 다음 세션에 붙여 주면 베이스 다이제스트를 올린다(태그는 지우고 다시: `git tag -d v0.2.0 && git push origin :v0.2.0`).
   **`publish`만 실패했으면** 7일 안에 실행 화면의 'Re-run failed jobs'로 그 작업만 다시 돌린다(같은 이미지 파일을 쓴다). 그 밖에는 실패한 단계 이름과 로그 마지막 줄을 붙여 준다.
-- [ ] (릴리스 뒤 — 지금) GitHub 프로필 → Packages에서 `llm-security-gateway`·`llm-security-gateway-detect`를 각각 Package settings → Change visibility → **Public**으로 바꾼다(처음 올린 패키지는 비공개다 — 그대로면 고객이 `docker pull`을 못 한다).
+- [x] (2026-11-10 완료 — 둘 다 Public, 세션이 익명 받기·서명·SBOM 증명 확인, D-130 §6) (릴리스 뒤) GitHub 프로필 → Packages에서 `llm-security-gateway`·`llm-security-gateway-detect`를 각각 Package settings → Change visibility → **Public**으로 바꾼다(처음 올린 패키지는 비공개다 — 그대로면 고객이 `docker pull`을 못 한다).
   바꾸고 알려 주면 세션이 로그인 없이 받아지는지와 서명·증명 태그가 있는지 확인한다.
 - [x] (2026-11-10 넣음 — 세션이 이름과 유효함만 확인, 값은 읽지 않음) (20-1단계) MonoRouter 콘솔(https://monogpt.kr/apps/mono-router)에서 키를 발급해 **`.env`에 직접 적는다**(채팅에 붙이지 않는다 — 대화 기록에 남는다):
   ```

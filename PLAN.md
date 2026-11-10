@@ -42,7 +42,7 @@
 **F. 출시**
 - [x] 19. 보안 백서 + 법적 위치 메모 + PoC 키트 — 2026-11-04 D-129(남은 것은 사용자 몫: 변호사 검토·외부 백서 리뷰)
 - [x] 20. 릴리스 공정 — 2026-11-10 D-130(남은 것은 사용자 몫: `v0.2.0` 태그 푸시·GHCR 패키지 공개 → 다음 세션이 릴리스 성공 확인)
-- [ ] 20-1. 실 공급자 확인 2(OpenAI·Gemini·Claude 모델, 라우터 경유) — 사용자 제안(2026-11-10 "API 쓸 데 있으면 다 써도 돼"). D-133 사전 등록·스크립트·스텁 배선 완료 — **실행은 등록 커밋과 `.env`의 키 뒤**
+- [x] 20-1. 실 공급자 확인 2(OpenAI·Gemini·Claude 모델, 라우터 경유) — 사용자 제안(2026-11-10 "API 쓸 데 있으면 다 써도 돼"). 2026-11-10 D-133: 다섯 조합 모두 통과(요청 60건 — 모두 200·가짜 값 잔여 0·복원 60/60)
 - [x] 21. 공개 데모(선택) — 2026-11-10 D-131(남은 것은 사용자 몫: 이미지 빌드 확인·배포·README 상단 링크)
 - [ ] 22. 디자인 파트너 PoC + 가격 + v1.0
 
@@ -86,6 +86,8 @@
 | 2026-11-10 | 21 | D-131 | P1~P7·`tests/test_d131_public_demo.py` 11개. 데모 웹의 공개 모드 `WEB_PUBLIC=1`: 상류 스텁 고정, 본문 8,192바이트·5초 기한, 방문자별·전체 분당 한도(IPv6는 /64), 한 번에 한 요청(전역 잠금) + 요청 앞뒤로 스텁 기록 삭제, 감사 로그 1MiB 상한, 문서 경로 끔. `web/Dockerfile`·`deploy/demo/fly.toml`. **구현 전 재현**: 동시 12건에서 남의 문장을 본 팔 19/24 → 0. 리뷰(에이전트 4) 7건 반영(장면 6이 웹 층 413에 걸리던 것 등). 되돌리기 확인 8/8. 계획과 다른 점: 웹 층 상한은 4,096이 아니라 8,192(게이트웨이 팔은 4,096), Render 견본 없음. **못 한 것**: 이미지 빌드·실행(Docker 꺼짐), 실제 배포 | 사용자(선택): 이미지 빌드 확인 → Fly 배포 → 주소를 알려 주면 README 링크 |
 | 2026-11-10 | 22(준비) | D-132 | Q1~Q3·`tests/test_d132_poc_gate.py` 7개. v1.0 기준을 데이터 전에 정의: mask 구간(14일 이상·빈 날 없이)에서 G1 의심 잔여 < 0.1%(가짜 값을 발급한 요청 기준), G2 게이트웨이 몫 실패 < 0.1%(5xx + 스트림 도중 실패, 상류 장애·클라이언트 끊김 제외), 분모 1,000 미만은 판정 불가 — `scripts/poc_gate.py`. `docs/pricing.md`(초안). 리뷰로 정의 보완(관측 2주 + mask 1시간 로그가 통과하던 것). 되돌리기 확인 6/6. `allow_patterns`는 만들지 않음(PoC의 실제 오탐을 본 뒤) | 사용자: 디자인 파트너 1곳, 가격 문서의 '정해야 할 것' 셋 |
 | 2026-11-10 | 20-1(등록) | D-133 | 계획 변경(사용자 제안 "API 쓸 데 있으면 다 써도 돼" — 라우터 MonoRouter): 실 공급자 확인 2를 20-1단계로 넣음. D-133 사전 등록(조합 5 × 검사 넷 × 3회, 기준 P1~P4, 상한 90건, 정상 문장·합성 값만) + `scripts/check_real_providers.py` + 스텁 배선 60건 통과(`tests/test_d133_real_providers.py` 4개). 키 둘이 `.env`에 있고(값은 읽지 않음) 기본 모델 셋이 라우터 목록(69개)에 있음을 무료 GET으로 확인. **유료 호출은 하지 않았다**(공통 규칙 7 — 등록 커밋 뒤). 전체 pytest 928(+1 건너뜀 — 키가 있을 때 실제 호출을 피하는 테스트)·사이드카 23(+1)·ruff·mypy 통과 | **커밋·푸시 뒤 `/next-step` → 20-1 실행**(`.venv/bin/python scripts/check_real_providers.py` → D-133 §6) |
+| 2026-11-10 | 20-1 | D-133 | 등록 커밋 `c87db8d`(푸시됨) 뒤 기본값 그대로 한 번 실행 — **다섯 조합 모두 통과**: chat `gpt-5.4-mini`·`gemini-3.5-flash`·`claude-haiku-4.5`, responses `gpt-5.4-mini`, messages `claude-haiku-4.5`. 요청 60건(상한 90) 모두 200·`pii_issued` 2·`pii_suspect` 0, 복원 E·S·T 45건은 전화·메일 둘, M 15건은 메일(이력의 assistant 턴이 같은 가짜 값으로 다시 가려짐). 입력 8,454·출력 4,428토큰, 라우터 `used_credits` 0 → 1,074. 기록 `docs/verification/real_providers_router.{md,jsonl}`(답 본문·키 없음), 백서 6절·api-compat·README 두 언어·설명서(HTML·PDF)·CHANGELOG. 계획과 다른 점: 없음(모델 이름 그대로) | 22단계 — 사용자 몫(디자인 파트너). 세션 일은 신호 뒤(HF 업로드·`v0.2.0` 태그·데모 주소) + 주마다 dependabot PR |
+| 2026-11-10 | 20 뒤 | D-134 | dependabot 첫 묶음 PR 10개(GitHub API로 읽음 — 보안 공지 없음): uvicorn 0.54.0·python-dotenv 1.2.4·ruff 0.17.4·setup-python v7.1.0·cosign-installer v4.1.3 받음(액션 SHA를 태그 커밋과 대조). **FastAPI 0.162 보류** — `import fastapi`가 OpenTelemetry API를 읽어 `OTEL_PROPAGATORS=b3`(설치 안 된 전파기)에서 기동 실패(재현), 내장 텔레메트리가 전역 공급자 아래 span에 `url.query` 값을 남김. transformers 보류(D-128 학습 재현). uvicorn 0.53의 기본 `FORWARDED_ALLOW_IPS`(`::1` 추가)를 문서 넷에. 새 판 별도 venv와 `.venv` 모두 pytest 928(+1)·ruff·mypy, 사이드카 23(+1) 통과. CI `c87db8d` 초록(`secrets` 포함) — `detect`가 Intel Xeon 러너에서 veil 510토큰 p95 361ms(AMD EPYC 201.5ms의 1.8배)라 D-125 §6과 문서의 '약 200ms'를 '약 200~370ms'로 | 사용자: 커밋·푸시 → 보류 PR #7·#9·#11·#13 닫기 → `ci` 초록이면 `v0.2.0` 태그. 그 뒤 `/next-step`은 dependabot·CI 확인과 신호 대기 |
 
 ## 사용자 할 일
 
@@ -108,7 +110,7 @@
 - [x] (18단계 전, 선택 — 2026-11-02 승인·토큰 저장 확인) Llama Prompt Guard 2(86M·22M)를 비교 후보로 재려면 Hugging Face에서 `meta-llama/Llama-Prompt-Guard-2-86M`의 접근을 신청하고(수동 승인), 승인되면 읽기 토큰을 본인 터미널에서 `hf auth login`으로 넣는다(`!`로 하지 않는다 — 토큰이 대화 기록에 남는다. git 자격 증명 질문에는 n). 토큰은 `~/.cache/huggingface/token`에 저장되고, 다음 세션이 `detect/fetch.py`가 그 파일을 읽게 고친다. 하지 않으면 다음 세션은 이 둘을 빼고 잰다.
 - [x] (2026-11-02 결정: 넣는다 → 17-1단계) 이름·주소 가림이 꼭 필요하면 결정 표 7번(NER 게이트)을 바꿀지 정한다 — 지금 모델로는 정확한 쪽(veil)이 요청마다 수백 ms를 더한다(512토큰 기준, CPU). 바꾸면 다음 세션이 D-125 §2-8의 연결을 단계로 올린다. 바꾸지 않으면 할 일 없음.
 - [ ] (17-1단계 뒤, 선택) Docker Desktop을 켜고 `docker compose -f deploy/compose.yml up --build`로 `detect` 서비스까지 뜨는지 본다(첫 빌드가 NER 모델 143MB·인젝션 분류기 641MB와 onnxruntime을 받는다, 몇 분). 세션은 데몬이 꺼져 있어 `compose config`·kustomize·스키마 검사만 했다. 뜨면 compose 주석의 curl에 `김철수 고객의 주소는 서울특별시 강남구 테헤란로 152입니다`를 넣어 보내고 `http://127.0.0.1:8000/__stub/received`에 가짜 이름·주소가 보이는지 본다.
-- [ ] (17-1단계 커밋·푸시 뒤) GitHub Actions에서 `ci`(테스트 836·docker 견본 검사)와 `detect` 워크플로(detect/가 바뀌어 다시 돈다)가 초록인지 본다. 빨간색이면 그 작업 로그의 마지막 줄을 다음 세션에 붙여 준다.
+- [x] (17-1단계 커밋·푸시 뒤 — 뒤 커밋들의 `ci`·`detect`가 초록이라 끝났다, 2026-11-10 확인) GitHub Actions에서 `ci`(테스트 836·docker 견본 검사)와 `detect` 워크플로(detect/가 바뀌어 다시 돈다)가 초록인지 본다. 빨간색이면 그 작업 로그의 마지막 줄을 다음 세션에 붙여 준다.
 - [x] (2026-11-10 세션이 GitHub API로 확인 — 다섯 작업 모두 성공, x86 숫자는 D-127 §6에 옮김) GitHub Actions의 `ci`(테스트 887)와 `detect` 워크플로가 초록인지 본다. `detect`는 이번에 분류기 모델(641MB)을 받아 dev 점수·x86 지연을 재고, **이미지를 띄워**
   NER + 분류기 두 작업·`/v1/guard`·메모리(`docker stats`)를 확인한다(몇 분 더 걸린다). 빨간색이면 그 작업 로그의 마지막 줄을 다음 세션에 붙여 준다 — 초록이면 다음 세션이 check-runs 주석의
   x86 숫자를 D-127 §6에 옮긴다.
@@ -137,10 +139,10 @@
   manifest·모델 카드의 '코드 커밋'을 사실대로 고쳤다. 가중치·ONNX는 그대로다. **이미 올렸다면 같은 명령으로 다시 올린다.**
   올린 뒤 다음 세션에 "올렸다"고 알려 주면 세션이 커밋 SHA를 읽어 `revision`을 채우고 `published: true`로 바꾼 뒤 이미지 기본(`ARG INJECTION_MODEL`)·CI `detect`·사이드카 테스트의 채택 이름을 새 모델로 바꾼다. 비공개 저장소는 지금 코드로는 받지 못한다(`detect.fetch`는 승인 저장소에만 토큰을 보내고 이미지 빌드·CI에 토큰 경로가 없다) — 꼭 비공개여야 하면 다음 세션에 알려 준다.
 - [ ] (19단계 뒤) `docs/legal-position.md`를 변호사에게 검토받는다(확인 항목 8개 표가 질문지다 — 2026-11-10 리뷰로 7·8번을 더했다) — 결과를 다음 세션에 주면 메모의 '우리 가정'을 고치고 '변호사 검토 전 초안' 표시를 바꾼다. `docs/security-whitepaper.md`는 외부 1인(보안 담당자)에게 읽혀 본다.
-- [ ] (20단계 커밋·푸시 뒤) GitHub Actions의 `ci`에 새 작업 `secrets`(비밀 검사, gitleaks)가 생긴다 — 초록인지 본다. 이번 세션은 gitleaks를 직접 돌려 보지 못했다(외부 바이너리 실행이 막혔다).
+- [x] (2026-11-10 세션이 GitHub API로 확인 — `c87db8d`의 `ci` 네 작업(test 3.12·3.14·docker·**secrets**)과 `detect` 두 작업(image·detect) 모두 성공, x86 숫자는 D-125·D-127 §6) (20단계 커밋·푸시 뒤) GitHub Actions의 `ci`에 새 작업 `secrets`(비밀 검사, gitleaks)가 생긴다 — 초록인지 본다. 이번 세션은 gitleaks를 직접 돌려 보지 못했다(외부 바이너리 실행이 막혔다).
   빨간색이면 그 작업 로그에서 걸린 파일·규칙 이름 줄을 다음 세션에 붙여 준다(값은 붙이지 않는다) — 합성 값이면 `.gitleaks.toml`에 좁게 더한다. `detect` 워크플로도 다시 돈다(모델 폴더에 LICENSE·NOTICE를 함께 받는다).
   푸시 전에 미리 보려면(선택): `brew install gitleaks` 뒤 `gitleaks git --log-opts="origin/main..HEAD"`.
-- [ ] (20단계, `ci`가 초록인 뒤) 첫 릴리스를 낸다:
+- [ ] (20단계, `ci`가 초록인 뒤 — 2026-11-10 D-133·D-134 커밋을 푸시하고 그 커밋의 `ci`가 초록이면) 첫 릴리스를 낸다:
   ```
   git tag v0.2.0
   git push origin v0.2.0
@@ -155,7 +157,11 @@
   MONOROUTER_ANTHROPIC_KEY=<anthropic 키>  # 선택 — Anthropic Messages 경로까지 보려면
   ```
   키마다 크레딧 한도를 작게 잡아도 된다(요청 90건 이하·요청당 출력 512토큰 이하다). 콘솔에 '콘텐츠 로깅' 설정이 있으면 꺼 둔다(보내는 것은 합성 값뿐이지만). 넣고 커밋·푸시한 뒤 `/next-step`을 치면 세션이 실행한다.
-- [ ] (20단계 뒤) dependabot이 주마다 PR을 연다(pip·actions·docker). 받아들일지는 다음 세션에 PR 제목을 알려 주면 근거를 DECISIONS에 적고 고정 버전을 올린다 — 그냥 머지하지 않는다(테스트의 고정 값이 함께 바뀌어야 한다).
+- [ ] (20-1 뒤, 선택) 라우터 키 정리 — 20-1 실행은 끝났다(2026-11-10 D-133, 60건·`used_credits` 1,074). 세션이 이 키로 더 부를 계획은 없다(다음 실 공급자 확인도 새 사전 등록이 먼저다).
+  원하면 MonoRouter 콘솔에서 두 키를 지우거나 한도를 0으로 하고 `.env`의 `MONOROUTER_KEY`·`MONOROUTER_ANTHROPIC_KEY` 두 줄을 지운다.
+- [ ] (20단계 뒤, 주마다) dependabot이 PR을 연다(pip·actions·docker). 세션이 `/next-step` 때 GitHub API로 열린 PR을 읽어 근거를 DECISIONS에 적고 고정 버전을 올린다 — 알려 주지 않아도 된다. 그냥 머지하지 않는다(테스트의 고정 값이 함께 바뀌어야 한다).
+  **2026-11-10 첫 묶음 10개 → D-134**: 받아들인 #4·#5·#6·#8·#10·#12는 D-134 커밋을 푸시하면 dependabot이 스스로 닫는다(며칠 뒤에도 열려 있으면 닫는다).
+  **보류한 #7·#11(FastAPI 0.162 — `import fastapi`가 OpenTelemetry API를 읽어 `OTEL_PROPAGATORS`로 기동이 깨진다)과 #9·#13(transformers — D-128 학습 재현)은 GitHub에서 'Close pull request'로 닫는다** — 닫은 판은 다시 열리지 않고 더 새 판이 나오면 새 PR이 온다.
 - [ ] (21단계, 선택) 공개 데모를 올리려면: Docker Desktop을 켜고 `docker build -f web/Dockerfile -t llm-gateway-demo . && docker run --rm -p 8090:8090 llm-gateway-demo`로 `http://127.0.0.1:8090`이 뜨는지 본다(세션은 데몬이 꺼져 있어 빌드를 확인하지 못했다).
   Fly.io 계정이 있으면 `deploy/demo/fly.toml` 머리 주석의 명령 둘(`fly apps create …`, `fly deploy . --config … --ha=false`)로 올리고 **주소를 다음 세션에 알려 준다** — README 상단에 링크를 단다. 남용이 보이면 `fly scale count 0 --config deploy/demo/fly.toml`로 끈다.
 - [ ] (22단계) 디자인 파트너 1곳을 찾는다(맨 위 항목과 같다). 내밀 문서: `docs/security-whitepaper.md`·`docs/legal-position.md`·`docs/pricing.md`(초안 — 6절 '정해야 할 것' 셋을 정한다: 금액 구간, 첫 해 조건, 계약 주체).
@@ -177,7 +183,7 @@
 | 4 | 복원 매핑 보관 | 요청 단위 메모리 + 대체값 키만. 원문은 어디에도 저장하지 않는다. `previous_response_id`·서버 저장 대화는 미지원 | 4, 14 |
 | 5 | 대상 고객 | 외부 LLM API로 고객 데이터를 다루는 국내 B2B 개발팀(50~300명)·금융권 협력 핀테크. 자체 호스팅 | 14, 19, 22 |
 | 6 | 인젝션 | 관측 + 외부 가드레일 웹훅. 분류기 기본 후보는 protectai/deberta-v3-base-prompt-injection-v2. **2026-11-03 사용자 결정으로 바꿈**: 관측 전용으로 두지 않는다 — 공개 분류기(D-127 채택 Horizon guard base, Apache-2.0)를 한국어 데이터로 **이어 학습**(파인튜닝)해 차단에 쓸 수 있게 한다. 처음부터 학습(사전학습)은 하지 않는다 | 18, 18-1 |
-| 7 | NER 게이트 | x86 CPU p95 +40ms 이하, F1 0.85 이상. 미달이면 v1.0에서 뺀다. **2026-11-02 사용자 결정으로 바꿈**: 기본은 꺼 두고 정책에서 켜는 기능으로 넣는다 — F1은 두 셋 각각 0.85 이상(veil 통과), 지연은 게이트가 아니라 측정해 문서에 적는 비용(x86 4 vCPU 510토큰 p95 약 200ms) | 17, 17-1 |
+| 7 | NER 게이트 | x86 CPU p95 +40ms 이하, F1 0.85 이상. 미달이면 v1.0에서 뺀다. **2026-11-02 사용자 결정으로 바꿈**: 기본은 꺼 두고 정책에서 켜는 기능으로 넣는다 — F1은 두 셋 각각 0.85 이상(veil 통과), 지연은 게이트가 아니라 측정해 문서에 적는 비용(x86 4 vCPU 510토큰 p95 약 200~370ms — 러너 CPU에 따라, D-125 §6) | 17, 17-1 |
 | 8 | 대체값 키 | 환경변수(K8s Secret) 하나. 회전은 수동이고 문서화한다. 법률 검토 전까지 PIPA '추가정보'로 취급 | 4, 19 |
 | 9 | 가격 | 코드는 전부 공개 라이선스. 유료는 배포 단위 연간 계약(지원 SLA·컴플라이언스 문서·설치와 PoC 지원), 연 수백만~2천만 원대(추정). 좌석·토큰 과금 없음 | 22 |
 | 10 | 언어 | 한국어 기본, 영문 병행(`README.en.md`, `GATEWAY_LANG=en`) | 13, 14 |
@@ -1001,9 +1007,9 @@ k8s는 사이드카 컨테이너의 readinessProbe로 파드 Ready를 묶는다,
 할 일
 - [x] D-133 사전 등록(조합·검사 넷·성공 기준 P1~P4·비용 상한 90건·보내는 것은 정상 문장과 합성 값만). (2026-11-10)
 - [x] `scripts/check_real_providers.py` + 스텁 배선 테스트(`tests/test_d133_real_providers.py`). (2026-11-10 — 스텁으로 세 API × 네 검사 60건 통과)
-- [ ] **실행**(등록이 커밋된 뒤, `.env`에 `MONOROUTER_KEY`가 있을 때): `.venv/bin/python scripts/check_real_providers.py` → 결과를 D-133 §6에, 기록은 `docs/verification/real_providers_router.{md,jsonl}`.
+- [x] **실행**(등록이 커밋된 뒤, `.env`에 `MONOROUTER_KEY`가 있을 때 — 2026-11-10 기본값 그대로 한 번, 60건, 모델 이름 바꾸지 않음): `.venv/bin/python scripts/check_real_providers.py` → 결과를 D-133 §6에, 기록은 `docs/verification/real_providers_router.{md,jsonl}`.
   시작할 때 `git log -1 --format=%H -- DECISIONS.md`로 등록 커밋이 있는지, `git status --porcelain -- gateway`가 비었는지(커밋된 코드로 잰다) 확인한다. 모델 이름이 라우터 목록과 다르면 `--chat-models` 등으로 맞추고 바꾼 사실을 적는다.
-- [ ] 결과를 문서에(백서 6절 '실 공급자 확인', README) — 통과한 조합과 미달한 조합을 그대로.
+- [x] 결과를 문서에(백서 6절 '실 공급자 확인', README) — 통과한 조합과 미달한 조합을 그대로. (2026-11-10 — 백서 6절·`docs/api-compat.md`·README 두 언어·설명서 HTML·PDF·CHANGELOG, 미달 조합 없음)
 
 완료 기준: D-133 §4(V1~V3). 지키는 것: 공격 문장·실제 개인정보를 보내지 않는다, 키를 출력하지 않는다.
 
@@ -1046,6 +1052,7 @@ k8s는 사이드카 컨테이너의 readinessProbe로 파드 Ready를 묶는다,
 | 목표 부하에서 게이트웨이 p95 > 50ms | 언어·런타임 교체 검토 |
 | KoELECTRA-small급(임베딩 밖 ~10M) 한국어 PII 모델이 KDPII F1 0.85를 넘거나, 고객이 GPU 사이드카를 둠 | 같은 `detect.evaluate`·`detect.bench`로 다시 재고(D-125), 넘으면 `detect/models.json`의 기본 모델을 바꾸고 이름·주소를 **기본 켜짐**으로 할지 결정한다(D-126은 켠 정책만). 증류(veil → small)는 자체 학습이라 결정을 따로 적는다 |
 | embeddings·files 요구 | 결정적 대체값으로 경로 추가 |
+| FastAPI 보안 공지, 또는 0.162 이후 기능이 필요 | FastAPI를 올린다 — 생성자 셋(게이트웨이·사이드카·데모 웹)에서 내장 텔레메트리를 끄고, `import fastapi`가 `OTEL_PROPAGATORS`로 기동 실패하는 것을 문서·시험에 넣는다(D-134) |
 
 ## 하지 않는 것
 

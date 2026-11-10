@@ -82,7 +82,7 @@ KDPII_SHA256 = "31974906ec96b4fb3fa308981ad62f7b9bf766b80e5ea20679a9edfcac804cfb
 # D-125 §6에서 잰 것 — 바꾸면 그 숫자는 더는 이 파일들의 숫자가 아니다. 결정을 먼저 고친다
 MEASURED = {"veil-ko-lite-int8": ("a8343030ef774ad78d6f0481a6877a971cef759d", "35f8fd66a328b32b67b79f93a4c29d790dddaa8f094a165efc095ef5e312194d"),
             "atonlee-small-int8": ("1e75c01e707232401883cf364151bbe2e560c708", "53cd2da73867d0a66ea2bec70b582d164115803788438bd63fd8a9ed365868e7")}
-REQUIREMENTS = ["fastapi==0.141.1", "uvicorn==0.52.0", "onnxruntime==1.31.1", "tokenizers==0.23.3", "numpy==2.5.4"]
+REQUIREMENTS = ["fastapi==0.141.1", "uvicorn==0.54.0", "onnxruntime==1.31.1", "tokenizers==0.23.3", "numpy==2.5.4"]
 
 
 def test_n3_kdpii_set_is_pinned():

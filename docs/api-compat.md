@@ -117,6 +117,7 @@ info·metrics·stats는 `Authorization: Bearer` 관리 키가 맞을 때만 200�
 
 ## 상류
 
-- 실 API로 확인한 상류: Anthropic API(지금 코드, 2턴 — [`docs/verification/multiturn_claude.md`](verification/multiturn_claude.md)). OpenAI API는 연구 단계 코드로만
-  실 API를 확인했다(`gpt-4o-mini`, `research-final` 태그의 D-087) — 지금 코드는 공식 SDK(OpenAI·Anthropic Python)를 스텁 앞에서 세 API로 점검한다.
+- 실 API로 확인한 상류: Anthropic API(지금 코드, 2턴 — [`docs/verification/multiturn_claude.md`](verification/multiturn_claude.md)), 그리고 여러 공급자를 한 키로 부르는 라우터(OpenAI 호환·Anthropic 호환 경로) 뒤의 실제 모델 —
+  Chat Completions(`gpt-5.4-mini`·`gemini-3.5-flash`·`claude-haiku-4.5`)·Responses(`gpt-5.4-mini`)·Messages(`claude-haiku-4.5`)에서 되풀이·스트리밍·도구 인자·2턴 60건이 모두 복원됐다
+  (D-133, [`docs/verification/real_providers_router.md`](verification/real_providers_router.md) — 라우터가 공급자 형식으로 바꾼 경로라 공급자 API 직결과 같다고는 하지 않는다). 공식 SDK(OpenAI·Anthropic Python)는 스텁 앞에서 세 API로 점검한다.
 - OpenAI 호환 서버(Ollama·vLLM 등)는 `/v1/...` 경로를 그대로 받으면 된다. 경로가 다른 곳(Azure OpenAI 배포 경로, Gemini의 `/v1beta/openai/…`, AWS Bedrock, Google Vertex)은 지원하지 않는다.

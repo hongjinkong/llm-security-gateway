@@ -29,7 +29,8 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
 ```
 
 - **상류는 `010-8419-3027` 같은 가짜 값을 보고 보통의 값으로 다룬다.** 모델이 "가려졌다"고 눈치채지 않고 도구 인자에도 그대로 쓰며,
-  사용자는 원래 값을 돌려받는다. 상류 로그에는 가짜 값이 남는다(상류 운영자는 그것이 대체값인지 알 수 없다 — 의도된 선택).
+  사용자는 원래 값을 돌려받는다. 실제 GPT·Gemini·Claude 모델(라우터 경유, Chat·Responses·Messages 다섯 조합)에서 되풀이·스트리밍·도구 인자·2턴 60건이 모두 원래 값으로 돌아왔다
+  ([`docs/verification/real_providers_router.md`](docs/verification/real_providers_router.md)). 상류 로그에는 가짜 값이 남는다(상류 운영자는 그것이 대체값인지 알 수 없다 — 의도된 선택).
 - **원문은 저장하지 않는다.** 가짜 값과 원래 값의 대응은 요청 하나의 메모리에만 있고 응답이 끝나면 버린다. 감사 로그에는 크기와 지문만 남는다.
 - **같은 원문은 언제나 같은 가짜 값이 된다.** 가짜 값은 대체값 키(`GATEWAY_SURROGATE_KEY`)로 정해지므로 다음 턴 이력에 다시 와도 바이트가 같다 —
   프롬프트 캐시와 Anthropic thinking 서명이 깨지지 않는다. 실제 Claude API(`claude-haiku-5-5`, 2턴 대화 5개)에서 둘째 턴이 서명 검사 400 없이 캐시를 읽었고,
@@ -74,7 +75,7 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
 가짜 값은 같은 모양이고 검증식이 있는 종류는 검증식을 맞춘다(주민·외국인 번호는 날짜·성별만). 운전면허 지역·사업자 앞 5자리·법인 앞 7자리·계좌 앞 3자리·IP 첫 묶음은 그대로 둔다.
 
 **이름·주소·직장**(D-126)은 정규식이 아니라 별도 컨테이너의 한국어 NER 모델(`1T/veil-pii-ko-lite` INT8, Apache-2.0)이 찾는다. 기본은 꺼져 있다 — 정책의 `pii_kinds`에 `person,address`를 더하고
-`GATEWAY_DETECT_URL`을 주면 켜진다. 요청마다 사이드카 왕복이 더해지고(x86 4 vCPU에서 510토큰 약 200ms — 매 턴 다시 오는 이력은 캐시에서 나와 새 메시지만 간다) 정확도는 모델의 것이다.
+`GATEWAY_DETECT_URL`을 주면 켜진다. 요청마다 사이드카 왕복이 더해지고(x86 4 vCPU에서 510토큰 약 200~370ms, 러너 CPU에 따라 — 매 턴 다시 오는 이력은 캐시에서 나와 새 메시지만 간다) 정확도는 모델의 것이다.
 가짜 이름은 성 + 이름(마지막 글자의 받침 부류가 원문과 같아 뒤따르는 조사가 맞는다), 가짜 주소는 시·도·시·군·구를 두고 도로·동·건물·번호를 바꾼다(번호는 자릿수·마지막 자리 유지). 복원은 발급한 문자열을 찾는다 —
 모델이 성만 부르거나 주소 일부만 되풀이하면 복원되지 않는다. 사이드카가 실패하면 `GATEWAY_DETECT_FAIL`(기본 `closed`: 503, `open`: 정규식 종류만 가리고 보냄). 설정은 [`docs/configuration.md`](docs/configuration.md#이름주소-가림-personaddressorg).
 
@@ -199,7 +200,7 @@ GATEWAY_CLIENT_KEYS="app=$APP_KEY" GATEWAY_SURROGATE_KEY="$(python3 -m gateway k
 요청 기록은 감사 로그가 남긴다.
 
 Docker — 비root(uid 10001)로 돌고, 감사 로그만 stdout(JSONL)으로, 기동·오류 로그는 stderr로 나간다(접근 로그는 꺼져 있다). 워커 수는 `WEB_CONCURRENCY`(기본 1), 프록시 뒤에 두면
-신뢰할 프록시 주소를 `FORWARDED_ALLOW_IPS`로 준다(기본 127.0.0.1 — 그 밖에서 온 `X-Forwarded-For`는 무시된다).
+신뢰할 프록시 주소를 `FORWARDED_ALLOW_IPS`로 준다(기본 `127.0.0.1,::1` — 루프백뿐, 그 밖에서 온 `X-Forwarded-For`는 무시된다).
 
 릴리스 이미지(0.2.0부터)는 `ghcr.io/hongjinkong/llm-security-gateway:<버전>`과 `ghcr.io/hongjinkong/llm-security-gateway-detect:<버전>`(탐지 사이드카)이다 — 취약점 스캔을 통과한 것만 올라가고
 cosign 서명·SBOM이 붙는다. 검증 명령은 [운영 — 업그레이드](docs/operations.md#업그레이드). 직접 빌드하려면:
@@ -259,7 +260,7 @@ deploy/     compose.yml(로컬 체험) · k8s/(kustomize — Deployment·Service
 docs/       configuration(설정) · operations(운영) · api-compat(API 호환 범위) · verification/(실 공급자 확인 기록)
   overview/   쉽게 읽는 제품 설명서(PDF·HTML) — 비개발자용: 구조·요청 흐름·시나리오·화면·도입 절차·한계
 web/        데모 웹 — 브라우저 비교 화면
-scripts/    터미널 데모 · OpenAI·Anthropic SDK 점검 · 실 공급자 2턴 확인(check_multiturn_claude.py) · 대시보드 시험 트래픽(traffic.py) · 이름·주소 가림 지연(ner_latency.py)
+scripts/    터미널 데모 · OpenAI·Anthropic SDK 점검 · 실 공급자 확인(check_multiturn_claude.py — Claude 2턴, check_real_providers.py — GPT·Gemini·Claude 라우터 경유) · 대시보드 시험 트래픽(traffic.py) · 이름·주소 가림 지연(ner_latency.py)
 tests/      단위·통합 테스트 + 스텁 상류(tests/stub_target.py)
 eval/pii/   PII 평가 코퍼스(합성, 양성 1,200·음성 1,200·어려운 사례 40)·점수(score.py)·CI 게이트(tests/test_pii_corpus.py)
 eval/injection/   인젝션 평가셋 v1(공개 데이터셋 + 한국어 업무 문장, dev 5,492·봉인 홀드아웃 1,379)·만들기(build.py)·점수(score.py)·출처와 라이선스(SOURCES.md)

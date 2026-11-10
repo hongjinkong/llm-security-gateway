@@ -12,14 +12,14 @@ requires-python = ">=3.12"
 # 런타임 의존성은 정확히 고정한다. 올릴 때는 DECISIONS에 근거를 남긴다.
 dependencies = [
     "fastapi==0.141.1",
-    "uvicorn==0.52.0",
+    "uvicorn==0.54.0",
     "httpx==0.28.1",
-    "python-dotenv==1.2.2",
+    "python-dotenv==1.2.4",
 ]
 
 [project.optional-dependencies]
 # pyyaml은 테스트만 쓴다 — 워크플로·dependabot 설정을 YAML로 읽어 구조를 확인한다(D-130)
-dev = ["pytest==9.1.1", "ruff==0.17.3", "mypy==2.4.1", "pyyaml==6.0.3"]
+dev = ["pytest==9.1.1", "ruff==0.17.4", "mypy==2.4.1", "pyyaml==6.0.3"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["gateway"]

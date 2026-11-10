@@ -1558,6 +1558,9 @@ PLAN 완료 기준의 '사이드카 꺼짐·켜짐 두 구성에서 전체 테�
 - **x86**(2026-11-02, CI `detect` 워크플로 run의 주석 — AMD EPYC 9V45, 4 vCPU, `af88c24`): 표의 'x86' 칸. 지연은 M2와 비슷하다(veil 510토큰 201.5ms, 스레드 4가 2보다 빠르다).
   x86의 F1은 INT8 커널이 달라 소수 셋째 자리가 다르다 — veil 합성 0.960·KDPII 0.896, atonlee 0.897·0.489. **판정 그대로**: atonlee는 x86에서 지연 게이트를 넘지만(34.8ms) KDPII F1이 0.489다.
   이로써 완료 기준 N7을 채웠다.
+- **x86 두 번째 러너**(2026-11-10, CI `detect` run의 주석 — 커밋 `c87db8d`, Intel Xeon Platinum 8370C 2.80GHz·4 vCPU, 2026-11-10 세션이 옮김): veil 510토큰 HTTP p95 **361.0ms**(스레드 2 — 스레드 4는 368.2),
+  32·64·128·256토큰 p95 26.5·45.5·82.8·174.8ms(스레드 2), atonlee 510토큰 73.4ms(스레드 4). F1은 같다(veil 0.960·0.896, atonlee 0.897·0.489). **같은 4 vCPU라도 러너 CPU에 따라 1.8배 다르다**(AMD EPYC 9V45 201.5ms) —
+  문서의 '약 200ms'를 '약 200~370ms(CPU에 따라)'로 고쳤다(2026-11-10). 용량 계획은 실제 노드에서 `python -m detect.bench --dir models`로 잰다.
 - **이후(2026-11-02 사용자 결정)**: 지연을 받아들이고 이름·주소 가림을 기본 꺼짐·정책에서 켜는 기능으로 넣기로 했다 — 결정 표 7번을 바꾸고 PLAN 17-1단계(D-126)로 한다.
   이 결정의 판정(미달)은 '+40ms 기본 켜짐' 게이트에 대한 것이고 그대로 둔다.
 - **못 한 것·남은 것**: 없음(x86 숫자는 위에 옮겼다). FrameByFrame e5-base·1.4B MoE 둘은 재지 않았다(위 표의 근거). 게이트웨이 연결(§2-8)은 채택 때의 것이라 만들지 않았다.
@@ -1852,6 +1855,7 @@ PLAN 완료 기준의 '사이드카 꺼짐·켜짐 두 구성에서 전체 테�
   `horizon-guard-base-int8` HTTP p50 / p95 ms — 스레드 4: 32토큰 45.5 / 49.2 · 64토큰 81.8 / 83.7 · 128토큰 151.4 / 153.0 · 256토큰 306.4 / 311.5 · 510토큰(창 하나) 657.8 / **670.5**; 스레드 2: 46.4 / 47.1 · 81.8 / 82.6 · 154.8 / 156.3 · 311.9 / 315.9 · 665.0 / 670.3
   (스레드 2와 4가 같다 — M2의 p50 0.56~0.59초와 같은 자릿수). 점수는 M2와 같다: dev 깨끗한 부분집합 한국어 recall@FPR 1% **1,039/1,361 = 76.3%**, dev 전체 정상 오탐 1% 문턱 **0.93577**(M2 0.9358)에서 1,501/2,630·오탐 28/2,862, 한국어만 문턱이면 892/1,592 = 56.0%.
   이미지 실제 기동: NER + 분류기를 함께 실은 사이드카 메모리 **1.854GiB**(상한 3GiB, OOM 없음), `/health` 두 작업·`/v1/guard` block 응답 확인.
+  2026-11-10 CI(커밋 `c87db8d`, Intel Xeon Platinum 8370C 러너): 510토큰 p95 601.2 / 652.7ms(스레드 4 / 2), 점수 같음(76.3%·문턱 0.93577), 이미지 메모리 1.871GiB — 같은 자릿수다.
 - **재검증**(울트라코드 워크플로, 에이전트 15 — 고친 뒤 5관점: 사이드카·게이트웨이 수정 재현, 문서 숫자, 배포·CI, 우회 찾기, medium 이상 반박 검증 1): 지적 34건 → medium 이상 10건 중 **9건 재현**,
   1건 반박(이미 고친 system 메시지 전송), low 24건. 고친 것 — 상한을 넘었다고 요청 전체를 413으로 거절하면 그 글이 캐시에 들지 못해 **턴의 나머지 단계가 계속 413**이었다 → 새 글부터 비용 상한까지 재고 캐시,
   못 잰 수는 `/v1/guard` 응답의 `unscored`(block이면 막음, observe는 `guard_unscored`·지표 reason `unscored`), 비용은 창마다 (창 길이 + 특수 토큰 + 고정 16)이라 짧은 글 1,024개가 토큰 상한 안에서
@@ -2346,4 +2350,87 @@ PLAN 완료 기준의 '사이드카 꺼짐·켜짐 두 구성에서 전체 테�
 - 3회 반복은 작은 표본이다. 모델 판과 라우터의 라우팅은 실행 시점의 것이다.
 - Gemini 고유 API(`generateContent`)는 게이트웨이가 지원하지 않는다 — OpenAI 호환 경로로 부른 Gemini 모델만 본다.
 
-### 6. 결과 (채운다 — 실행은 이 등록의 커밋 뒤)
+### 6. 결과 (2026-11-10)
+
+- **실행**: 등록 커밋 `c87db8d`(푸시됨) 뒤, 그 커밋의 게이트웨이 코드(지문 `6e2881c16420` — `gateway/`는 등록 뒤 바뀌지 않았다)로 `scripts/check_real_providers.py`를 **기본값 그대로 한 번** 돌렸다(2026-11-10 02:14 UTC).
+  조합 다섯이 모두 라우터의 모델 목록에 있어 건너뛴 것이 없고, 요청 **60건**(상한 90 — M은 E의 답을 이력으로 쓰므로 한 건씩), 입력 8,454·출력 4,428토큰(감사 줄 `usage` 합), 라우터 `used_credits` 0 → 1,074(라우터 단위 그대로).
+  이 실행 밖의 유료 호출은 없다. 기록: `docs/verification/real_providers_router.{md,jsonl}`(상태·판정·감사 줄 개수·토큰만 — 답 본문·키 없음).
+- **판정 — 다섯 조합 모두 통과**:
+
+  | API | 모델 | P1 200만 | P2 가림 | P3 가짜 값 0 | P4 복원 E·S·T·M |
+  |---|---|---|---|---|---|
+  | chat | `gpt-5.4-mini` | ○ | ○ | ○ | 3/3·3/3·3/3·3/3 |
+  | chat | `gemini-3.5-flash` | ○ | ○ | ○ | 3/3·3/3·3/3·3/3 |
+  | chat | `claude-haiku-4.5` | ○ | ○ | ○ | 3/3·3/3·3/3·3/3 |
+  | responses | `gpt-5.4-mini` | ○ | ○ | ○ | 3/3·3/3·3/3·3/3 |
+  | messages | `claude-haiku-4.5` | ○ | ○ | ○ | 3/3·3/3·3/3·3/3 |
+
+- **무엇을 봤나**: 60건 모두 200, 감사 줄의 `pii_issued` 2(전화·메일이 가짜 값으로 나갔다), `pii_suspect` 0. E·S·T 45건은 `pii_restored` 2 — 모델이 가짜 값을 그대로 되풀이했고(스트리밍 포함),
+  도구 인자(Chat `tool_calls`·Responses `function_call`·Messages `tool_use`)에 옮겨 적은 가짜 값도 게이트웨이가 되돌렸다. M 15건은 `pii_issued` 2·`pii_restored` 1 — 이력의 assistant 턴(복원된 원래 값)이
+  사용자 턴과 같은 가짜 값으로 다시 가려져 나갔고(결정적 대체값 — 둘째 턴의 고유 값이 둘 그대로) 메일 하나가 돌아왔다. '되풀이 안 함'·'일부만'은 0건이라 P4의 분모는 모두 3이다. 같은 조합의 세 번은 답 길이까지 같았다.
+- **눈에 띈 것**: `gemini-3.5-flash`는 요청당 출력 140~427토큰으로 다른 모델(8~64)보다 많다 — 답 글은 같은 길이라 사고 토큰으로 보인다(512 상한에 닿은 요청은 없다). Claude의 도구 호출(T)은 입력 750토큰이다(Chat·Messages 같다 — 공급자 쪽 도구 정의 비용).
+  프롬프트 캐시 읽기는 0이다(짧은 요청 — 이 실행이 보는 것이 아니다).
+- **한계**(§5에 더해): Chat 경로의 Claude·Gemini는 라우터가 공급자 형식으로 바꿔 보낸 것이다 — 공급자 API 직결·thinking 서명·프롬프트 캐시는 이 실행이 보지 않는다(Claude 직결의 서명·캐시는 D-114).
+  모델이 값의 모양을 바꿔 적는 답(하이픈 빼기 등)은 이번에 나오지 않아 시험되지 않았다 — 그런 답은 D-113의 의심 잔여(`pii_suspect`)로 세는 경로이고 스텁 테스트로만 봤다. 3회·한 시점·한 라우터의 결과다.
+- **문서**: 백서 6절·`docs/api-compat.md` '상류'·README 두 언어·설명서(HTML·PDF)·CHANGELOG 0.2.0에 '라우터 경유 다섯 조합 통과'를 적었다.
+
+## D-134. 의존성 올림 첫 묶음(dependabot #4~#13) — uvicorn·python-dotenv·ruff·액션 둘은 올리고 FastAPI 0.162·transformers는 보류 (2026-11-10, PLAN 20단계 뒤 — 사용자 할 일 'dependabot')
+
+### 1. 근거
+
+- dependabot(D-130)이 첫 실행(2026-11-10, `c87db8d` 푸시 직후)에서 PR 10개를 열었다. 세션이 GitHub API로 제목·바뀐 파일·릴리스 노트를 읽었다(사용자 할 일의 'PR 제목을 알려 주면'을 대신했다). 보안 공지(CVE·GHSA)를 단 PR은 없다 — 모두 기능·수정 판이다.
+  #4 actions/setup-python 7.0.0 → 7.1.0(ci·detect) · #5 sigstore/cosign-installer 4.1.2 → 4.1.3(release — 기본 Cosign v3.1.4) · #6·#12 uvicorn 0.52.0 → 0.54.0 · #7·#11 fastapi 0.141.1 → 0.162.0 ·
+  #8 python-dotenv 1.2.2 → 1.2.4 · #9·#13 transformers 5.22.1 → 5.22.2(`detect/requirements-train.txt`) · #10 ruff 0.17.3 → 0.17.4.
+- **FastAPI 0.162.0을 설치해 확인한 것**(세션의 별도 venv, Python 3.14):
+  ① 새 필수 의존성 `opentelemetry-api`(1.45.2)를 `import fastapi`만으로 읽는다. 환경변수 `OTEL_PROPAGATORS`가 설치되지 않은 전파기를 가리키면(예: `b3` — 메시·Zipkin 쪽 클러스터 전체 설정)
+  `ValueError: Propagator b3 not found`로 **프로세스가 뜨지 못한다**(재현). 0.141.1은 OTel을 읽지 않아 영향이 없다.
+  ② 내장 텔레메트리(`fastapi/telemetry`)가 기본으로 켜져 있다(tracing·metrics·logs). 프로세스에 전역 OTel 공급자가 있으면 요청마다 span에 `url.path`·`url.query`를 남긴다(민감 키 몇 개만 `REDACTED`, 나머지 값은 그대로) —
+  게이트웨이는 쿼리 값을 일부러 남기지 않는다(D-109 B9: 접근 로그를 끈 이유). `FASTAPI_OTEL_AUTO_CONFIGURE=true`면 OTLP 내보내기를 스스로 붙인다.
+  ③ 깨지는 변경 둘(폼의 bool 기본값, 쿼리·헤더 파라미터 모델의 extra)은 우리 코드가 쓰지 않는다 — 게이트웨이·사이드카·데모 웹은 `Request`·`Response`류만 쓴다.
+  ④ 0.141.1의 Starlette 조건은 `starlette>=0.46.0`(상한 없음)이라, FastAPI를 묶어도 HTTP 층(Starlette) 수정은 이미지를 새로 빌드할 때 들어온다(오늘 풀면 1.10.0).
+- **uvicorn 0.53**: 기본 `FORWARDED_ALLOW_IPS`가 `127.0.0.1,::1`이 됐다(#3119 — 설치본 `uvicorn/config.py`로 확인). 문서 넷(README 두 언어·configuration·Dockerfile 주석)이 '기본 127.0.0.1'이라고 적는다.
+  HTTP/2(zttp)·zuvloop은 켜야 쓰는 기능이라 해당 없다. 그 밖에 `Connection: close` 토큰 목록 처리 수정.
+- **transformers**는 학습 환경(`detect/requirements-train.txt`)에만 있다 — D-128 모델(5.22.1로 학습)과 학원 PC의 base 학습이 같은 환경이어야 같은 자로 비교된다(D-128 §6).
+
+### 2. 결정
+
+1. **올린다**: uvicorn 0.54.0(`pyproject.toml`·`detect/requirements.txt` — 게이트웨이와 사이드카가 같은 판), python-dotenv 1.2.4, ruff 0.17.4,
+   actions/setup-python v7.1.0(`6d4fd22b…`), sigstore/cosign-installer v4.1.3(`756fe2d2…`). 액션은 GitHub API로 태그가 가리키는 커밋을 읽어 PR의 SHA와 대조했다(둘 다 같음).
+2. **FastAPI는 0.141.1에 둔다**(#7·#11 보류). 다시 볼 때(PLAN 조건부 표): FastAPI 보안 공지가 나오거나 필요한 기능이 생기면 — 생성자 셋(게이트웨이·사이드카·데모 웹)에서 내장 텔레메트리를 끄고
+   (`telemetry={"tracing": False, "metrics": False, "logs": False, "auto_configure": False}`), ①(`OTEL_PROPAGATORS` 기동 실패)을 문서와 시험에 넣은 뒤 올린다.
+3. **transformers는 5.22.1에 둔다**(#9·#13 보류). 학습 환경을 바꾸려면 새 결정으로 한다(새 판으로 다시 학습하면 홀드아웃이 아니라 dev-eval·양성대조로 비교 — D-128 §2-4).
+4. 문서의 `FORWARDED_ALLOW_IPS` 기본값을 `127.0.0.1,::1`(루프백뿐)로 고친다.
+5. 받아들인 PR(#4·#5·#6·#8·#10·#12)은 이 커밋이 푸시되면 dependabot이 스스로 닫는다. 보류한 PR(#7·#9·#11·#13)은 사용자가 닫는다 — 닫은 판은 다시 열지 않고, 더 새 판이 나오면 새 PR이 온다(그때 이 기준으로 다시 본다).
+
+### 3. 버린 대안
+
+- **PR을 그대로 머지**: 사이드카 고정 목록 테스트(`tests/test_d125_ner.py`)·문서의 기본값이 어긋나고, FastAPI ①의 기동 실패 위험을 들인다.
+- **FastAPI 0.162 + 생성자에서 텔레메트리 끄기**: ②만 막는다 — ①은 import 때라 생성자 인자가 닿기 전이다.
+- **dependabot `ignore`로 FastAPI를 막기**: 보안 업데이트까지 가릴 수 있다. 판마다 PR을 보고 닫는 편이 낫다.
+- **텔레메트리가 들어가기 전 마지막 FastAPI 판으로**: 그 판을 찾느라 판마다 설치·시험해야 하고 얻는 것(쓰지 않는 기능)이 없다.
+
+### 4. 완료 기준
+
+| # | 기준 | 어디서 |
+|---|---|---|
+| U1 | 새 판 환경(별도 venv — fastapi 0.141.1·uvicorn 0.54.0·python-dotenv 1.2.4·ruff 0.17.4, 전이 의존성은 오늘 풀린 판: starlette 1.10.0·pydantic 2.14.3·uvloop 0.23.0)에서 전체 `pytest`·`ruff check .`·`mypy` | 세션 |
+| U2 | 사이드카 고정 목록이 `pyproject.toml`과 같은 uvicorn | `tests/test_d125_ner.py`(목록을 고친다) |
+| U3 | 워크플로의 액션이 여전히 커밋 SHA + 태그 주석 | `tests/test_d130_release.py` R1(그대로) |
+| U4 | 개발 환경 `.venv`를 새 고정 값으로 맞춘 뒤 전체 `pytest`·`ruff`·`mypy`, `pip check` | 세션 |
+
+### 5. 한계
+
+- FastAPI를 묶어 두는 동안 FastAPI 자체의 수정은 받지 못한다(Starlette 수정은 받는다).
+- 전이 의존성(starlette·pydantic·uvloop 등)은 고정하지 않는다 — 이미지 빌드 때 풀리는 판이 바뀐다. 잠금 파일은 이 결정 밖이다.
+- 이미지에서 uvicorn 0.54의 실제 기동은 CI(`docker`·`detect`의 이미지 작업)가 본다 — 세션은 Docker가 꺼져 있다. 사이드카 테스트는 uvicorn을 띄우지 않는다.
+
+### 6. 결과 (2026-11-10)
+
+- **U1**: 별도 venv(Python 3.14.7 — fastapi 0.141.1·uvicorn 0.54.0·python-dotenv 1.2.4·ruff 0.17.4, 전이 의존성 starlette 1.10.0·pydantic 2.14.3·uvloop 0.23.0)에서 전체 `pytest` 926 통과·2 실패 —
+  실패 둘은 프로젝트를 설치하지 않아 버전이 `0+unknown`이던 테스트였고 설치 뒤 2/2 통과. `ruff` 통과. `mypy`도 설치 뒤 통과(설치 전에는 `detect/`가 import하는 `eval/`을 소스로 보고 `eval/pii/score.py`에서 3건 — 설치한 환경·CI와 조건이 다르다).
+- **U2·U3**: `tests/test_d125_ner.py`(고정 목록)·`tests/test_d130_release.py`(SHA + 태그 주석) 통과. 액션: setup-python v7.1.0 = `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0`,
+  cosign-installer v4.1.3 = `756fe2d284c7292c4e9b62c8a28f1e5629c59532`(둘 다 태그가 커밋을 바로 가리킨다 — PR의 SHA와 같다).
+- **U4**: `.venv`를 새 고정 값으로 맞추고(편집 설치 메타데이터 갱신, `pip check` 통과) 전체 `pytest` **928(+1 건너뜀)**·`ruff`·`mypy` 통과. `.venv-detect`의 uvicorn도 0.54.0 — 사이드카 테스트 23(+1 건너뜀) 통과(uvicorn을 띄우지 않는 테스트다).
+- **문서**: `FORWARDED_ALLOW_IPS` 기본값 네 곳. 같은 날 CI(`c87db8d`)의 `detect`가 Intel Xeon 8370C 러너에서 veil 510토큰 p95 361ms를 쟀다 — AMD EPYC 러너(201.5ms)의 1.8배라
+  문서 일곱 곳(README 두 언어·configuration·operations·백서·사이드카 README·설명서)과 PLAN 결정 표 7번의 '약 200ms'를 '약 200~370ms(CPU에 따라)'로 고쳤다(숫자는 D-125 §6). 설명서 PDF 22쪽 그대로, 바뀐 쪽 10·17·18·19.
+- **계획과 다른 점**: 없음. **못 한 것**: 이미지에서 uvicorn 0.54 기동(CI 몫 — Docker 꺼짐), 보류 PR 닫기(사용자 — #7·#9·#11·#13).

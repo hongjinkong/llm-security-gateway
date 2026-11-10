@@ -8,8 +8,11 @@
   publish(푸시·서명 권한 — 해시가 맞는 이미지 파일만 올리고, 받은 파일은 작업 폴더 밖에 푼다). 액션은 커밋 SHA로 고정했다. 탐지 사이드카 이미지에 내장 모델의 라이선스 고지(`/licenses/`, Horizon 모델의 LICENSE·NOTICE)를 싣는다.
   검증 방법은 [운영 — 업그레이드](docs/operations.md#업그레이드). dependabot(pip·github-actions·docker, 주마다 — PR은 제안), CI `secrets` 작업(gitleaks, 푸시·PR 범위 —
   `.gitleaks.toml`은 합성 키 경로 `eval/`·`tests/`와 `detect/models.json`의 SHA-256만 허용). 이미지는 linux/amd64만. k8s 견본의 이미지 태그 0.2.0, 사이드카 포트(8081)를 막는 NetworkPolicy 견본(`deploy/k8s/networkpolicy.yaml`)
-- 실 공급자 확인 2 준비(D-133): 실제 GPT·Gemini·Claude 모델 앞에서 가림·복원(되풀이·스트리밍·도구 인자·2턴)을 보는 `scripts/check_real_providers.py` — 상류는 여러 공급자를 한 키로 부르는 라우터. 기준·상한(요청 90건)을 사전 등록했고
-  `--stub`으로 세 API × 네 검사의 배선을 확인했다. **실제 실행은 아직 하지 않았다**(등록 커밋 뒤)
+- 실 공급자 확인 2(D-133): 실제 GPT·Gemini·Claude 모델 앞에서 가림·복원(되풀이·스트리밍·도구 인자·2턴)을 보는 `scripts/check_real_providers.py` — 상류는 여러 공급자를 한 키로 부르는 라우터. 기준·상한(요청 90건)을 사전 등록했고
+  `--stub`으로 세 API × 네 검사의 배선을 확인한 뒤 등록 커밋 다음에 실제로 돌렸다 — Chat(`gpt-5.4-mini`·`gemini-3.5-flash`·`claude-haiku-4.5`)·Responses(`gpt-5.4-mini`)·Messages(`claude-haiku-4.5`)
+  다섯 조합 모두 통과(요청 60건 모두 200·가짜 값 잔여 0·원래 값 복원, 기록 `docs/verification/real_providers_router.md`)
+- 의존성(D-134): uvicorn 0.54.0(기본 `FORWARDED_ALLOW_IPS`가 `127.0.0.1,::1` — 루프백뿐)·python-dotenv 1.2.4·ruff 0.17.4, 액션 setup-python v7.1.0·cosign-installer v4.1.3(기본 Cosign v3.1.4).
+  FastAPI는 0.141.1에 둔다 — 0.162는 `import fastapi`만으로 OpenTelemetry API를 읽어, `OTEL_PROPAGATORS`가 설치되지 않은 전파기(예: `b3`)를 가리키는 환경에서 기동하지 못한다(재현). 학습 환경의 transformers는 D-128 재현을 위해 그대로
 - v1.0 기준의 자와 가격 초안(D-132): `scripts/poc_gate.py` — 감사 로그에서 mask로 돈 구간(14일 이상, 빈 날 없이)의 의심 잔여 비율과 게이트웨이 몫 실패 비율(5xx + 스트림 도중 실패, 상류 장애·클라이언트 끊김 제외)을 재서 각각 0.1% 미만인지 판정한다
   (분모 1,000건 미만은 판정 불가). `docs/pricing.md`(초안 — 코드는 전부 Apache-2.0, 유료는 배포 단위 연간 지원 계약)
 

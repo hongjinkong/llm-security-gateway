@@ -54,7 +54,7 @@
 | 변수 | 기본값 | 뜻 |
 |---|---|---|
 | `WEB_CONCURRENCY` | `1` | 워커(프로세스) 수. 지표·레이트리밋·대체값 세션 상한이 워커별이라 1로 두고 파드·컨테이너 수로 늘리기를 권한다 |
-| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | `X-Forwarded-For`를 믿을 프록시 주소. 그 밖에서 온 헤더는 무시된다 — 감사 `ip`와 무인증 레이트리밋이 쓴다 |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1,::1` | `X-Forwarded-For`를 믿을 프록시 주소(기본은 루프백뿐 — uvicorn 0.53부터 IPv6 `::1` 포함). 그 밖에서 온 헤더는 무시된다 — 감사 `ip`와 무인증 레이트리밋이 쓴다 |
 | `UVICORN_TIMEOUT_KEEP_ALIVE` | `5` | 쉬는 클라이언트 연결을 닫기까지의 초. 인그레스·LB 뒤에서는 그 유휴 시간(보통 60초)보다 길게 — k8s 견본은 75. 쉬는 연결도 동시 연결 상한(1,000)에 든다 |
 
 ## 설정 파일 (`GATEWAY_CONFIG`)
@@ -122,7 +122,7 @@ k8s 견본 설정은 [`deploy/k8s/gateway.toml`](../deploy/k8s/gateway.toml)이�
 
 정규식이 아니라 한국어 NER 모델(탐지 사이드카 `detect/`, 별도 컨테이너)이 찾는다. **기본은 꺼져 있다** — 정책의 `pii_kinds`(또는 `GATEWAY_PII_KINDS`)에 `person`·`address`를 더하고
 `GATEWAY_DETECT_URL`을 주면 켜진다. 정확도는 모델의 것(합성 문장 F1 0.96·실제 대화 0.90 — 놓침·잘못 가림 각각 약 10%)이고, 요청마다 사이드카 왕복이 더해진다
-(x86 4 vCPU에서 510토큰 약 200ms — 매 턴 다시 오는 이력은 캐시에서 나와 새 메시지만 간다). 규칙과 한계는 [README 탐지 종류](../README.md#탐지-종류)·[운영 — 탐지 사이드카](operations.md#탐지-사이드카),
+(x86 4 vCPU에서 510토큰 약 200~370ms, 러너 CPU에 따라 — 매 턴 다시 오는 이력은 캐시에서 나와 새 메시지만 간다). 규칙과 한계는 [README 탐지 종류](../README.md#탐지-종류)·[운영 — 탐지 사이드카](operations.md#탐지-사이드카),
 배포 모양은 [`deploy/compose.yml`](../deploy/compose.yml)(서비스 `detect`)·[`deploy/k8s/gateway.yaml`](../deploy/k8s/gateway.yaml)(같은 파드의 둘째 컨테이너)이다.
 
 - `org`(직장)는 기본 감사만(`GATEWAY_PII_DETECT_KINDS`)이다 — 회사 이름을 가짜로 바꾸면 '삼성전자 주가' 같은 질문의 답이 망가진다. 가리려면 거기서 뺀다.

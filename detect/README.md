@@ -2,7 +2,7 @@
 
 게이트웨이와 따로 도는 컨테이너다(FastAPI + ONNX Runtime + tokenizers, torch 없음). 이름·주소·직장처럼 정규식으로 잡을 수 없는 개인정보를 한국어 NER 모델로 찾는다.
 게이트웨이는 정책이 `pii_kinds`에 `person`·`address`·`org`를 넣고 `GATEWAY_DETECT_URL`을 줬을 때만 부른다(D-126, 기본 꺼짐 — 지연을 받아들이는 정책만 켠다).
-기본 모델은 측정한 다섯 가운데 F1이 합성 문장·실제 대화(KDPII) 둘 다 0.85를 넘은 유일한 `1T/veil-pii-ko-lite` INT8(0.963·0.895)이다 — x86 4 vCPU에서 510토큰 HTTP p95 201.5ms로
+기본 모델은 측정한 다섯 가운데 F1이 합성 문장·실제 대화(KDPII) 둘 다 0.85를 넘은 유일한 `1T/veil-pii-ko-lite` INT8(0.963·0.895)이다 — x86 4 vCPU에서 510토큰 HTTP p95 201.5ms(AMD EPYC)~361ms(Intel Xeon)로
 처음의 '+40ms' 게이트는 넘지 못했다(D-125). 빠른 모델(KoELECTRA-small)은 실제 대화에서 많이 틀린다(KDPII 정밀도 0.45·재현율 0.55). 수치와 근거는 [`DECISIONS.md`](../DECISIONS.md)의 D-125·D-126.
 같은 사이드카의 둘째 작업은 **인젝션 분류기**다(D-127) — 텍스트 하나에 인젝션 점수(0~1)를 내고, 게이트웨이의 가드레일 웹훅 계약(`POST /v1/guard`)을 구현한다
 (`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard`). 이미지 기본 모델은 다섯 후보를 공개 평가셋 v1(D-123)로 재서 고른 `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base, INT8 641MB, Apache-2.0)다(D-127 §6) —

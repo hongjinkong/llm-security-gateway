@@ -30,7 +30,8 @@ upstream  OpenAI · Anthropic · OpenAI-compatible servers (Ollama, vLLM, …)
 ```
 
 - **The upstream sees a value such as `010-8419-3027` and treats it as an ordinary value.** The model does not notice anything was hidden and uses it in tool arguments;
-  the user gets the original value back. The provider's logs contain the fake value.
+  the user gets the original value back. On real GPT, Gemini and Claude models (through a multi-provider router, five combinations across Chat Completions, Responses and Messages)
+  all 60 echo, streaming, tool-argument and two-turn requests came back with the original values ([`docs/verification/real_providers_router.md`](docs/verification/real_providers_router.md), Korean). The provider's logs contain the fake value.
 - **Raw values are not stored.** The mapping between fake and original values lives in the memory of one request and is dropped when the response ends.
   The audit log keeps only sizes and digests.
 - **The same original value always becomes the same fake value.** Fake values are derived from the surrogate key (`GATEWAY_SURROGATE_KEY`), so history bytes stay identical
@@ -69,7 +70,7 @@ workplaces it is the model's recall on real dialogue (KDPII test) with F1 in par
 | Organization `org` | same model — companies, institutions, schools | model score | **off**, audit-only even when enabled | masking a company name breaks questions such as "Samsung Electronics share price" — remove it from `GATEWAY_PII_DETECT_KINDS` to mask | real dialogue 89 (F1 synthetic 0.879 · KDPII 0.900) |
 
 **Names, addresses and workplaces** (D-126) are found by a Korean NER model (`1T/veil-pii-ko-lite` INT8, Apache-2.0) running in a separate container, not by regexes. They are **off by default** —
-add `person,address` to a policy's `pii_kinds` and set `GATEWAY_DETECT_URL`. Each request then pays a sidecar round trip (about 200 ms for 510 tokens on a 4-vCPU x86 runner; history that
+add `person,address` to a policy's `pii_kinds` and set `GATEWAY_DETECT_URL`. Each request then pays a sidecar round trip (about 200–370 ms for 510 tokens on a 4-vCPU x86 runner, depending on the CPU; history that
 comes back turn after turn is served from a cache, only new messages go to the sidecar) and accuracy is the model's. Fake names keep the final-consonant class of the original (so Korean particles still fit),
 fake addresses keep the province/city/district and change road, neighbourhood, building and numbers (digit count and last digit kept). Restoration looks for the issued strings — a model that
 repeats only the surname or part of an address is not restored. When the sidecar fails, `GATEWAY_DETECT_FAIL` decides (`closed` default: 503, `open`: regex kinds only). See [`docs/configuration.md`](docs/configuration.md).
@@ -190,7 +191,7 @@ Read by uvicorn in the image:
 | Variable | Default | Meaning |
 |---|---|---|
 | `WEB_CONCURRENCY` | `1` | Worker processes. Keep 1 and scale with replicas — metrics, rate limits and surrogate-session limits are per process |
-| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies whose `X-Forwarded-For` is trusted |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1,::1` | Proxies whose `X-Forwarded-For` is trusted (loopback only by default) |
 | `UVICORN_TIMEOUT_KEEP_ALIVE` | `5` | Seconds before an idle client connection is closed. Behind an ingress or load balancer make it longer than its idle timeout (usually 60 s); the k8s sample uses 75 |
 
 The config file (`GATEWAY_CONFIG`) adds per-client policies, allowed models and per-API upstreams. Provider keys stay in environment variables named by `key_env`;
@@ -225,7 +226,7 @@ gateway/      app (main), settings, relay, auth, API adapters (api/), detectors 
               operations dashboard page (dashboard.html)
 deploy/       compose.yml (local trial) · k8s/ (kustomize)
 docs/         configuration · operations · api-compat · verification/ (real-provider check)
-scripts/      demo · SDK checks · real-provider two-turn check · dashboard test traffic (traffic.py)
+scripts/      demo · SDK checks · real-provider checks (Claude two-turn, GPT/Gemini/Claude via a router) · dashboard test traffic (traffic.py)
 tests/        unit and integration tests, stub upstream (tests/stub_target.py)
 eval/         PII corpus and scoring (eval/pii/), injection eval set v1 with sources and licenses (eval/injection/), benign questions (eval/benign/),
               NER eval sets — synthetic 200 sentences and KDPII test (eval/ner/)

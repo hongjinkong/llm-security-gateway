@@ -11,7 +11,7 @@ license = "Apache-2.0"
 requires-python = ">=3.12"
 # 런타임 의존성은 정확히 고정한다. 올릴 때는 DECISIONS에 근거를 남긴다.
 dependencies = [
-    "fastapi==0.141.1",
+    "fastapi==0.162.0",
     "uvicorn==0.54.0",
     "httpx==0.28.1",
     "python-dotenv==1.2.4",

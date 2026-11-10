@@ -11,7 +11,7 @@ from gateway.main import router
 from gateway.settings import CLIENT_KEYS, POLICY_KEYS, UPSTREAM_KEYS, Settings
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCS = ["README.md", "README.en.md", "SECURITY.md", "docs/configuration.md", "docs/operations.md", "docs/api-compat.md"]
+DOCS = ["README.md", "README.en.md", "SECURITY.md", "docs/configuration.md", "docs/operations.md", "docs/api-compat.md", "docs/technical-reference.md"]
 UVICORN = {"WEB_CONCURRENCY", "FORWARDED_ALLOW_IPS", "UVICORN_TIMEOUT_KEEP_ALIVE"}   # 이미지의 uvicorn이 읽는다 — 게이트웨이 코드가 아니다
 # 탐지 사이드카(detect/app.py)가 읽는다 — 견본의 사이드카 서비스·컨테이너가 쓴다(D-127)
 DETECT = {"DETECT_MODEL", "DETECT_INJECTION_MODEL", "DETECT_GUARD_THRESHOLD", "DETECT_MODEL_DIR", "DETECT_THREADS"}

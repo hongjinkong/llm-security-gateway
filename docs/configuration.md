@@ -27,7 +27,7 @@
 | `GATEWAY_ADMIN_KEY` | (없음) | `/__gateway/info`·`/__gateway/metrics`·`/__gateway/stats`(`Authorization: Bearer`)와 대시보드(`/__gateway/dashboard` — 화면에 키를 넣는다)를 여는 관리 키. 없으면 모두 404 — [운영 — 대시보드](operations.md#대시보드) |
 | `GATEWAY_SURROGATE_KEY` | (없음) | 결정적 대체값 키, 32자 이상. 어느 정책이든 `mask`면 필수(없거나 짧으면 **기동 실패**). 원문을 되짚을 수 있는 키라 공급자 키와 같은 등급으로 보관한다. 바꾸는 절차는 [운영 — 키 회전](operations.md#키-회전) |
 | `GATEWAY_PII` | `mask` | `mask`(같은 모양의 가짜 값으로 바꾸고 응답에서 복원) · `detect`(감사에만 남김) · `off` |
-| `GATEWAY_PII_KINDS` | 정규식 12종(`rrn,frn,passport,driver,card,phone,email,secret,brn,crn,account,ipv4`) | 탐지할 종류(쉼표). 종류는 [README 탐지 종류](../README.md#탐지-종류). **이름·주소·직장**(`person`·`address`·`org`)은 기본에 없다 — 더하면 탐지 사이드카가 찾는다(`GATEWAY_DETECT_URL` 필수, 아래 '이름·주소 가림') |
+| `GATEWAY_PII_KINDS` | 정규식 12종(`rrn,frn,passport,driver,card,phone,email,secret,brn,crn,account,ipv4`) | 탐지할 종류(쉼표). 종류는 [기술 상세 — 탐지 종류](technical-reference.md#탐지-종류). **이름·주소·직장**(`person`·`address`·`org`)은 기본에 없다 — 더하면 탐지 사이드카가 찾는다(`GATEWAY_DETECT_URL` 필수, 아래 '이름·주소 가림') |
 | `GATEWAY_PII_DETECT_KINDS` | `account,brn,crn,ipv4,org` | `mask` 모드에서도 가리지 않고 감사(`unmasked`)에만 남길 종류. 빈 값이면 탐지한 종류를 모두 가린다 |
 | `GATEWAY_PII_ROLES` | `user,assistant,tool,system` | 가릴 역할(쉼표). `developer`·Responses `instructions`는 `system`이다 |
 | `GATEWAY_DETECT_URL` | (없음) | 탐지 사이드카([`detect/`](../detect/README.md)) 주소 — 예: `http://127.0.0.1:8081`(k8s 같은 파드)·`http://detect:8081`(compose). 어느 정책이든 `pii_kinds`에 `person`·`address`·`org`를 넣었는데(그리고 `pii_mode`가 `off`가 아닌데) 비어 있으면 **기동 실패**. 모양은 `http(s)://호스트[:포트]`만 — 경로·쿼리·다른 스킴은 기동 실패 |
@@ -122,7 +122,7 @@ k8s 견본 설정은 [`deploy/k8s/gateway.toml`](../deploy/k8s/gateway.toml)이�
 
 정규식이 아니라 한국어 NER 모델(탐지 사이드카 `detect/`, 별도 컨테이너)이 찾는다. **기본은 꺼져 있다** — 정책의 `pii_kinds`(또는 `GATEWAY_PII_KINDS`)에 `person`·`address`를 더하고
 `GATEWAY_DETECT_URL`을 주면 켜진다. 정확도는 모델의 것(합성 문장 F1 0.96·실제 대화 0.90 — 놓침·잘못 가림 각각 약 10%)이고, 요청마다 사이드카 왕복이 더해진다
-(x86 4 vCPU에서 510토큰 약 200~370ms, 러너 CPU에 따라 — 매 턴 다시 오는 이력은 캐시에서 나와 새 메시지만 간다). 규칙과 한계는 [README 탐지 종류](../README.md#탐지-종류)·[운영 — 탐지 사이드카](operations.md#탐지-사이드카),
+(x86 4 vCPU에서 510토큰 약 200~370ms, 러너 CPU에 따라 — 매 턴 다시 오는 이력은 캐시에서 나와 새 메시지만 간다). 규칙과 한계는 [기술 상세 — 탐지 종류](technical-reference.md#탐지-종류)·[운영 — 탐지 사이드카](operations.md#탐지-사이드카),
 배포 모양은 [`deploy/compose.yml`](../deploy/compose.yml)(서비스 `detect`)·[`deploy/k8s/gateway.yaml`](../deploy/k8s/gateway.yaml)(같은 파드의 둘째 컨테이너)이다.
 
 - `org`(직장)는 기본 감사만(`GATEWAY_PII_DETECT_KINDS`)이다 — 회사 이름을 가짜로 바꾸면 '삼성전자 주가' 같은 질문의 답이 망가진다. 가리려면 거기서 뺀다.

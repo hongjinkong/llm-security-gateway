@@ -1,6 +1,6 @@
 # LLM Security Gateway
 
-[English](README.en.md)
+[English](README.en.md) · **공개 데모: <https://llm-security-gateway-demo.fly.dev/>** (스텁 상류 — 외부 공급자로는 아무것도 나가지 않는다)
 
 LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으로 나가는 개인정보·자격 증명을 같은 모양의 가짜 값으로 바꿔 보내고 응답에서 되돌리며,
 프롬프트 인젝션을 관측(선택하면 차단)하고, 요청마다 감사 한 줄을 남긴다.** OpenAI Chat Completions·Responses, Anthropic Messages

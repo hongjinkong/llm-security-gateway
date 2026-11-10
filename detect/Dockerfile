@@ -30,7 +30,8 @@ ENV PYTHONUNBUFFERED=1 \
     DETECT_THREADS=4
 EXPOSE 8081
 
-HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
+# 시작 유예 180초 — 인젝션 분류기(base)까지 실으면 기동이 1분을 넘는다(M2 Docker VM 4GB에서 88초, 2026-11-10). 유예는 healthy 판정을 늦추지 않는다
+HEALTHCHECK --interval=10s --timeout=3s --start-period=180s --retries=3 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/health', timeout=2)"]
 
 # 접근 로그를 끈다 — 요청 기록 자체를 남기지 않는다. 인증이 없으므로 같은 파드(또는 내부 네트워크)의 게이트웨이만 닿게 둔다.

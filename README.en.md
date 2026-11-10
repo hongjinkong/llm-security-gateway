@@ -1,6 +1,6 @@
 # LLM Security Gateway
 
-[한국어](README.md)
+[한국어](README.md) · **Public demo: <https://llm-security-gateway-demo.fly.dev/>** (stub upstream — nothing is sent to an external provider)
 
 A self-hosted proxy between your LLM apps and AI providers. **It replaces personal data and credentials in outgoing requests with fake values of the same shape,
 restores the original values in the responses, observes (or optionally blocks) prompt injection, and writes one audit line per request.**

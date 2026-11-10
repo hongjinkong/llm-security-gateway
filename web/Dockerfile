@@ -1,8 +1,13 @@
 # 공개 데모 이미지(D-131) — 비교 데모 웹(web/app.py)을 공개 모드로 띄운다. 게이트웨이 둘과 스텁 상류 둘이 같은 컨테이너 안에서 돈다(밖으로 나가는 요청이 없다).
 # 빌드 문맥은 저장소 루트다(문맥에 넣을 것은 web/Dockerfile.dockerignore가 정한다):  docker build -f web/Dockerfile -t llm-gateway-demo .
 # 베이스는 게이트웨이 이미지와 같은 다이제스트다 — 올릴 때 함께 올린다.
-# python:3.12-slim 멀티 아키텍처 인덱스, 2026-10-30 조회
-FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
+# python:3.12-slim 멀티 아키텍처 인덱스, 2026-11-10 조회(Python 3.12.16, Debian 13.7)
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+
+# 베이스를 빌드한 뒤 나온 Debian 보안 갱신을 적용한다(D-135, 게이트웨이 이미지와 같다). 목록은 같은 층에서 지운다
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+ && rm -rf /var/lib/apt/lists/*
 
 # 게이트웨이는 패키지로 설치하고 소스는 지운다(gateway/Dockerfile과 같다). 그 밖에 싣는 것은 web/과 스텁·프로세스 도구뿐이다 — 테스트 러너는 넣지 않는다.
 WORKDIR /src

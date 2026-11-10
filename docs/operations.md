@@ -5,7 +5,7 @@
 ## 배포
 
 **이미지** — 릴리스 이미지 `ghcr.io/hongjinkong/llm-security-gateway:<버전>`(0.2.0부터, 서명 검증은 아래 [업그레이드](#업그레이드)) 또는 직접 빌드 `docker build -f gateway/Dockerfile -t llm-security-gateway .`
-베이스는 다이제스트로 고정한 `python:3.12-slim`, 비root(uid 10001)로 돈다. 포트 8080. 감사 로그(JSONL)는 stdout, 기동·오류 로그는 stderr다.
+베이스는 다이제스트로 고정한 `python:3.12-slim`이고 빌드 때 Debian 보안 갱신을 적용한다(D-135). 비root(uid 10001)로 돈다. 포트 8080. 감사 로그(JSONL)는 stdout, 기동·오류 로그는 stderr다.
 uvicorn 접근 로그는 꺼 두었다 — 쿼리 문자열을 값까지 찍어 감사 로그가 일부러 빼는 값을 남긴다. 동시 연결 1,000을 넘으면 uvicorn이 503을 준다.
 루트 파일 시스템을 읽기 전용으로 둬도 된다(쓰는 파일이 없다 — 감사 로그를 파일로 쓸 때만 쓰기 가능한 볼륨이 필요하다).
 
@@ -347,7 +347,7 @@ x86 서버나 CPU 상한이 걸린 컨테이너의 값은 다르다 — 배포�
 | `ghcr.io/hongjinkong/llm-security-gateway:<버전>` | 게이트웨이 |
 | `ghcr.io/hongjinkong/llm-security-gateway-detect:<버전>` | 탐지 사이드카(모델 파일 포함 — 이름·주소 가림이나 분류기를 켤 때만 필요하다) |
 
-올리기 전에 취약점을 스캔한다(Trivy) — **고칠 수 있는** HIGH·CRITICAL이 하나라도 있으면 릴리스가 실패하고 아무것도 올라가지 않는다. 아직 수정판이 없는 취약점은 막지 않는다 — 릴리스의 scan 작업 '취약점 목록' 단계가 HIGH·CRITICAL 전부(미수정 포함)를 표로 남긴다.
+올리기 전에 취약점을 스캔한다(Trivy) — **고칠 수 있는** HIGH·CRITICAL이 하나라도 있으면 릴리스가 실패하고 아무것도 올라가지 않는다. 아직 수정판이 없는 취약점은 막지 않는다 — 릴리스의 scan 작업 '취약점 목록' 단계가 HIGH·CRITICAL 전부(미수정 포함)를 표로 남긴다. 베이스 이미지가 나온 뒤에 나온 Debian 보안 갱신은 이미지를 빌드할 때 적용한다(D-135 — 첫 릴리스 시도가 이것으로 멈췄다).
 스캐너가 도는 작업에는 쓰기 권한이 없고, 올리는 작업은 빌드 작업이 넘긴 해시와 맞는 이미지 파일만 올린 뒤 cosign keyless 서명과 SBOM(SPDX JSON) 증명을 붙인다 — `latest`는 서명이 끝난 뒤에만 옮긴다. [GitHub 릴리스](https://github.com/hongjinkong/llm-security-gateway/releases)에 변경 기록·이미지 다이제스트·검증 명령·SBOM 파일이 있다.
 
 받은 이미지가 이 저장소의 릴리스 워크플로가 그 태그에서 만든 것인지 확인한다(cosign 3 이상 — 사이드카 이미지도 같은 명령에 주소만 바꾼다):

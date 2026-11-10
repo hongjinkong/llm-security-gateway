@@ -252,3 +252,17 @@ def test_r3_release_notes_refuses_a_version_without_a_changelog_section(tmp_path
             mod.notes("1.2.3")
     (tmp_path / "CHANGELOG.md").write_text("# 변경 기록\n\n## 1.2.3 — 2026-01-02\n\n- 새것\n\n## 1.2.2 — 2026-01-01\n\n- 옛것\n", encoding="utf-8")
     assert mod.notes("1.2.3") == "- 새것\n"
+
+
+def test_s1_images_share_a_pinned_base_and_apply_debian_security_updates():
+    """D-135: 첫 릴리스가 베이스 빌드 뒤에 나온 Debian 보안 갱신(apt·zlib)으로 스캔 게이트에서 멈췄다 — 세 이미지는 같은 고정 베이스 위에서
+    비root로 바꾸기 전에 갱신을 적용하고 패키지 목록을 같은 층에서 지운다."""
+    bases = set()
+    for rel in ("gateway/Dockerfile", "detect/Dockerfile", "web/Dockerfile"):
+        docker = text(rel)
+        bases.add(re.search(r"^FROM (\S+)$", docker, re.M)[1])
+        upgrade = re.search(r"^RUN apt-get update \\\n && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \\\n && rm -rf /var/lib/apt/lists/\*$", docker, re.M)
+        assert upgrade, rel
+        assert docker.index("FROM ") < upgrade.start() < docker.index("\nUSER 10001"), rel
+    (base,) = bases
+    assert re.fullmatch(r"python:3\.12-slim@sha256:[0-9a-f]{64}", base)

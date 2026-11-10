@@ -13,6 +13,7 @@
   다섯 조합 모두 통과(요청 60건 모두 200·가짜 값 잔여 0·원래 값 복원, 기록 `docs/verification/real_providers_router.md`)
 - 의존성(D-134): uvicorn 0.54.0(기본 `FORWARDED_ALLOW_IPS`가 `127.0.0.1,::1` — 루프백뿐)·python-dotenv 1.2.4·ruff 0.17.4, 액션 setup-python v7.1.0·cosign-installer v4.1.3(기본 Cosign v3.1.4).
   FastAPI는 0.141.1에 둔다 — 0.162는 `import fastapi`만으로 OpenTelemetry API를 읽어, `OTEL_PROPAGATORS`가 설치되지 않은 전파기(예: `b3`)를 가리키는 환경에서 기동하지 못한다(재현). 학습 환경의 transformers는 D-128 재현을 위해 그대로
+- 이미지 베이스(D-135): `python:3.12-slim` 다이제스트를 2026-11-10 것(Python 3.12.16)으로 올리고, 빌드 때 Debian 보안 갱신을 적용한다 — 베이스가 나온 뒤의 수정(apt CVE-2026-109518, zlib CVE-2026-76844·CVE-2026-85091)이 첫 릴리스 시도를 스캔 게이트에서 멈췄다(아무것도 올라가지 않았다)
 - v1.0 기준의 자와 가격 초안(D-132): `scripts/poc_gate.py` — 감사 로그에서 mask로 돈 구간(14일 이상, 빈 날 없이)의 의심 잔여 비율과 게이트웨이 몫 실패 비율(5xx + 스트림 도중 실패, 상류 장애·클라이언트 끊김 제외)을 재서 각각 0.1% 미만인지 판정한다
   (분모 1,000건 미만은 판정 불가). `docs/pricing.md`(초안 — 코드는 전부 Apache-2.0, 유료는 배포 단위 연간 지원 계약)
 

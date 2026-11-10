@@ -88,6 +88,7 @@
 | 2026-11-10 | 20-1(등록) | D-133 | 계획 변경(사용자 제안 "API 쓸 데 있으면 다 써도 돼" — 라우터 MonoRouter): 실 공급자 확인 2를 20-1단계로 넣음. D-133 사전 등록(조합 5 × 검사 넷 × 3회, 기준 P1~P4, 상한 90건, 정상 문장·합성 값만) + `scripts/check_real_providers.py` + 스텁 배선 60건 통과(`tests/test_d133_real_providers.py` 4개). 키 둘이 `.env`에 있고(값은 읽지 않음) 기본 모델 셋이 라우터 목록(69개)에 있음을 무료 GET으로 확인. **유료 호출은 하지 않았다**(공통 규칙 7 — 등록 커밋 뒤). 전체 pytest 928(+1 건너뜀 — 키가 있을 때 실제 호출을 피하는 테스트)·사이드카 23(+1)·ruff·mypy 통과 | **커밋·푸시 뒤 `/next-step` → 20-1 실행**(`.venv/bin/python scripts/check_real_providers.py` → D-133 §6) |
 | 2026-11-10 | 20-1 | D-133 | 등록 커밋 `c87db8d`(푸시됨) 뒤 기본값 그대로 한 번 실행 — **다섯 조합 모두 통과**: chat `gpt-5.4-mini`·`gemini-3.5-flash`·`claude-haiku-4.5`, responses `gpt-5.4-mini`, messages `claude-haiku-4.5`. 요청 60건(상한 90) 모두 200·`pii_issued` 2·`pii_suspect` 0, 복원 E·S·T 45건은 전화·메일 둘, M 15건은 메일(이력의 assistant 턴이 같은 가짜 값으로 다시 가려짐). 입력 8,454·출력 4,428토큰, 라우터 `used_credits` 0 → 1,074. 기록 `docs/verification/real_providers_router.{md,jsonl}`(답 본문·키 없음), 백서 6절·api-compat·README 두 언어·설명서(HTML·PDF)·CHANGELOG. 계획과 다른 점: 없음(모델 이름 그대로) | 22단계 — 사용자 몫(디자인 파트너). 세션 일은 신호 뒤(HF 업로드·`v0.2.0` 태그·데모 주소) + 주마다 dependabot PR |
 | 2026-11-10 | 20 뒤 | D-134 | dependabot 첫 묶음 PR 10개(GitHub API로 읽음 — 보안 공지 없음): uvicorn 0.54.0·python-dotenv 1.2.4·ruff 0.17.4·setup-python v7.1.0·cosign-installer v4.1.3 받음(액션 SHA를 태그 커밋과 대조). **FastAPI 0.162 보류** — `import fastapi`가 OpenTelemetry API를 읽어 `OTEL_PROPAGATORS=b3`(설치 안 된 전파기)에서 기동 실패(재현), 내장 텔레메트리가 전역 공급자 아래 span에 `url.query` 값을 남김. transformers 보류(D-128 학습 재현). uvicorn 0.53의 기본 `FORWARDED_ALLOW_IPS`(`::1` 추가)를 문서 넷에. 새 판 별도 venv와 `.venv` 모두 pytest 928(+1)·ruff·mypy, 사이드카 23(+1) 통과. CI `c87db8d` 초록(`secrets` 포함) — `detect`가 Intel Xeon 러너에서 veil 510토큰 p95 361ms(AMD EPYC 201.5ms의 1.8배)라 D-125 §6과 문서의 '약 200ms'를 '약 200~370ms'로 | 사용자: 커밋·푸시 → 보류 PR #7·#9·#11·#13 닫기 → `ci` 초록이면 `v0.2.0` 태그. 그 뒤 `/next-step`은 dependabot·CI 확인과 신호 대기 |
+| 2026-11-10 | 20 뒤(확인) | D-134 | `30700da`(D-133·D-134) 푸시 뒤 CI를 `gh api`로 확인: `ci` 네 작업(test 3.12·3.14·docker·secrets)·`detect` 두 작업(image·detect) **모두 성공**. dependabot이 받아들인 PR 여섯을 스스로 닫음, 보류 넷(#7·#9·#11·#13)은 열려 있음. `detect`가 세 번째 러너 CPU(AMD EPYC 9V74)에서 veil 510토큰 p95 320.4ms — 문서의 '약 200~370ms' 안, 분류기 669.9ms·이미지 메모리 1.891GiB(D-125·D-127 §6). 태그·릴리스는 아직 없음 | 사용자: 보류 PR 넷 닫기 → `git tag v0.2.0 30700da` 푸시 → GHCR 패키지 공개 → "릴리스 냈다" |
 
 ## 사용자 할 일
 
@@ -142,9 +143,9 @@
 - [x] (2026-11-10 세션이 GitHub API로 확인 — `c87db8d`의 `ci` 네 작업(test 3.12·3.14·docker·**secrets**)과 `detect` 두 작업(image·detect) 모두 성공, x86 숫자는 D-125·D-127 §6) (20단계 커밋·푸시 뒤) GitHub Actions의 `ci`에 새 작업 `secrets`(비밀 검사, gitleaks)가 생긴다 — 초록인지 본다. 이번 세션은 gitleaks를 직접 돌려 보지 못했다(외부 바이너리 실행이 막혔다).
   빨간색이면 그 작업 로그에서 걸린 파일·규칙 이름 줄을 다음 세션에 붙여 준다(값은 붙이지 않는다) — 합성 값이면 `.gitleaks.toml`에 좁게 더한다. `detect` 워크플로도 다시 돈다(모델 폴더에 LICENSE·NOTICE를 함께 받는다).
   푸시 전에 미리 보려면(선택): `brew install gitleaks` 뒤 `gitleaks git --log-opts="origin/main..HEAD"`.
-- [ ] (20단계, `ci`가 초록인 뒤 — 2026-11-10 D-133·D-134 커밋을 푸시하고 그 커밋의 `ci`가 초록이면) 첫 릴리스를 낸다:
+- [ ] (20단계 — 2026-11-10 세션이 확인: D-133·D-134 커밋 `30700da`의 `ci`·`detect`가 초록이다. 이제 낸다) 첫 릴리스를 낸다. 태그는 초록을 확인한 그 커밋에 단다(뒤의 기록 커밋은 문서만 바꾼다):
   ```
-  git tag v0.2.0
+  git tag v0.2.0 30700da
   git push origin v0.2.0
   ```
   Actions의 `release`가 돈다 — `build`(이미지 둘 빌드) → `scan`(취약점 목록 → 게이트 → SBOM) → `publish`(이미지 파일 해시 확인 → GHCR 푸시 → 서명 → latest → 릴리스), 모두 20분 안팎. 끝나면 GitHub 프로필 → Packages에서
@@ -160,7 +161,7 @@
 - [ ] (20-1 뒤, 선택) 라우터 키 정리 — 20-1 실행은 끝났다(2026-11-10 D-133, 60건·`used_credits` 1,074). 세션이 이 키로 더 부를 계획은 없다(다음 실 공급자 확인도 새 사전 등록이 먼저다).
   원하면 MonoRouter 콘솔에서 두 키를 지우거나 한도를 0으로 하고 `.env`의 `MONOROUTER_KEY`·`MONOROUTER_ANTHROPIC_KEY` 두 줄을 지운다.
 - [ ] (20단계 뒤, 주마다) dependabot이 PR을 연다(pip·actions·docker). 세션이 `/next-step` 때 GitHub API로 열린 PR을 읽어 근거를 DECISIONS에 적고 고정 버전을 올린다 — 알려 주지 않아도 된다. 그냥 머지하지 않는다(테스트의 고정 값이 함께 바뀌어야 한다).
-  **2026-11-10 첫 묶음 10개 → D-134**: 받아들인 #4·#5·#6·#8·#10·#12는 D-134 커밋을 푸시하면 dependabot이 스스로 닫는다(며칠 뒤에도 열려 있으면 닫는다).
+  **2026-11-10 첫 묶음 10개 → D-134**: 받아들인 #4·#5·#6·#8·#10·#12는 `30700da` 푸시 2분 뒤 dependabot이 스스로 닫았다(2026-11-10 세션 확인).
   **보류한 #7·#11(FastAPI 0.162 — `import fastapi`가 OpenTelemetry API를 읽어 `OTEL_PROPAGATORS`로 기동이 깨진다)과 #9·#13(transformers — D-128 학습 재현)은 GitHub에서 'Close pull request'로 닫는다** — 닫은 판은 다시 열리지 않고 더 새 판이 나오면 새 PR이 온다.
 - [ ] (21단계, 선택) 공개 데모를 올리려면: Docker Desktop을 켜고 `docker build -f web/Dockerfile -t llm-gateway-demo . && docker run --rm -p 8090:8090 llm-gateway-demo`로 `http://127.0.0.1:8090`이 뜨는지 본다(세션은 데몬이 꺼져 있어 빌드를 확인하지 못했다).
   Fly.io 계정이 있으면 `deploy/demo/fly.toml` 머리 주석의 명령 둘(`fly apps create …`, `fly deploy . --config … --ha=false`)로 올리고 **주소를 다음 세션에 알려 준다** — README 상단에 링크를 단다. 남용이 보이면 `fly scale count 0 --config deploy/demo/fly.toml`로 끈다.

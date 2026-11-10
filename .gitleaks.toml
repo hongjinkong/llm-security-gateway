@@ -1,0 +1,23 @@
+# D-130: 비밀 검사(gitleaks 8.24.3, ci.yml `secrets` 작업 — 푸시·PR 범위). 기본 규칙에 허용 목록 둘만 더한다.
+# 제품 코드·설정·문서·배포 견본은 검사한다. 걸리면 진짜 키인지 먼저 보고, 합성 값이면 이 파일에 근거와 함께 좁게 더한다.
+# 8.24.3은 전역 `[[allowlists]]`(복수)를 읽지 않는다 — 전역은 `[allowlist]`, 규칙별은 `[[rules.allowlists]]`(2026-11-04 로컬 확인).
+title = "llm-security-gateway"
+
+[extend]
+useDefault = true
+
+# 합성 키 — PII 평가 코퍼스(D-115·D-117: Anthropic·GitHub·AWS·JWT·PEM·Google 꼴), 인젝션 학습 데이터의 변형(D-128),
+# 테스트의 가짜 키. 실제 키가 아니다(공통 규칙 8: 실제 개인정보·키를 쓰지 않는다).
+[allowlist]
+description = "합성 키 경로"
+paths = ['''^eval/''', '''^tests/''']
+
+# 모델 파일 해시 — "tokenizer.json": "<SHA-256>"의 'token'이 generic-api-key에 걸린다. 이 파일의 64자 16진수만 뺀다
+# (기본 규칙에 허용 목록만 더해진다 — 다른 파일의 generic-api-key, 이 파일의 16진수 아닌 값은 그대로 잡힌다).
+[[rules]]
+id = "generic-api-key"
+[[rules.allowlists]]
+description = "detect/models.json의 SHA-256"
+condition = "AND"
+paths = ['''^detect/models\.json$''']
+regexes = ['''^[0-9a-f]{64}$''']

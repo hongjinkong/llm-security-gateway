@@ -7,7 +7,7 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
 세 API를 스트리밍·도구 호출까지 그대로 통과시킨다. 앱과 모델 코드는 고치지 않는다 — 클라이언트의 `base_url`과 API 키(게이트웨이 키)만 바꾼다.
 공급자 키는 게이트웨이 한 곳에만 둔다.
 
-> **상태**: 0.1.0. 상용화 계획([`PLAN.md`](PLAN.md))을 순서대로 진행 중이다. 결정 기록은 [`DECISIONS.md`](DECISIONS.md)(D-108부터).
+> **상태**: 0.2.0. 상용화 계획([`PLAN.md`](PLAN.md))을 순서대로 진행 중이다. 결정 기록은 [`DECISIONS.md`](DECISIONS.md)(D-108부터).
 > 연구 단계의 측정 수치·측정 장치·결정 D-001~D-107은 `research-final` 태그에 있다(`git show research-final:README.md`).
 
 ---
@@ -36,8 +36,8 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
   요청마다 난수였던 옛 코드는 5개 모두 400이었다([`docs/verification/multiturn_claude.md`](docs/verification/multiturn_claude.md)).
 - **인젝션은 기본으로 막지 않는다.** 룰은 두 개(지시 무효화·역할 전환, 한국어·영어 어휘)이고 정상 문장("ignore the instructions in the PDF and summarize")도 걸린다.
   적중은 감사에 남고(`would_block`), 운영자가 `GATEWAY_INJECTION=block`으로 켠다. 인젝션 분류기(탐지 사이드카)를 **가드레일 웹훅**으로 켤 수 있다(`GATEWAY_GUARD=observe|block`, 기본 꺼짐).
-  공개 분류기(`Horizon-Labs/prompt-injection-guard-small`)를 한국어 데이터로 이어 학습한 모델(D-128)이 정상 문장 오탐 1% 문턱에서 봉인 홀드아웃의 한국어 공격 97.5%·영어 93.8%를 잡고(룰은 dev 5.9%, 이어 학습 전 공개 모델은 61.7%),
-  판정 조작 문구 시험도 넘어(최대 0.7% 뒤집힘, 기준 5%) **관측 기간 뒤 차단에 써도 된다**. 학습한 모델이 Hugging Face에 올라가기 전까지 이미지 기본은 이어 학습 전 모델(관측 전용)이다. 사내 가드레일도 같은 웹훅 계약으로 바꿔 낀다.
+  공개 분류기(`Horizon-Labs/prompt-injection-guard-small`)를 한국어 데이터로 이어 학습한 모델(D-128)이 개발셋의 정상 오탐 1%로 고른 문턱에서 봉인 홀드아웃의 한국어 공격 97.5%·영어 93.8%를 잡고(그 문턱의 홀드아웃 정상 오탐은 2.3% — 홀드아웃 오탐을 1%로 맞추면 한국어 90.6%·영어 84.1%. 룰은 dev 5.9%, 지금 이미지에 든 공개 모델 guard-base는 61.7%),
+  판정 조작 문구 시험도 넘어(최대 0.7% 뒤집힘, 기준 5%) **관측 기간 뒤 차단에 써도 된다**. 학습한 모델이 Hugging Face에 올라가기 전까지 이미지에 든 것은 공개 모델 guard-base(관측 전용)다. 사내 가드레일도 같은 웹훅 계약으로 바꿔 낀다.
 
 바로 보기: `python3 web/app.py`(브라우저 비교 화면) 또는 `python3 scripts/demo.py`(터미널) — Docker·외부 공급자 없이 여섯 장면을 보여 준다(3절).
 아래는 웹 화면 기록이다(대체값 도입 전의 GIF라 "상류가 실제로 받은 것"에 가짜 값 대신 `[PII:…]` 토큰이 보인다).
@@ -102,8 +102,9 @@ LLM 앱과 AI 공급자 사이에 두는 자체 호스팅 프록시다. **밖으
 - **룰이 모르는 공격.** 인젝션 룰은 정해 둔 한국어·영어 어휘에만 듣는다. 공개 데이터셋으로 만든 평가셋 v1([`eval/injection/`](eval/injection/SOURCES.md), 한국어 공격 1,592건 포함)의
   dev에서 **재현율 8.7%**(한국어 5.9%·영어 16.0%, 역할 헤더 위조 2.9%·난독화 2.9%·문서 속 간접 지시 5.1%), 오탐률 2.7%(일반 업무 문장 0%, 트리거 단어가 든 정상 문장 9.2%)다 —
   차단 도구로 쓸 수준이 아니다. 관측(`would_block`)으로만 쓴다. 분류기·외부 가드레일은 같은 셋으로 잰다(`python3 eval/injection/score.py`, 분류기는 `python -m detect.evaluate_injection`).
-- **분류기도 한 겹일 뿐이다.** 이어 학습한 인젝션 분류기(D-128)는 봉인 홀드아웃(오탐 1% 문턱)에서 한국어 공격 97.5%·영어 93.8%를 잡고 한국어 정상 1.5%를 잘못 의심하지만, 학습 쪽을 뺀 개발셋(dev-eval)에서는 한국어 85.9%·영어 89.8%고
-  영어 트리거 단어가 든 정상 문장은 홀드아웃에서 5.3%를 잘못 의심한다. 가짜 판정 JSON을 붙이는 조작(D-054 양성대조)에는 최대 0.7%만 뒤집힌다(이어 학습 전 8.9%). 홀드아웃·개발셋은 같은 종류의 공개 공격이라 새 꼴의 공격은 관측 기간에 실제 트래픽으로 본다.
+- **분류기도 한 겹일 뿐이다.** 이어 학습한 인젝션 분류기(D-128)는 봉인 홀드아웃(개발셋 오탐 1%로 고른 문턱)에서 한국어 공격 97.5%·영어 93.8%를 잡고 정상 문장은 한국어 1.5%(7/470)·영어 5.3%(6/114)·전체 2.3%를 잘못 의심한다.
+  학습 쪽을 뺀 개발셋(dev-eval)에서는 한국어 85.9%·영어 89.8%다 — 홀드아웃의 어려운 출처는 원문 그룹이 20개뿐이라 표본 오차가 크다. 가짜 판정 JSON을 붙이는 조작(D-054 양성대조)에는 최대 0.7%만 뒤집힌다
+  (이미지에 든 공개 모델은 8.9% — 기저 셋이 다르고, 같은 수법을 다른 문구로 학습한 결과다). 홀드아웃·개발셋은 같은 종류의 공개 공격이라 새 꼴의 공격은 관측 기간에 실제 트래픽으로 본다.
   정확도·지연·메모리는 [운영 — 가드레일 웹훅](docs/operations.md#가드레일-웹훅)과 D-128. 텍스트를 따로 보므로 맥락상 정당한 지시와 구분하지 못하고, 적응형 공격자는 피해 갈 수 있다. 이전 턴은 다시 보지 않는다.
 - **출력 방향.** 모델이 새로 내보낸 개인정보는 사용자에게 그대로 간다 — 가리지 않고 감사 `pii_new`·지표 `gateway_pii_new_total`로 센다
   (그 요청에서 가린 원문·발급한 가짜 값이 아닌 것. detect 모드에서는 사용자가 보낸 값이 되돌아온 것도 센다).
@@ -154,6 +155,15 @@ python3 scripts/demo.py
 python3 web/app.py
 ```
 
+공개 데모(선택, D-131) — 이 화면을 누구나 여는 곳에 올릴 때는 **공개 모드**(`WEB_PUBLIC=1` — 데모 이미지 `web/Dockerfile`의 기본)로 띄운다. 상류는 두 쪽 모두 스텁으로 고정되고(`WEB_ON_TARGET`·`.env`를 읽지 않는다 —
+방문자가 넣은 글이 외부 공급자로 나가지 않는다), 본문 8,192바이트·방문자별 분당 20건·전체 분당 300건 상한이 걸리고(프록시 뒤에서는 그 프록시가 채우는 방문자 주소 헤더를 `WEB_CLIENT_IP_HEADER`로 정한다 — 정하지 않으면 모든 방문자가 한 주소로 세어진다), 방문자끼리 글이 섞이지 않게 한 번에 한 요청만 처리하며, 넣은 글은 요청이 끝나면 지운다(디스크에 쓰지 않는다).
+Fly.io 배포 견본은 [`deploy/demo/fly.toml`](deploy/demo/fly.toml)(명령은 파일 머리 주석).
+
+```bash
+docker build -f web/Dockerfile -t llm-gateway-demo .
+docker run --rm -p 8090:8090 llm-gateway-demo
+```
+
 직접 띄워 보기 (터미널 둘):
 
 ```bash
@@ -190,6 +200,9 @@ GATEWAY_CLIENT_KEYS="app=$APP_KEY" GATEWAY_SURROGATE_KEY="$(python3 -m gateway k
 
 Docker — 비root(uid 10001)로 돌고, 감사 로그만 stdout(JSONL)으로, 기동·오류 로그는 stderr로 나간다(접근 로그는 꺼져 있다). 워커 수는 `WEB_CONCURRENCY`(기본 1), 프록시 뒤에 두면
 신뢰할 프록시 주소를 `FORWARDED_ALLOW_IPS`로 준다(기본 127.0.0.1 — 그 밖에서 온 `X-Forwarded-For`는 무시된다).
+
+릴리스 이미지(0.2.0부터)는 `ghcr.io/hongjinkong/llm-security-gateway:<버전>`과 `ghcr.io/hongjinkong/llm-security-gateway-detect:<버전>`(탐지 사이드카)이다 — 취약점 스캔을 통과한 것만 올라가고
+cosign 서명·SBOM이 붙는다. 검증 명령은 [운영 — 업그레이드](docs/operations.md#업그레이드). 직접 빌드하려면:
 
 ```bash
 docker build -f gateway/Dockerfile -t llm-security-gateway .
@@ -264,6 +277,7 @@ detect/     탐지 사이드카 — 한국어 NER(이름·주소·직장, GATEWA
 
 보안 담당자용 [보안 백서](docs/security-whitepaper.md)(데이터 흐름·저장하지 않는 것·키 취급·위협 모델·한계)와 법무용 [법적 위치 메모](docs/legal-position.md)(개인정보 보호법 안에서의 위치 — **변호사 검토 전 초안**)가 있다.
 PoC 때는 고객 샘플 JSONL로 `python3 scripts/poc_report.py samples.jsonl`을 돌려 종류별 탐지 수·오탐 후보(값의 모양)·복원률·처리 시간 리포트를 만든다 — 원문은 리포트에 들어가지 않는다(D-129).
+2주 운영 뒤에는 감사 로그로 v1.0 기준(의심 잔여·게이트웨이 몫 5xx 각각 0.1% 미만)을 잰다 — `python3 scripts/poc_gate.py audit.jsonl`(D-132). 지원 계약의 구성은 [가격·계약 초안](docs/pricing.md)(**초안**).
 
 ---
 

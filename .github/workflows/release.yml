@@ -1,0 +1,219 @@
+# D-130: 태그 v* → [build] 버전 확인 → 이미지 둘 빌드 → 파일로 → [scan] 취약점 스캔 → SBOM → [publish] GHCR 푸시 → cosign keyless 서명·SBOM 증명 → latest → GitHub 릴리스.
+# 작업을 셋으로 나눈다 — 스캐너(Trivy·Syft)는 실행 때 바이너리를 내려받는다.
+#   build   서드파티 코드가 없다(체크아웃·docker·GitHub의 아티팩트 액션뿐). 이미지 파일의 SHA-256을 작업 출력으로 넘긴다.
+#   scan    읽기 권한뿐이다. 여기서 무엇이 바뀌어도 publish는 build가 넘긴 해시와 맞는 이미지 파일만 올린다.
+#   publish 푸시·서명·릴리스 권한(쓰기·OIDC). 서드파티는 cosign 설치뿐이고, 받은 파일은 작업 폴더 밖에 풀어 체크아웃한 스크립트를 덮지 못한다.
+# 스캔이 푸시보다 먼저다 — 고칠 수 있는 HIGH·CRITICAL이 하나라도 있으면 아무것도 올라가지 않는다. `latest`는 서명·증명이 끝난 뒤에만 옮긴다.
+# 액션은 커밋 SHA로 고정한다(ci.yml과 같다). run 스크립트에 표현식을 끼워 넣지 않는다(태그 이름이 셸 코드에 섞이지 않게) — 값은 환경변수로만 받는다.
+# 태그는 ci가 초록인 main 커밋에 단다(이 워크플로는 테스트를 다시 돌리지 않는다). publish만 실패하면 7일 안에 'Re-run failed jobs'로 그 작업만 다시 돌린다(같은 이미지 파일을 쓴다).
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+# 태그 여럿을 함께 밀어도 한 번에 하나씩, 빠짐없이 돈다(queue: max — 기본값은 대기 중인 실행을 하나만 남긴다). 예전 계열의 패치 태그도 latest를 옮긴다 — 지금은 계열이 하나다(D-130 §5)
+concurrency:
+  group: release
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    outputs:
+      sha256: ${{ steps.save.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: 버전 확인(태그 = pyproject.toml = CHANGELOG 절)
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          python3 scripts/release_notes.py -- "$version" > /dev/null   # `--`: 태그가 -h 같은 꼴이어도 옵션으로 읽히지 않는다
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # 러너의 docker에만 둔다(레지스트리 이름은 publish가 붙인다). detect 이미지는 빌드 때 모델(약 800MB)을 고정 리비전에서 받아 해시를 맞춘다
+      - name: 이미지 빌드
+        run: |
+          labels=(
+            --label "org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+            --label "org.opencontainers.image.revision=$GITHUB_SHA"
+            --label "org.opencontainers.image.version=$VERSION"
+          )
+          docker build --provenance=false "${labels[@]}" -f gateway/Dockerfile -t "llm-security-gateway:$VERSION" .
+          docker build --provenance=false "${labels[@]}" -f detect/Dockerfile -t "llm-security-gateway-detect:$VERSION" .
+
+      # 해시는 아티팩트가 아니라 작업 출력으로 넘긴다 — 아티팩트는 같은 실행의 다른 작업이 지우고 다시 올릴 수 있다
+      - name: 이미지를 파일로
+        id: save
+        run: |
+          docker save -o images.tar "llm-security-gateway:$VERSION" "llm-security-gateway-detect:$VERSION"
+          echo "sha256=$(sha256sum images.tar | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: images
+          path: images.tar
+          if-no-files-found: error
+          retention-days: 7
+
+  scan:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: images
+          path: ${{ runner.temp }}/images
+      - name: 이미지를 이 러너의 docker에 올린다
+        run: |
+          docker load -i "$RUNNER_TEMP/images/images.tar"
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
+      # 먼저 HIGH·CRITICAL 전부(수정판이 없는 것 포함)를 표로 남긴다 — 막지 않는다. 비밀 검사는 ci.yml의 gitleaks 몫이라 끈다.
+      # cache: "false" — Actions 캐시에서 복원한 바이너리·DB를 쓰지 않는다(캐시는 main의 다른 워크플로가 채울 수 있다). 둘째부터는 첫 단계가 깐 trivy를 쓴다
+      - name: 취약점 목록 — 게이트웨이(미수정 포함, 막지 않음)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: llm-security-gateway:${{ env.VERSION }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+          timeout: 15m
+          cache: "false"
+      - name: 취약점 목록 — 탐지 사이드카(미수정 포함, 막지 않음)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: llm-security-gateway-detect:${{ env.VERSION }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: "0"
+          timeout: 15m
+          cache: "false"
+          skip-setup-trivy: true
+      # 게이트: 고칠 수 있는(ignore-unfixed) HIGH·CRITICAL이 있으면 여기서 멈춘다 — 미수정 CVE는 릴리스를 막지 않는다(D-130 §3)
+      - name: 취약점 게이트 — 게이트웨이
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: llm-security-gateway:${{ env.VERSION }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          timeout: 15m
+          cache: "false"
+          skip-setup-trivy: true
+      - name: 취약점 게이트 — 탐지 사이드카
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: llm-security-gateway-detect:${{ env.VERSION }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          timeout: 15m
+          cache: "false"
+          skip-setup-trivy: true
+
+      # SBOM은 스캔한 그 이미지로 만든다. 릴리스 자산과 아티팩트 올리기는 끈다 — 아래에서 따로 넘긴다
+      - name: SBOM — 게이트웨이
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: llm-security-gateway:${{ env.VERSION }}
+          format: spdx-json
+          output-file: llm-security-gateway.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: SBOM — 탐지 사이드카
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: llm-security-gateway-detect:${{ env.VERSION }}
+          format: spdx-json
+          output-file: llm-security-gateway-detect.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sboms
+          path: |
+            llm-security-gateway.spdx.json
+            llm-security-gateway-detect.spdx.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [build, scan]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write   # GitHub 릴리스 생성
+      packages: write   # GHCR 푸시(이미지·서명·증명)
+      id-token: write   # cosign keyless — GitHub OIDC 토큰
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # 받은 파일은 작업 폴더 밖에 푼다 — 아티팩트 안의 파일이 체크아웃한 scripts/를 덮어 이 작업의 권한으로 돌지 못하게
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: images
+          path: ${{ runner.temp }}/release/images
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sboms
+          path: ${{ runner.temp }}/release/sboms
+
+      # build가 만든 그 이미지 파일인지 해시로 확인한 뒤에만 올린다. 버전 태그만 먼저 민다 — 뒤 단계(서명·증명·노트)는 태그가 아니라 여기서 읽은 다이제스트를 가리킨다
+      - name: 이미지 파일 확인·GHCR 로그인·버전 태그 푸시
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGES_SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          owner="${GITHUB_REPOSITORY_OWNER,,}"   # GHCR 주소는 소문자만 받는다
+          echo "$IMAGES_SHA256  $RUNNER_TEMP/release/images/images.tar" | sha256sum -c -
+          docker load -i "$RUNNER_TEMP/release/images/images.tar"
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          push() {
+            docker tag "$2:$version" "ghcr.io/$owner/$2:$version"
+            docker push "ghcr.io/$owner/$2:$version"
+            # 이 레지스트리 이름의 다이제스트를 고른다(이미지 저장소 구현에 따라 로컬 이름의 줄이 먼저 올 수 있다)
+            ref="$(docker inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "ghcr.io/$owner/$2:$version" | grep -m1 -E "^ghcr\.io/$owner/$2@sha256:[0-9a-f]{64}$" || true)"
+            [ -n "$ref" ] || { echo "다이제스트를 읽지 못했다: $2"; exit 1; }
+            echo "$1=$ref" >> "$GITHUB_ENV"
+          }
+          push GATEWAY_REF llm-security-gateway
+          push DETECT_REF llm-security-gateway-detect
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      # keyless: 키가 없다 — 이 작업의 OIDC 토큰으로 짧은 수명 인증서를 받아 서명하고 투명 로그(Rekor)에 남긴다
+      - name: 서명·SBOM 증명(cosign keyless)
+        run: |
+          cosign sign --yes "$GATEWAY_REF"
+          cosign sign --yes "$DETECT_REF"
+          cosign attest --yes --type spdxjson --predicate "$RUNNER_TEMP/release/sboms/llm-security-gateway.spdx.json" "$GATEWAY_REF"
+          cosign attest --yes --type spdxjson --predicate "$RUNNER_TEMP/release/sboms/llm-security-gateway-detect.spdx.json" "$DETECT_REF"
+
+      # latest는 서명·증명이 끝난 이미지로만 옮긴다 — 앞 단계가 실패하면 latest는 예전 릴리스를 가리킨 채다
+      - name: latest 태그
+        run: |
+          for ref in "$GATEWAY_REF" "$DETECT_REF"; do
+            docker tag "${ref%@*}:$VERSION" "${ref%@*}:latest"
+            docker push "${ref%@*}:latest"
+          done
+
+      - name: GitHub 릴리스(CHANGELOG 절 + 다이제스트 + 검증 명령, SBOM 첨부)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 scripts/release_notes.py --repo "$GITHUB_REPOSITORY" --image "$GATEWAY_REF" --image "$DETECT_REF" -- "$VERSION" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md" \
+            "$RUNNER_TEMP/release/sboms/llm-security-gateway.spdx.json" "$RUNNER_TEMP/release/sboms/llm-security-gateway-detect.spdx.json"

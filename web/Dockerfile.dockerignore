@@ -1,0 +1,13 @@
+# 데모 이미지(web/Dockerfile)의 빌드 문맥 — 이 파일이 있으면 루트의 .dockerignore 대신 쓰인다(BuildKit). 전부 빼고 쓰는 것만 넣는다.
+*
+!pyproject.toml
+!README.md
+!LICENSE
+!gateway
+!web
+!tests/__init__.py
+!tests/procs.py
+!tests/stub_target.py
+**/__pycache__
+**/*.pyc
+**/.DS_Store

@@ -16,6 +16,7 @@ import argparse
 import json
 import math
 import random
+import shutil
 import subprocess
 import sys
 import time
@@ -30,6 +31,8 @@ from eval.injection import score  # noqa: E402
 TRAIN_DIR = ROOT / "eval" / "injection" / "train"
 DEFAULT_LR = {"horizon-guard-base-src": 2e-5, "horizon-guard-small-src": 3e-5}
 SEED = 20261104
+REPO = "https://github.com/hongjinkong/llm-security-gateway"     # 모델 카드가 가리키는 곳(학습 데이터 출처·결정 기록)
+SCRIPTS = ("detect/train.py", "eval/injection/train/build.py", "eval/injection/train/split.py", "detect/requirements-train.txt")   # 학습 결과를 정하는 파일 — manifest에 해시를 남긴다
 
 
 def load_rows(path: Path, limit: int | None = None) -> list[dict]:
@@ -168,6 +171,8 @@ def fit(a: argparse.Namespace, spec: dict, folder: Path, lr: float, device: str,
             with torch.autocast(device, dtype=torch.bfloat16, enabled=autocast):
                 logits = model(input_ids=x, attention_mask=m).logits.float()
             loss = torch.nn.functional.cross_entropy(logits, y) / a.accum
+            if not math.isfinite(loss.item()):
+                raise SystemExit(f"손실이 숫자가 아니다(epoch {epoch}, step {step}) — 학습률·데이터를 본다. 결과 폴더는 완성되지 않았다")
             loss.backward()
             running += loss.item() * a.accum * len(b)
             seen += len(b)
@@ -197,7 +202,8 @@ def main() -> None:
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
     ap = argparse.ArgumentParser(description="인젝션 분류기 이어 학습(D-128)")
-    ap.add_argument("--base", default="horizon-guard-base-src", help="models.json의 purpose=train-base 항목")
+    ap.add_argument("--base", default="horizon-guard-base-src", choices=sorted(n for n, m in MODELS.items() if m.get("purpose") == "train-base"),
+                    help="models.json의 purpose=train-base 항목")
     ap.add_argument("--dir", type=Path, default=Path("models"), help="기준 모델을 받아 둔 폴더")
     ap.add_argument("--out", type=Path, required=True, help="결과 폴더(models/<이름>)")
     ap.add_argument("--data", type=Path, default=TRAIN_DIR / "train.jsonl")
@@ -208,7 +214,7 @@ def main() -> None:
     ap.add_argument("--accum", type=int, default=2, help="누적 — 유효 배치 = batch × accum(기본 32)")
     ap.add_argument("--max-len", type=int, default=512, help="특수 토큰 포함 길이(맥북은 256)")
     ap.add_argument("--seed", type=int, default=SEED)
-    ap.add_argument("--device", default="auto", help="auto·cuda·mps·cpu")
+    ap.add_argument("--device", default="auto", choices=("auto", "cuda", "mps", "cpu"), help="cuda는 bf16 autocast, mps·cpu는 fp32(cuda:0 같은 값은 받지 않는다 — 조용히 fp32로 돈다)")
     ap.add_argument("--train-embeddings", action="store_true", help="토큰 임베딩도 학습(기본 동결 — D-128 §2-2)")
     ap.add_argument("--grad-checkpoint", action="store_true", help="활성값 재계산으로 메모리 절약(느려진다)")
     ap.add_argument("--warmup", type=float, default=0.06)
@@ -229,8 +235,17 @@ def main() -> None:
     device = a.device if a.device != "auto" else "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     rows = load_rows(a.data, a.limit)
     val_rows = load_rows(a.val, max(8, a.limit // 4) if a.limit else None)
+    for stale in ("manifest.json", "README.md"):            # 끝까지 가지 못한 실행이 예전 manifest로 완성된 산출물처럼 보이지 않게
+        (a.out / stale).unlink(missing_ok=True)
     log, best_epoch = fit(a, spec, folder, lr, device, rows, val_rows)
-    (a.out / "train_log.json").write_text(json.dumps({"args": {k: str(v) if isinstance(v, Path) else v for k, v in vars(a).items()}, "device": device, "log": log,
+    if not best_epoch:
+        raise SystemExit("저장된 epoch이 없다(검증 점수를 내지 못했다) — 결과 폴더는 완성되지 않았다")
+    # 토크나이저는 기준 모델 파일 그대로 둔다 — 학습 때 건 자르기(--max-len)가 배포할 tokenizer.json에 박히지 않게(어휘는 이어 학습으로 바뀌지 않는다)
+    shutil.copyfile(folder / "tokenizer.json", a.out / "tokenizer.json")
+    # Apache-2.0 §4: 기준 모델의 라이선스 사본과 NOTICE를 함께 배포하고, 바꿨다는 사실을 적는다
+    shutil.copyfile(folder / "LICENSE", a.out / "LICENSE")
+    (a.out / "NOTICE").write_text((folder / "NOTICE").read_text(encoding="utf-8").rstrip("\n") + "\n\n" + modified_notice(spec), encoding="utf-8")
+    (a.out / "train_log.json").write_text(json.dumps({"args": {k: shown(v) if isinstance(v, Path) else v for k, v in vars(a).items()}, "device": device, "log": log,
                                                        "best_epoch": best_epoch}, ensure_ascii=False, indent=1), encoding="utf-8")
 
     # --- ONNX fp32 → INT8(Gather만) — 제작자 export_onnx.py·quantization_check의 'gather_only'와 같은 설정. CPU에서 가장 좋은 가중치를 다시 열어 내보낸다 ---
@@ -242,17 +257,19 @@ def main() -> None:
     onnx_dir.mkdir(exist_ok=True)
     fp32, int8 = onnx_dir / "model.onnx", onnx_dir / "model_quantized.onnx"
     exported = export_onnx(best_model, tok, fp32, int8)
-    check = quant_check(best_model, tok, int8, [unicodedata.normalize("NFC", r["text"]) for r in val_rows[:200]], a.max_len, a.threads)
-    print(f"ONNX {fp32.stat().st_size // 2**20}MB → INT8(Gather) {int8.stat().st_size // 2**20}MB · fp32 대비 양성 확률 차 최대 {check['max_diff']:.4f} · 0.5 판정 일치 {check['agree']:.4f}", flush=True)
-    files = {str(p.relative_to(a.out)): sha256(p) for p in sorted(a.out.rglob("*")) if p.is_file() and p.name not in ("manifest.json", "README.md")}
+    sample = val_rows[::max(1, len(val_rows) // 200)][:200]      # 고르게 뽑는다 — 파일이 id 순이라 앞 200행은 출처·라벨이 한쪽으로 쏠린다
+    check = quant_check(best_model, tok, int8, [unicodedata.normalize("NFC", r["text"]) for r in sample], a.max_len, a.threads)
+    print(f"ONNX {fp32.stat().st_size / 1e6:.0f}MB → INT8(Gather) {int8.stat().st_size / 1e6:.0f}MB · fp32 대비 양성 확률 차 최대 {check['max_diff']:.4f} · 0.5 판정 일치 {check['agree']:.4f}", flush=True)
+    if check["agree"] < 0.99:
+        raise SystemExit(f"INT8이 fp32와 다르게 판정한다(0.5 판정 일치 {check['agree']:.4f} < 0.99) — manifest를 쓰지 않는다")
+    files = {p.relative_to(a.out).as_posix(): sha256(p) for p in sorted(a.out.rglob("*")) if p.is_file() and p.name not in ("manifest.json", "README.md")}
     manifest = {"decision": "D-128", "base": {"name": a.base, "id": spec["id"], "revision": spec["revision"], "license": spec["license"], "files": spec["files"]},
-                "data": {"train": str(a.data.relative_to(ROOT)) if a.data.is_relative_to(ROOT) else str(a.data), "train_sha256": sha256(a.data),
-                         "val": str(a.val.relative_to(ROOT)) if a.val.is_relative_to(ROOT) else str(a.val), "val_sha256": sha256(a.val), "rows": len(rows), "val_rows": len(val_rows)},
+                "data": {"train": shown(a.data), "train_sha256": sha256(a.data), "val": shown(a.val), "val_sha256": sha256(a.val), "rows": len(rows), "val_rows": len(val_rows)},
                 "train": {"seed": a.seed, "lr": lr, "batch": a.batch, "accum": a.accum, "max_len": a.max_len, "epochs": a.epochs, "warmup": a.warmup, "wd": a.wd,
                           "train_embeddings": a.train_embeddings, "grad_checkpoint": a.grad_checkpoint, "device": device, "best_epoch": best_epoch, "log": log},
                 "versions": {"torch": torch.__version__, "transformers": __import__("transformers").__version__, "onnxruntime": __import__("onnxruntime").__version__,
                              "python": sys.version.split()[0]},
-                "commit": git_commit(), "export": exported, "quantization_check": check, "files": files}
+                **code_state(), "export": exported, "quantization_check": check, "files": files}
     (a.out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     (a.out / "README.md").write_text(card(manifest), encoding="utf-8")
     print(f"결과 {a.out}: INT8 SHA-256 {files['onnx/model_quantized.onnx']}", flush=True)
@@ -303,11 +320,28 @@ def quant_check(model, tok, int8: Path, texts: list[str], max_len: int, threads:
     return {"n": len(texts), "max_diff": max(diffs) if diffs else 0.0, "mean_diff": sum(diffs) / len(diffs) if diffs else 0.0, "agree": agree / len(texts) if texts else 1.0}
 
 
-def git_commit() -> str:
-    try:
-        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        return "unknown"
+def shown(path: Path) -> str:
+    """기록에 남길 경로 — 저장소 안이면 상대 경로, 밖의 절대 경로면 이름만(홈 폴더가 공개 저장소에 올라가지 않게)."""
+    if not path.is_absolute():
+        return path.as_posix()
+    return path.relative_to(ROOT).as_posix() if path.is_relative_to(ROOT) else path.name
+
+
+def modified_notice(spec: dict) -> str:
+    return (f"This model was modified from {spec['id']} (revision {spec['revision']}) by further training on the data listed in\n"
+            f"eval/injection/train/SOURCES.md of {REPO} (decision D-128). The tokenizer files are unchanged.\n")
+
+
+def code_state() -> dict:
+    """어느 코드가 만든 모델인가 — HEAD 커밋, 학습을 정하는 경로가 그 커밋과 다른지(커밋 전 코드로 돌렸는지), 스크립트의 SHA-256."""
+    def git(*args: str) -> str | None:
+        try:
+            return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
+        except (OSError, subprocess.CalledProcessError):
+            return None
+    changed = git("status", "--porcelain", "--", "detect", "eval/injection")
+    return {"commit": git("rev-parse", "HEAD") or "unknown", "dirty": None if changed is None else bool(changed),
+            "scripts": {rel: sha256(ROOT / rel) for rel in SCRIPTS}}
 
 
 def card(m: dict) -> str:
@@ -324,14 +358,15 @@ tags: [prompt-injection, guardrail, modernbert, korean]
 
 # llm-security-gateway 인젝션 분류기(한국어 이어 학습, D-128)
 
-`{m['base']['id']}`(@{m['base']['revision'][:8]}, Apache-2.0)를 `eval/injection/train/`의 데이터로 이어 학습했다. 라벨 `SAFE`(0)·`INJECTION`(1), 입력 `input_ids`·`attention_mask`, 출력 `logits`.
-INT8은 임베딩(Gather)만 양자화했다(제작자와 같은 설정). 운영 문턱·게이트 수치는 저장소 DECISIONS.md D-128 §6.
+`{m['base']['id']}`(@{m['base']['revision'][:8]}, Apache-2.0)를 [{REPO.removeprefix("https://")}]({REPO})의 `eval/injection/train/` 데이터로 이어 학습했다.
+라벨 `SAFE`(0)·`INJECTION`(1), 입력 `input_ids`·`attention_mask`, 출력 `logits`. INT8은 임베딩(Gather)만 양자화했다(제작자와 같은 설정). 토크나이저는 기준 모델 파일 그대로다.
+쓰는 법: 글을 NFC로 정규화하고 512토큰 창(겹쳐 가며)마다 잰 양성 확률의 최댓값을 운영 문턱과 비교한다 — 구현은 저장소 `detect/classify.py`, 운영 문턱과 게이트 수치는 `detect/models.json`의 `threshold`와 `DECISIONS.md` D-128 §6.
 
 - 학습 데이터 SHA-256: train `{m['data']['train_sha256']}` ({m['data']['rows']}행) · val `{m['data']['val_sha256']}` ({m['data']['val_rows']}행)
 - 설정: 시드 {t['seed']} · lr {t['lr']} · 배치 {t['batch']}×{t['accum']} · 길이 {t['max_len']} · epoch {t['epochs']}(가장 좋은 epoch {t['best_epoch']}) · 임베딩 학습 {t['train_embeddings']} · 장치 {t['device']}
 - val(epoch {t['best_epoch']}): AUC {best.get('auc')} · recall@FPR≤1% {best.get('recall_at_fpr1')} · 한국어 {best.get('ko_recall_at_fpr1')}
 - 양자화 확인(fp32 대비, {m['quantization_check']['n']}문장): 양성 확률 차 최대 {m['quantization_check']['max_diff']:.4f} · 0.5 판정 일치 {m['quantization_check']['agree']:.4f}
-- 코드 커밋 {m['commit'][:12]} · torch {m['versions']['torch']} · transformers {m['versions']['transformers']}
+- 코드 커밋 {m['commit'][:12]}{' + 커밋하지 않은 변경' if m.get('dirty') else ''} · `detect/train.py` {m['scripts']['detect/train.py'][:12]} · torch {m['versions']['torch']} · transformers {m['versions']['transformers']}{chr(10) + '- ' + m['code_note'] if m.get('code_note') else ''}
 
 ## 파일(SHA-256)
 
@@ -339,7 +374,8 @@ INT8은 임베딩(Gather)만 양자화했다(제작자와 같은 설정). 운영
 
 ## 라이선스·고지
 
-기준 모델과 이 모델은 Apache-2.0이다(기준 모델의 NOTICE를 계승한다). 학습 데이터의 출처·라이선스(CC BY 4.0·MIT·Apache-2.0·BSD-2-Clause)와 바꾼 것은 저장소 `eval/injection/train/SOURCES.md`·`eval/injection/SOURCES.md`에 있다.
+기준 모델과 이 모델은 Apache-2.0이다 — 라이선스 사본은 `LICENSE`, 기준 모델의 고지와 '이어 학습으로 바꿨다'는 표시는 `NOTICE`에 있다.
+학습 데이터의 출처·라이선스(CC BY 4.0·MIT·Apache-2.0·BSD-2-Clause)와 바꾼 것은 저장소의 [`eval/injection/train/SOURCES.md`]({REPO}/blob/main/eval/injection/train/SOURCES.md)·[`eval/injection/SOURCES.md`]({REPO}/blob/main/eval/injection/SOURCES.md)에 있다.
 이 모델은 한 겹의 방어다 — 적응형 공격자는 어떤 분류기든 피해 갈 수 있다.
 """
 

@@ -36,8 +36,8 @@ spec:
               app.kubernetes.io/name: llm-security-gateway
       containers:
         - name: gateway
-          # 20단계 릴리스가 올리는 주소다. 그 전에는 직접 빌드해 올린 이미지 주소로 바꾼다(docs/operations.md).
-          image: ghcr.io/hongjinkong/llm-security-gateway:0.1.0
+          # 릴리스 워크플로(D-130)가 올리는 주소다 — 운영에서는 태그 대신 릴리스 노트의 다이제스트(@sha256:…)로 고정하고 서명을 검증한다(docs/operations.md '업그레이드').
+          image: ghcr.io/hongjinkong/llm-security-gateway:0.2.0
           # 워커는 1(WEB_CONCURRENCY 기본) — 지표·레이트리밋·볼트 상한이 프로세스 단위라 파드 수로 늘린다.
           ports:
             - name: http
@@ -45,7 +45,7 @@ spec:
           env:
             - name: GATEWAY_CONFIG
               value: /etc/llm-security-gateway/gateway.toml
-            # 같은 파드의 탐지 사이드카(아래 detect 컨테이너). 인증이 없으므로 파드 밖으로 열지 않는다
+            # 같은 파드의 탐지 사이드카(아래 detect 컨테이너). 인증이 없다 — Service로 내지 않고, 파드 IP로 닿는 것은 networkpolicy.yaml이 막는다
             - name: GATEWAY_DETECT_URL
               value: http://127.0.0.1:8081
             # 같은 사이드카의 인젝션 분류기를 가드레일 웹훅으로(D-127) — 켜고 끄는 것은 gateway.toml의 정책 키 guard(기본 off, 사이드카에 분류기를 실어야 한다)
@@ -84,8 +84,8 @@ spec:
               mountPath: /etc/llm-security-gateway
               readOnly: true
         - name: detect
-          # 탐지 사이드카(detect/Dockerfile — 모델은 빌드 때 받아 이미지 안에 있다). 20단계 릴리스가 올리는 주소다. 그 전에는 직접 빌드해 올린 주소로 바꾼다
-          image: ghcr.io/hongjinkong/llm-security-gateway-detect:0.1.0
+          # 탐지 사이드카(detect/Dockerfile — 모델은 빌드 때 받아 이미지 안에 있다). 릴리스 워크플로(D-130)가 올리는 주소다
+          image: ghcr.io/hongjinkong/llm-security-gateway-detect:0.2.0
           ports:
             - name: detect
               containerPort: 8081

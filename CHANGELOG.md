@@ -1,9 +1,29 @@
 # 변경 기록
 
-## 미출시
+## 0.2.0 — 2026-11-10
 
-- 인젝션 분류기 한국어 이어 학습(D-128): `Horizon-Labs/prompt-injection-guard-small`을 한국어 중심 학습 데이터 13,932행으로 이어 학습한 `injection-ko-small-int8`(INT8 255MB, 운영 문턱 0.9833)이 사전 등록한 네 게이트를 넘어 **채택** —
-  봉인 홀드아웃(두 번째 개봉) 한국어 공격 97.5%(이어 학습 전 61.7%)·영어 93.8%, 한국어 정상 오탐 1.5%(경계), D-054 양성대조 최대 0.7%(전 8.9%). 학습 쪽을 뺀 dev(dev-eval)는 한국어 85.9%·오탐 0.4%. 영어 트리거 정상 문장 오탐 5.3%(홀드아웃)는 주의.
+- 릴리스 공정(D-130): 태그 `v<버전>`을 푸시하면 `.github/workflows/release.yml`이 태그 = `pyproject.toml` 버전 = 이 파일의 절을 확인한 뒤 이미지 둘
+  (`ghcr.io/<owner>/llm-security-gateway`·`llm-security-gateway-detect`, 태그 `<버전>`·`latest`)을 빌드 → Trivy 취약점 스캔(HIGH·CRITICAL 전부를 표로 남기고, 고칠 수 있는 것이 하나라도 있으면 **아무것도 올리지 않는다**) → SBOM(syft, SPDX JSON) →
+  GHCR에 버전 태그 푸시 → cosign keyless 서명과 SBOM 증명 → `latest` → GitHub 릴리스(이 절 + 이미지 다이제스트 + 검증 명령, SBOM 첨부 — `scripts/release_notes.py`). 작업은 셋이다 — build(서드파티 코드 없음, 이미지 파일의 SHA-256을 작업 출력으로) → scan(스캐너, 읽기 권한뿐) →
+  publish(푸시·서명 권한 — 해시가 맞는 이미지 파일만 올리고, 받은 파일은 작업 폴더 밖에 푼다). 액션은 커밋 SHA로 고정했다. 탐지 사이드카 이미지에 내장 모델의 라이선스 고지(`/licenses/`, Horizon 모델의 LICENSE·NOTICE)를 싣는다.
+  검증 방법은 [운영 — 업그레이드](docs/operations.md#업그레이드). dependabot(pip·github-actions·docker, 주마다 — PR은 제안), CI `secrets` 작업(gitleaks, 푸시·PR 범위 —
+  `.gitleaks.toml`은 합성 키 경로 `eval/`·`tests/`와 `detect/models.json`의 SHA-256만 허용). 이미지는 linux/amd64만. k8s 견본의 이미지 태그 0.2.0, 사이드카 포트(8081)를 막는 NetworkPolicy 견본(`deploy/k8s/networkpolicy.yaml`)
+- 실 공급자 확인 2 준비(D-133): 실제 GPT·Gemini·Claude 모델 앞에서 가림·복원(되풀이·스트리밍·도구 인자·2턴)을 보는 `scripts/check_real_providers.py` — 상류는 여러 공급자를 한 키로 부르는 라우터. 기준·상한(요청 90건)을 사전 등록했고
+  `--stub`으로 세 API × 네 검사의 배선을 확인했다. **실제 실행은 아직 하지 않았다**(등록 커밋 뒤)
+- v1.0 기준의 자와 가격 초안(D-132): `scripts/poc_gate.py` — 감사 로그에서 mask로 돈 구간(14일 이상, 빈 날 없이)의 의심 잔여 비율과 게이트웨이 몫 실패 비율(5xx + 스트림 도중 실패, 상류 장애·클라이언트 끊김 제외)을 재서 각각 0.1% 미만인지 판정한다
+  (분모 1,000건 미만은 판정 불가). `docs/pricing.md`(초안 — 코드는 전부 Apache-2.0, 유료는 배포 단위 연간 지원 계약)
+
+- 공개 데모(D-131, 선택): 비교 데모 웹(`web/app.py`)에 **공개 모드** `WEB_PUBLIC=1` — 상류는 두 팔 모두 스텁 고정(`WEB_ON_TARGET`·`.env`를 읽지 않는다), `/api/chat` 본문 8,192바이트 상한(413 — 게이트웨이 팔의 4,096보다 커서 '너무 큰 본문' 장면이 게이트웨이의 413까지 간다)·본문 5초 기한(408),
+  방문자별·전체 분당 요청 상한(429 — `WEB_RATE_PER_MINUTE` 20·`WEB_RATE_TOTAL_PER_MINUTE` 300, 방문자 주소는 `WEB_CLIENT_IP_HEADER`), 한 번에 한 요청(동시에 쓰는 방문자가 서로의 글을 '상류가 받은 것'으로 보던 것을 막는다 — 재현 24팔 중 19팔),
+  요청이 끝나면 스텁의 수신 기록 삭제, 감사 로그 1MiB 상한. 데모 이미지 `web/Dockerfile`(공개 모드 기본·비root), Fly.io 견본 `deploy/demo/fly.toml`. 로컬 데모(`python3 web/app.py`)는 그대로다
+- 보안 백서 + 법적 위치 메모 + PoC 키트(D-129): `docs/security-whitepaper.md`(데이터 흐름·저장하지 않는 것·대체값 키·위협 모델·한계, 숫자마다 결정 번호),
+  `docs/legal-position.md`(PIPA 가명처리와의 관계 — **변호사 검토 전 초안**, 확인 항목 8), `scripts/poc_report.py`(고객 샘플 JSONL → 종류별 탐지 수·오탐 후보(값의 모양)·복원률·처리 시간 리포트,
+  원문·가짜 값은 리포트에 넣지 않는다). 리뷰 반영(2026-11-10): 백서의 틀린 주장 수정 — **가짜 전화·카드·주민번호 꼴은 실제 값과 겹칠 수 있다**(예약 대역은 이메일뿐), 볼트 상한은 새 요청 거절,
+  키 회전은 복원을 깨지 않는다, 감사 줄에는 탐지 위치·길이도 있다, 웹훅은 가리지 않는 종류를 원문으로 받는다. 메모의 제28조의4 항 번호·적용 한정과 단정 표현, 확인 항목 8개. 리포트의 '모양'은 허용한 글자만 그대로 낸다
+- 인젝션 분류기 한국어 이어 학습(D-128): `Horizon-Labs/prompt-injection-guard-small`을 한국어 중심 학습 데이터 13,932행으로 이어 학습한 `injection-ko-small-int8`(INT8 268MB, 운영 문턱 0.9833)이 사전 등록한 네 게이트를 넘어 **채택** —
+  봉인 홀드아웃(두 번째 개봉) 한국어 공격 97.5%(이미지에 든 공개 모델 guard-base는 61.7%)·영어 93.8%, 정상 오탐은 한국어 1.5%(경계)·영어 5.3%·전체 2.3%(문턱은 개발셋 오탐 1%로 고른 값 — 홀드아웃 오탐을 1%로 맞추면 한국어 90.6%·영어 84.1%),
+  D-054 양성대조 최대 0.7%(guard-base는 8.9% — 기저 셋이 다르다). 학습 쪽을 뺀 dev(dev-eval)는 한국어 85.9%. 리뷰 반영(2026-11-10): 올릴 폴더에 기준 모델의 LICENSE·NOTICE, `tokenizer.json`은 기준 모델 파일 그대로(학습 길이 256이 박혀 있었다),
+  manifest에 커밋 전 변경 여부와 스크립트 해시, `train_log.json`의 절대 경로 제거, `detect.train`의 인자 검증·실패 시 중단, `detect.fetch`가 아직 올리지 않은 모델을 알려 줌.
   **관측 기간 뒤 `block`에 써도 된다**. 이미지 기본값은 Hugging Face에 올린 뒤 바꾼다(그때까지 `models.json`에 `published: false`). 학습 데이터 빌더 `eval/injection/train/build.py`(dev의 학습 쪽 절반 + 평가셋이 쓰지 않은 공개 행 + 에이전트 작성 한국어 정상 543 +
   결정적 변형 7종·판정 조작 꼬리 12종 — 평가 그룹과 그룹·문장이 겹치지 않고 D-054 문구는 쓰지 않는다, `tests/test_d128_train.py`), 학습 스크립트 `detect/train.py`(따로 둔 가상환경 `detect/requirements-train.txt`, 기준 모델 safetensors 항목 `horizon-guard-base-src`·`-small-src`,
   safetensors → ONNX → INT8(Gather만) → manifest·모델 카드, M2 CPU 25분), 평가 `detect.evaluate_injection --exclude-train`(dev-eval). base(308M) 이어 학습은 GPU 기계 몫으로 남았다.

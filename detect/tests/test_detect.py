@@ -9,6 +9,7 @@ from __future__ import annotations
 import itertools
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -458,14 +459,20 @@ def test_t7_train_script_runs_end_to_end_on_a_tiny_slice(tmp_path):
         pytest.skip(f"기준 모델 없음: {base}(python -m detect.fetch horizon-guard-small-src)")
     out = tmp_path / "tiny"
     cmd = [sys.executable, "-m", "detect.train", "--base", "horizon-guard-small-src", "--dir", str(MODEL_DIR), "--out", str(out),
-           "--limit", "48", "--epochs", "1", "--max-len", "64", "--batch", "8", "--accum", "1", "--device", "cpu", "--threads", "2"]
+           "--limit", "48", "--epochs", "1", "--max-len", "64", "--batch", "8", "--accum", "4", "--device", "cpu", "--threads", "2"]    # 6묶음 = 누적 4 + 남은 2(epoch 끝에 한 걸음)
     run = subprocess.run(cmd, cwd=Path(__file__).resolve().parents[2], capture_output=True, text=True, timeout=900)
     assert run.returncode == 0, run.stderr[-2000:]
     m = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert m["decision"] == "D-128" and m["base"]["name"] == "horizon-guard-small-src" and m["train"]["seed"] == 20261104
     for rel, want in m["files"].items():
         assert hashlib.sha256((out / rel).read_bytes()).hexdigest() == want, rel
-    assert {"model.safetensors", "config.json", "tokenizer.json", "onnx/model.onnx", "onnx/model_quantized.onnx", "train_log.json"} <= set(m["files"])
+    assert {"model.safetensors", "config.json", "tokenizer.json", "onnx/model.onnx", "onnx/model_quantized.onnx", "train_log.json", "LICENSE", "NOTICE"} <= set(m["files"])
+    assert m["train"]["log"][0]["step"] == 2                                              # 누적 한 걸음 + epoch 끝의 남은 누적 한 걸음(D-128에서 다시 학습하게 만든 경로)
+    assert m["files"]["tokenizer.json"] == m["base"]["files"]["tokenizer.json"]   # 학습 길이(자르기 64)가 배포 파일에 박히지 않는다
+    assert "further training" in (out / "NOTICE").read_text(encoding="utf-8") and (out / "LICENSE").read_bytes() == (base / "LICENSE").read_bytes()
+    assert isinstance(m["dirty"], bool) and re.fullmatch(r"[0-9a-f]{64}", m["scripts"]["detect/train.py"])
+    args = json.loads((out / "train_log.json").read_text(encoding="utf-8"))["args"]
+    assert args["data"] == "eval/injection/train/train.jsonl" and not any(isinstance(v, str) and v.startswith(("/", "\\")) and k != "out" for k, v in args.items())
     assert m["export"]["quantization"].startswith("dynamic int8, Gather only") and m["quantization_check"]["agree"] >= 0.99
     assert (out / "onnx" / "model_quantized.onnx").stat().st_size < (out / "onnx" / "model.onnx").stat().st_size * 0.6
     assert "SHA-256" in (out / "README.md").read_text(encoding="utf-8") and len(m["train"]["log"]) == 1

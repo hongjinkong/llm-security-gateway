@@ -1,0 +1,27 @@
+# 공개 데모 배포 견본(D-131, Fly.io). 저장소 루트에서:
+#   fly apps create llm-security-gateway-demo        (이름은 Fly 전체에서 유일해야 한다 — 겹치면 아래 app과 함께 바꾼다)
+#   fly deploy . --config deploy/demo/fly.toml --dockerfile web/Dockerfile --ignorefile web/Dockerfile.dockerignore --ha=false
+# 머신은 하나만 둔다(--ha=false) — 레이트리밋과 방문자 분리 잠금이 프로세스 하나 기준이다.
+# 끄기: fly scale count 0 --config deploy/demo/fly.toml   다시 켜기: fly scale count 1 …   지우기: fly apps destroy llm-security-gateway-demo
+app = "llm-security-gateway-demo"
+primary_region = "nrt"   # 도쿄
+
+[env]
+  # 방문자 주소 — Fly Proxy가 채우는 헤더다. 레이트리밋의 키로 쓴다(앞에 다른 프록시를 두면 그 프록시의 주소가 된다 — 그때는 전체 상한만 믿는다)
+  WEB_CLIENT_IP_HEADER = "Fly-Client-IP"
+
+[http_service]
+  internal_port = 8090
+  force_https = true
+  auto_stop_machines = "stop"    # 요청이 없으면 멈춘다
+  auto_start_machines = true     # 요청이 오면 켠다(첫 요청은 몇 초 걸린다)
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
+    hard_limit = 40
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"               # 파이썬 프로세스 다섯(데모 웹 + 게이트웨이 둘 + 스텁 둘)

@@ -69,6 +69,8 @@ def fetch(name: str, root: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)          # onnx/model.onnx처럼 하위 폴더에 든 파일
         if path.exists() and sha256(path) == want:
             continue
+        if not spec.get("published", True) or not spec["revision"]:      # 이어 학습 산출물 — 올리기 전에는 받을 곳이 없다(D-128)
+            raise SystemExit(f"{name}: 아직 올리지 않은 모델이다(models.json published false) — 파일을 {folder}/ 에 직접 둔다({file}이 없거나 해시가 다르다)")
         url = f"{BASE}/{spec['id']}/resolve/{spec['revision']}/{file}"
         part = path.with_name(path.name + ".part")
         token = _token() if spec.get("gated") else ""

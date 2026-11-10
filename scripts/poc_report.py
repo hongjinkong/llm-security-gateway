@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import string
 import sys
 import time
 from collections import Counter, defaultdict
@@ -25,10 +26,12 @@ from gateway.vault import TokenVault  # noqa: E402
 
 KEY = hashlib.sha256(b"poc-report-local-key").digest()     # 리포트용 고정 키 — 가짜 값은 리포트에 나오지 않으므로 값 자체는 뜻이 없다
 SHAPE_MAX = 40
+SAFE = frozenset(string.punctuation + " ") - frozenset("|`")      # 모양에 그대로 내는 글자 — 구조를 보여 주는 ASCII 구두점과 공백만(표를 깨는 |·`는 뺀다)
 
 
 def shape(value: str) -> str:
-    """값의 모양 — 숫자는 #, 영문은 x, 한글은 ㅇ, 그 밖(구분자·공백)은 그대로. 원문을 드러내지 않고 오탐을 가려내는 데 쓴다."""
+    """값의 모양 — 숫자는 #, 영문은 x, 한글은 ㅇ, 그 밖의 글자는 u, ASCII 구두점·공백은 그대로, 줄바꿈·탭은 ␤, 나머지(원 글자·전각 기호 등)는 ?.
+    원문을 드러내지 않고 오탐을 가려내는 데 쓴다 — 허용한 글자만 그대로 낸다(탐지는 NFKC 뒤에 하므로 ⓐ 같은 글자도 값에 들 수 있다, 리뷰)."""
     out = []
     for c in value[:SHAPE_MAX]:
         if c.isdigit():
@@ -39,8 +42,10 @@ def shape(value: str) -> str:
             out.append("ㅇ")
         elif c.isalpha():
             out.append("u")
-        else:
+        elif c in SAFE:
             out.append(c)
+        else:
+            out.append("␤" if c in "\r\n\t" else "?")
     return "".join(out) + ("…" if len(value) > SHAPE_MAX else "")
 
 
@@ -113,7 +118,7 @@ def analyze(items: list[dict], kinds: frozenset[str], detect_kinds: frozenset[st
 def report(a: dict, source: str) -> str:
     n = a["samples"]
     lines = [f"# PoC 리포트 — `{source}`", "",
-             f"샘플 {n:,}건(건너뜀 {a['skipped']} — `text` 없음·빈 줄) · {a['bytes']:,}바이트 · 길이 중앙값 {a['lengths']['p50']:.0f}자, p95 {a['lengths']['p95']:.0f}자, 최대 {a['lengths']['max']:,}자.",
+             f"샘플 {n:,}건(건너뜀 {a['skipped']} — JSON이 아닌 줄·`text`가 없는 줄) · {a['bytes']:,}바이트 · 길이 중앙값 {a['lengths']['p50']:.0f}자, p95 {a['lengths']['p95']:.0f}자, 최대 {a['lengths']['max']:,}자.",
              "원문과 가짜 값은 이 리포트에 없다 — 모양(숫자 `#`·영문 `x`·한글 `ㅇ`)과 개수만. 정규식 종류 " + ", ".join(f"`{k}`" for k in a["kinds"]) + "만 봤다(이름·주소·직장은 탐지 사이드카가 필요하다).",
              "", "## 종류별 탐지", "", "| 종류 | 가림 | 감사만 | 샘플 수(이 종류가 있는) | 샘플당 평균 |", "|---|---|---|---|---|"]
     for k in a["kinds"]:
@@ -128,7 +133,9 @@ def report(a: dict, source: str) -> str:
     issued, restored = a["issued"], a["restored"]
     lines += ["## 복원률", "",
               f"가짜 값으로 바꾼 뒤 그 텍스트를 그대로 되돌렸을 때: 발급 {issued:,} · 복원 {restored:,} ({pct(restored, issued)}) · 복원 뒤 남은 가짜 값 {a['residual']:,} · 원문과 완전히 같은 샘플 {a['exact']:,}/{n:,}.",
-              "이 숫자는 모델이 가짜 값을 **그대로** 돌려줄 때의 상한이다 — 실제 응답에서 모델이 값을 고쳐 쓰면 복원이 빠진다(감사 `pii_suspect`로 본다).", "",
+              "이 숫자는 모델이 가짜 값을 **그대로** 돌려줄 때의 상한이다 — 실제 응답에서 모델이 값을 고쳐 쓰면 복원이 빠진다(감사 `pii_suspect`로 본다).",
+              "'발급'은 가린 횟수다 — 게이트웨이 감사 줄의 `pii_issued`는 요청 안의 서로 다른 값의 수라 더 작을 수 있다. '남은 가짜 값'은 그대로 되돌릴 때의 값이라 구조상 0에 가깝다.",
+              "게이트웨이의 본문 상한(기본 1MiB)·탐지 상한(5,000)을 넘는 샘플은 실제로는 거절(413)된다 — 이 리포트는 그런 샘플도 그대로 센다.", "",
               "## 처리 시간(이 프로세스 안, 샘플마다 탐지 + 가림 + 복원)", "",
               f"p50 {a['ms']['p50']:.2f}ms · p95 {a['ms']['p95']:.2f}ms · 최대 {a['ms']['max']:.1f}ms. 게이트웨이 경유 지연(인증·중계 포함)은 D-122 측정값을 본다 — 동시 100(스트림 50 + 비스트리밍 50)에서 게이트웨이 자체 처리 `gateway_ms` p95 18.5ms.",
               "", "## 한계", "",
@@ -140,12 +147,12 @@ def report(a: dict, source: str) -> str:
 
 def load(path: Path, limit: int | None) -> list[dict]:
     items: list[dict] = []
-    for line in path.read_text(encoding="utf-8").split("\n"):
+    for line in path.read_text(encoding="utf-8-sig", errors="replace").split("\n"):     # BOM이 있어도 첫 줄을 읽고, 깨진 바이트 하나로 전체가 죽지 않는다
         if not line.strip():
             continue
         try:
             obj = json.loads(line)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):
             items.append({})
             continue
         items.append(obj if isinstance(obj, dict) else {})
@@ -166,7 +173,10 @@ def main() -> None:
     bad = kinds - set(REGEX_KINDS)
     if bad:
         sys.exit(f"모르는 종류: {sorted(bad)} — 정규식 종류 {REGEX_KINDS}")
-    text = report(analyze(load(a.samples, a.limit), kinds, frozenset(k for k in a.detect_kinds.split(",") if k)), a.samples.name)
+    detect_kinds = frozenset(k for k in a.detect_kinds.split(",") if k)
+    if detect_kinds - set(REGEX_KINDS):          # 오타 하나가 감사만 종류를 전부 '가림'으로 바꾸지 않게
+        sys.exit(f"모르는 감사만 종류: {sorted(detect_kinds - set(REGEX_KINDS))} — 정규식 종류 {REGEX_KINDS}")
+    text = report(analyze(load(a.samples, a.limit), kinds, detect_kinds), a.samples.name)
     if a.out:
         a.out.write_text(text, encoding="utf-8")
         print(f"리포트 {a.out}", file=sys.stderr)

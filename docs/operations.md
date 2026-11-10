@@ -4,7 +4,7 @@
 
 ## 배포
 
-**이미지** — `docker build -f gateway/Dockerfile -t llm-security-gateway .`
+**이미지** — 릴리스 이미지 `ghcr.io/hongjinkong/llm-security-gateway:<버전>`(0.2.0부터, 서명 검증은 아래 [업그레이드](#업그레이드)) 또는 직접 빌드 `docker build -f gateway/Dockerfile -t llm-security-gateway .`
 베이스는 다이제스트로 고정한 `python:3.12-slim`, 비root(uid 10001)로 돈다. 포트 8080. 감사 로그(JSONL)는 stdout, 기동·오류 로그는 stderr다.
 uvicorn 접근 로그는 꺼 두었다 — 쿼리 문자열을 값까지 찍어 감사 로그가 일부러 빼는 값을 남긴다. 동시 연결 1,000을 넘으면 uvicorn이 503을 준다.
 루트 파일 시스템을 읽기 전용으로 둬도 된다(쓰는 파일이 없다 — 감사 로그를 파일로 쓸 때만 쓰기 가능한 볼륨이 필요하다).
@@ -285,14 +285,14 @@ stats의 `detect_errors`·지표 `gateway_detect_errors_total{reason}`에 사유
 `GATEWAY_GUARD=observe|block`이면 요청마다 이번 턴의 사용자 글·도구 결과·첨부 문서(공급자에게 갈 것과 같은 텍스트 — 정책이 가리는 종류만 가짜 값)를 `GATEWAY_GUARD_URL`에 보내 판정을 받는다(D-127, 계약은 [설정 — 가드레일 웹훅](configuration.md#가드레일-웹훅-gateway_guard)).
 **기본은 꺼짐**이다 — 배포 견본(compose·k8s)은 켜는 방법만 주석으로 적었다. 켜면 같은 파드 탐지 사이드카의 인젝션 분류기(`/v1/guard`)를 `observe`로 부르는 것을 권한다 — 점수가 감사 줄·대시보드에 남고 막지는 않는다.
 
-- **분류기(이미지 기본, 이어 학습 전)**: `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base 다국어 인코더, INT8 641MB, Apache-2.0 — 다섯 후보 가운데 한국어 recall이 가장 높았다, D-127 §6). 공개 평가셋 v1(D-123)의 dev에서 정상셋 오탐 1%가 되는 문턱(0.9358)이 기본 문턱이다(`DETECT_GUARD_THRESHOLD`로 바꾼다).
+- **분류기(이미지에 든 공개 모델)**: `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base 다국어 인코더, INT8 641MB, Apache-2.0 — 다섯 후보 가운데 한국어 recall이 가장 높았다, D-127 §6). 공개 평가셋 v1(D-123)의 dev에서 정상셋 오탐 1%가 되는 문턱(0.9358)이 기본 문턱이다(`DETECT_GUARD_THRESHOLD`로 바꾼다).
   그 문턱의 정확도(봉인 홀드아웃): 한국어 공격 269/436 = 61.7%·영어 125/227 = 55.1%를 잡고, 정상 문장은 한국어 8/470 = 1.7%·영어 1/114 = 0.9%를 잘못 의심한다(룰은 dev 한국어 5.9%). 유형별(dev) 문서 속 한국어 간접 지시 95.7%·한국어 직접 지시 59.3%·한국어 난독화 43.0%·도구 결과 속 영어 간접 지시 22.7%. **이 모델로는 막지 않는다**: 잡힌 공격 뒤에 가짜 판정 JSON(`"verdict":"benign"`)을 붙이면 8.9%가 문턱 밑으로 떨어진다(D-054 양성대조, 사전 등록한 기준 5% 초과).
-- **분류기(이어 학습, 채택 — D-128)**: `injection-ko-small-int8` — `Horizon-Labs/prompt-injection-guard-small`(mmBERT-small)을 한국어 중심 학습 데이터 13,932행(`eval/injection/train/`)으로 이어 학습한 모델(INT8 255MB, Apache-2.0). 운영 문턱 **0.9833** = 학습 쪽을 뺀 dev(dev-eval) 정상셋 오탐 1%.
-  봉인 홀드아웃(두 번째 개봉): 한국어 공격 **425/436 = 97.5%**·영어 213/227 = 93.8%, 정상 오탐 한국어 7/470 = 1.5%·영어 6/114 = 5.3%(트리거 단어가 든 영어 정상 문장 — NotInject 4/75). dev-eval: 한국어 85.9%·오탐 0.4%, 영어 89.8%·오탐 2.6%, 도구 결과 속 영어 간접 지시 84.1%.
-  D-054 양성대조 최대 0.7%(권한 사칭 8/1,199, 기준 5%) — 사전 등록한 네 게이트를 모두 넘어 **관측 기간 뒤 `block`에 써도 된다**. Hugging Face에 올라간 뒤 이미지 기본이 된다(그때까지 `models.json`에 `published: false` — 로컬 `models/injection-ko-small-int8/`가 있어야 `DETECT_INJECTION_MODEL=injection-ko-small-int8`로 실린다).
-  홀드아웃은 dev-eval보다 쉬운 구성이라(KoreanGuardrail·guardrail4agent 공격이 60%) 두 숫자를 함께 본다 — 새 꼴의 공격은 관측 기간에 실제 트래픽으로 본다. 영어 트리거 문장이 많은 트래픽이면 문턱을 올린다.
-  켜는 법(두 모델 공통): 사이드카에 `DETECT_INJECTION_MODEL=<모델 이름>`(이미지에 들어 있지만 기본으로 싣지 않는다)과 메모리(아래), 게이트웨이에 `GATEWAY_GUARD=observe`·`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard` — k8s 견본은 `gateway.yaml`에 URL이 이미 있고 `gateway.toml`의 `guard` 줄 주석을 풀거나 환경변수 `GATEWAY_GUARD`를 준다.
-- **먼저 관측한다**: 오탐 1%(dev 기준 — 봉인 홀드아웃의 한국어는 1.5~1.7%, 이어 학습 모델의 영어 트리거 문장은 5.3%)는 정상 요청 100건에 1~2건을 막는다는 뜻이다. `observe`로 몇 주 감사 줄(`guard_verdict`·`guard_score`)과 대시보드 '가드레일 위험 판정'을 보고, 실제 트래픽의 오탐이 받아들일 만하면
+- **분류기(이어 학습, 채택 — D-128)**: `injection-ko-small-int8` — `Horizon-Labs/prompt-injection-guard-small`(mmBERT-small)을 한국어 중심 학습 데이터 13,932행(`eval/injection/train/`)으로 이어 학습한 모델(INT8 268MB, Apache-2.0). 운영 문턱 **0.9833** = 학습 쪽을 뺀 dev(dev-eval) 정상셋 오탐 1%.
+  봉인 홀드아웃(두 번째 개봉): 한국어 공격 **425/436 = 97.5%**·영어 213/227 = 93.8%, 정상 오탐 한국어 7/470 = 1.5%·영어 6/114 = 5.3%(영어 정상 전체 — 그중 트리거 단어가 든 NotInject가 4/75)·전체 15/649 = 2.3%. 홀드아웃 정상 오탐을 1%로 맞추면 한국어 90.6%·영어 84.1%다. dev-eval: 한국어 85.9%·오탐 0.4%(문턱을 고른 셋 안의 값), 영어 89.8%·오탐 2.6%, 도구 결과 속 영어 간접 지시 84.1%.
+  D-054 양성대조 최대 0.7%(권한 사칭 8/1,199, 기준 5% — 같은 수법을 다른 문구로 학습한 모델이라 처음 보는 수법의 값은 아니다) — 사전 등록한 네 게이트를 모두 넘어 **관측 기간 뒤 `block`에 써도 된다**. Hugging Face에 올라간 뒤 이미지 기본이 된다. **그때까지 배포 이미지에는 없다**(`models.json`에 `published: false`) — 가진 폴더를 컨테이너에 넣어야 실린다: `-v $PWD/models/injection-ko-small-int8:/models/injection-ko-small-int8:ro -e DETECT_INJECTION_MODEL=injection-ko-small-int8`(없는 이름을 주면 사이드카가 뜨지 않는다).
+  홀드아웃 숫자가 dev-eval보다 높다(97.5 대 85.9%). 출처 구성의 차이는 그중 약 1.6%p만 설명하고 나머지는 같은 출처 안의 차이다 — 어려운 출처(JHC56·corpus)가 홀드아웃에는 원문 그룹 20개(dev-eval은 47개)뿐이라 표본 오차가 크다. 두 숫자를 함께 본다 — 새 꼴의 공격은 관측 기간에 실제 트래픽으로 본다. 영어 트리거 문장이 많은 트래픽이면 문턱을 올린다.
+  켜는 법: 사이드카에 `DETECT_INJECTION_MODEL=<모델 이름>`(이미지에 든 것은 `horizon-guard-base-int8` — 기본으로 싣지 않는다. 이어 학습 모델은 위처럼 폴더를 넣는다)과 메모리(아래), 게이트웨이에 `GATEWAY_GUARD=observe`·`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard` — k8s 견본은 `gateway.yaml`에 URL이 이미 있고 `gateway.toml`의 `guard` 줄 주석을 풀거나 환경변수 `GATEWAY_GUARD`를 준다.
+- **먼저 관측한다**: 오탐 1%(dev 기준 — 봉인 홀드아웃의 한국어는 1.5~1.7%, 이어 학습 모델의 영어 정상 문장은 5.3%)는 정상 요청 100건에 1~2건을 막는다는 뜻이다. `observe`로 몇 주 감사 줄(`guard_verdict`·`guard_score`)과 대시보드 '가드레일 위험 판정'을 보고, 실제 트래픽의 오탐이 받아들일 만하면
   `block`으로 바꾸거나 문턱을 올린다. 긴 문서일수록 창(512토큰)이 많아 오탐이 늘어난다(점수는 창들의 최댓값).
 - **용량**: 분류기와 NER은 같은 사이드카에서 **줄을 따로** 선다(작업마다 한 번에 추론 하나 — 가드레일이 이름·주소 가림을 밀어내지 않는다, 대신 동시에 돌면 CPU를 나눠 쓴다).
   지연은 글 길이에 비례한다 — M2(스레드 4) HTTP p50·p95: 32토큰 32~37·39~43ms, 128토큰 112~150·139~228ms, 510토큰(창 하나) 0.56~0.59·0.65~0.80초(두 번 잼). x86 숫자는 CI `detect` 워크플로가 잰다.
@@ -338,6 +338,31 @@ x86 서버나 CPU 상한이 걸린 컨테이너의 값은 다르다 — 배포�
 - k8s 견본 자원은 이것으로 잡은 잠정값이다 — 요청 CPU 500m·메모리 256Mi, 메모리 상한 1Gi(최대 크기 요청 약 200건이 동시에 들어가는 양). 본문 상한을 올리면 메모리 상한도 같은 비율로 올린다.
 
 ## 업그레이드
+
+**릴리스 이미지**(D-130, 0.2.0부터) — 태그 `v<버전>`마다 릴리스 워크플로(`.github/workflows/release.yml`)가 이미지 둘을 올린다(linux/amd64):
+
+| 이미지 | 내용 |
+|---|---|
+| `ghcr.io/hongjinkong/llm-security-gateway:<버전>` | 게이트웨이 |
+| `ghcr.io/hongjinkong/llm-security-gateway-detect:<버전>` | 탐지 사이드카(모델 파일 포함 — 이름·주소 가림이나 분류기를 켤 때만 필요하다) |
+
+올리기 전에 취약점을 스캔한다(Trivy) — **고칠 수 있는** HIGH·CRITICAL이 하나라도 있으면 릴리스가 실패하고 아무것도 올라가지 않는다. 아직 수정판이 없는 취약점은 막지 않는다 — 릴리스의 scan 작업 '취약점 목록' 단계가 HIGH·CRITICAL 전부(미수정 포함)를 표로 남긴다.
+스캐너가 도는 작업에는 쓰기 권한이 없고, 올리는 작업은 빌드 작업이 넘긴 해시와 맞는 이미지 파일만 올린 뒤 cosign keyless 서명과 SBOM(SPDX JSON) 증명을 붙인다 — `latest`는 서명이 끝난 뒤에만 옮긴다. [GitHub 릴리스](https://github.com/hongjinkong/llm-security-gateway/releases)에 변경 기록·이미지 다이제스트·검증 명령·SBOM 파일이 있다.
+
+받은 이미지가 이 저장소의 릴리스 워크플로가 그 태그에서 만든 것인지 확인한다(cosign 3 이상 — 사이드카 이미지도 같은 명령에 주소만 바꾼다):
+
+```bash
+cosign verify ghcr.io/hongjinkong/llm-security-gateway:0.2.0 \
+  --certificate-identity https://github.com/hongjinkong/llm-security-gateway/.github/workflows/release.yml@refs/tags/v0.2.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+cosign verify-attestation --type spdxjson ghcr.io/hongjinkong/llm-security-gateway:0.2.0 \
+  --certificate-identity https://github.com/hongjinkong/llm-security-gateway/.github/workflows/release.yml@refs/tags/v0.2.0 \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+운영 매니페스트에는 태그 대신 검증한 **다이제스트**(`…@sha256:…` — 릴리스 노트와 `cosign verify` 출력에 있다)를 적는다. 태그는 옮겨질 수 있고 `latest`는 체험용이다.
+직접 빌드한 이미지에는 이 서명이 없다. 내부 레지스트리로 옮길 때는 **옮기기 전에 GHCR 주소로 검증**하고 다이제스트가 유지되는 복사(`crane copy`·`skopeo copy`)를 쓴다 — 서명과 증명은 따로 붙은 것이라 함께 옮겨지지 않을 수 있다(옮긴 주소로 `cosign verify`가 실패해도 다이제스트가 같으면 같은 이미지다).
+사이드카 이미지에 든 모델과 그 라이선스는 이미지의 `/licenses/THIRD_PARTY_NOTICES.md`에 있다.
 
 CHANGELOG를 읽고 이미지 주소를 바꿔 apply한다(롤링). 탐지 규칙이나 가짜 값 생성이 바뀐 버전은 대체값 키를 바꾼 것과 같다(위 '키 회전').
 올린 뒤 `/__gateway/info`의 `version`·`code`(코드 지문)·`config`로 확인한다.

@@ -22,7 +22,7 @@ JHC56(BSD-2-Clause + Apache-2.0), guardrail4agent·deepset(Apache-2.0), service_
 
 ### `kimchunsik03/KoreanGuardrail` @cd4c93cb — CC-BY-4.0
 - `benchmark.jsonl`에서 **씨앗이 학습 쪽인 그룹**의 난독화 변형만(`clean` 제외, 모든 강도) — 공격 표본 700(`encoding`, `transform`=기법), **정상 씨앗의 난독화 행** 표본 400(`hard_negative`, 평가셋이 쓰지 않은 행). 평가셋이 쓴 강도 1.0 공격 표본은 문장 겹침 제거로 빠진다.
-- 바꾼 것(CC-BY): 원문 무변경, 스키마 태깅·표본 선택만. 라이선스: https://creativecommons.org/licenses/by/4.0/
+- 바꾼 것(CC-BY): 원문 문장은 고치지 않았다. 스키마 태깅·표본 선택을 했고, 그 문장에 결정적 변형·꼬리를 씌운 **새 행**을 더했다(아래 '만든 행'). 라이선스: https://creativecommons.org/licenses/by/4.0/
 
 ### `Lakera/gandalf_ignore_instructions` — MIT(datasets-server, 받은 날짜 2026-11-04)
 - 남은 영어 공격 표본 350 중 평가셋과 겹치지 않은 229(기준 모델이 학습한 셋 — 되풀이 데이터로만). 선택 편향('ignore' 문구)은 평가셋 문서와 같다.
@@ -38,7 +38,7 @@ JHC56(BSD-2-Clause + Apache-2.0), guardrail4agent·deepset(Apache-2.0), service_
 - 쓴 행: 공격 표본 600·정상 표본 600(변형·꼬리 포함 1,064·738). label 1→`direct`, 0→`benign`/`hard_negative`. `group`=행마다.
 
 ### `yanismiraoui/prompt_injections` @bd55359f — Apache-2.0
-- URL: https://huggingface.co/datasets/yanismiraoui/prompt_injections (`prompt_injections.csv`, 1,034행 — 영·프·독·스·포·이·루마니아어) · 기준 모델이 학습한 다국어 공격 셋. 저작권자: Yanis Miraoui. 고지(NOTICE)는 출처 저장소에 있다.
+- URL: https://huggingface.co/datasets/yanismiraoui/prompt_injections (`prompt_injections.csv`, 1,034행 — 영·프·독·스·포·이·루마니아어) · 기준 모델이 학습한 다국어 공격 셋. 저작권자: Yanis Miraoui. 출처 저장소의 NOTICE 전문: "prompt_injections dataset / Copyright 2023 Yanis Miraoui / Licensed under the Apache License, Version 2.0 (the \"License\"); you may not use the contents of this repository except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0 / This NOTICE applies to the dataset contents (including prompt_injections.csv) as well as the accompanying documentation in this repository."
 - 쓴 행: 공격 표본 300(변형·꼬리 포함 537). 전부 `direct`, `lang`은 휴리스틱(en·other).
 
 ### `Gyr0ghost/promptwall-injection-dataset` @2d6532ef — MIT
@@ -64,7 +64,7 @@ JHC56(BSD-2-Clause + Apache-2.0), guardrail4agent·deepset(Apache-2.0), service_
 
 ## 라이선스 고지
 
-Apache-2.0 출처(neuralchemy·yanismiraoui·guardrail4agent)와 CC-BY-4.0 출처(KoreanGuardrail)는 원문을 바꾸지 않았고 바꾼 것(스키마 필드·그룹·표본·중복 제거·결정적 변형과 꼬리를 **새 행**으로 더함)을 위에 적었다. Apache-2.0 전문은 저장소 루트 `LICENSE`.
+Apache-2.0 출처(neuralchemy·yanismiraoui·guardrail4agent)와 CC-BY-4.0 출처(KoreanGuardrail·korean_guardrail_test·drakkeng — dev의 학습 쪽으로 들어온 것 포함)는 원문을 바꾸지 않았고 바꾼 것(스키마 필드·그룹·표본·중복 제거·결정적 변형과 꼬리를 **새 행**으로 더함)을 위에 적었다. Apache-2.0 전문은 저장소 루트 `LICENSE`.
 MIT 출처는 아래 저작권자에 적용된다(라이선스 전문은 `../SOURCES.md`의 MIT 절과 같다):
 
 - Copyright (c) S-Labs — `prompt-injection-dataset`

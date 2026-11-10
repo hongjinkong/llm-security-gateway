@@ -62,8 +62,10 @@ const hi = s => esc(s).replace(PII_RE, m => sentText.includes(m) ? m : `<mark ti
 const short = s => s.length > 400 ? s.slice(0, 400) + ` … (${s.length}자)` : s;
 
 async function load() {
-  const info = await (await fetch("/api/info")).json();
-  $("#info").textContent = `있음: ${info.on.detectors.join(",")} · 코드 지문 ${info.on.code} · 상류 ${info.on.upstream} (${info.model})` + (info.real ? " · 실제 공급자 모드: 정상 질문만 보냅니다" : "");
+  const loaded = await fetch("/api/info");
+  if (!loaded.ok) { $("#info").textContent = loaded.status === 429 ? "요청이 많아 잠시 쉬는 중입니다 — 1분 뒤 새로고침해 주세요" : `불러오지 못했습니다(${loaded.status})`; return; }
+  const info = await loaded.json();
+  $("#info").textContent = `있음: ${info.on.detectors.join(",")} · 코드 지문 ${info.on.code} · 상류 ${info.on.upstream} (${info.model})` + (info.real ? " · 실제 공급자 모드: 정상 질문만 보냅니다" : "") + (info.public ? " · 공개 데모: 실제 개인정보를 넣지 마세요 — 가짜 AI(스텁)만 답하고 넣은 글은 디스크에 남기지 않습니다" : "");
   $("#onDet").textContent = info.on.detectors.join(",");
   const scenes = await (await fetch("/api/scenes")).json();
   $("#scenes").innerHTML = scenes.map(s => `<button data-id="${s.id}" ${s.disabled ? "disabled" : ""}>${s.id}. ${esc(s.title)}<small>${esc(s.note)}</small></button>`).join("");
@@ -89,7 +91,11 @@ async function send(messages) {
   $("#sent").innerHTML = `<h3 style="margin:0 0 4px;font-size:13px;color:var(--mute)">보낸 요청</h3>` + msgs(messages);
   $("#off").innerHTML = $("#on").innerHTML = "<div class='audit'>보내는 중…</div>";
   const r = await fetch("/api/chat?stream=1", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages }) });
-  if (!r.ok) { $("#on").innerHTML = `<div class="blocked">${esc(await r.text())}</div>`; return; }
+  if (!r.ok) {      // 웹 층이 거절했다(본문 상한·요청 한도·대기 초과) — 두 칸 모두에 사유를 보인다
+    const why = await r.text().then(t => { try { return JSON.parse(t).detail || t; } catch { return t; } });
+    $("#off").innerHTML = $("#on").innerHTML = `<div class="blocked">${esc(String(why))} (${r.status})</div>`;
+    return;
+  }
   // NDJSON: "없음" 결과 한 줄 → "있음" delta 줄들(게이트웨이가 조각마다 복원한 답이 도착하는 대로) → "있음" 결과 한 줄
   const out = {}, reader = r.body.getReader(), dec = new TextDecoder();
   let buf = "", streamed = "";

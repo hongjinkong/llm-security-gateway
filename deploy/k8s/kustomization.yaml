@@ -6,6 +6,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - gateway.yaml
+  - networkpolicy.yaml
 generatorOptions:            # 만든 ConfigMap·Secret에 붙인다 — 키 회전 뒤 남은 옛 것을 이 레이블로 찾아 지운다(docs/operations.md)
   labels:
     app.kubernetes.io/name: llm-security-gateway

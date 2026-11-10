@@ -73,6 +73,14 @@ async def received(request: Request):
     return {"bodies": RECEIVED[_port(request)]}
 
 
+@app.delete("/__stub/received")
+async def forget(request: Request):
+    """수신 기록을 지운다 — 공개 데모(D-131)가 요청마다 부른다(방문자의 글을 쥐고 있지 않는다)."""
+    RECEIVED[_port(request)].clear()
+    HITS[_port(request)].clear()        # 요청마다 쌓이는 경로 기록도 — 오래 떠 있는 공개 데모에서 끝없이 늘지 않게
+    return {"ok": True}
+
+
 @app.get("/__stub/hits")
 async def hits(request: Request):
     return {"hits": HITS[_port(request)]}

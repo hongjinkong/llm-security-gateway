@@ -10,7 +10,7 @@ You do not change app or model code — only the client's `base_url` and API key
 The detectors target Korean identifiers (resident registration numbers, foreign registration numbers, passports, driver's licenses, Korean phone numbers, business and bank numbers)
 plus cards, emails and API keys. Operator messages default to Korean; set `GATEWAY_LANG=en` for English. The operations and API documents under `docs/` are in Korean.
 
-> **Status**: 0.1.0, following the commercialization plan ([`PLAN.md`](PLAN.md), Korean). Decisions are recorded in [`DECISIONS.md`](DECISIONS.md) from D-108.
+> **Status**: 0.2.0, following the commercialization plan ([`PLAN.md`](PLAN.md), Korean). Decisions are recorded in [`DECISIONS.md`](DECISIONS.md) from D-108.
 
 ## 1. What it does
 
@@ -39,8 +39,8 @@ upstream  OpenAI · Anthropic · OpenAI-compatible servers (Ollama, vLLM, …)
 - **Injection is not blocked by default.** There are two rules (instruction override and role switch, with Korean and English vocabulary), and they match benign sentences too ("ignore the instructions in the PDF and summarize").
   Hits are recorded in the audit log (`would_block`); operators opt in with `GATEWAY_INJECTION=block`. An injection classifier in the detect sidecar can be turned on as a **guardrail webhook**
   (`GATEWAY_GUARD=observe|block`, off by default). A public classifier (`Horizon-Labs/prompt-injection-guard-small`) fine-tuned on Korean data (D-128) catches 97.5% of Korean and 93.8% of English attacks in the sealed holdout
-  at a 1% benign false-positive threshold (the rules: 5.9% on dev; the public model before fine-tuning: 61.7%) and passes the verdict-forging control (at most 0.7% flipped, limit 5%), so it **may be used to block after an observation period**.
-  Until the fine-tuned model is uploaded to Hugging Face, the image default is the pre-fine-tuning model (observe only). Your own guardrail plugs into the same webhook contract.
+  at the threshold chosen for 1% benign false positives on the dev split (2.3% on holdout benign text; at 1% holdout false positives: 90.6% / 84.1%. The rules: 5.9% on dev; the public guard-base model shipped in the image: 61.7%) and passes the verdict-forging control (at most 0.7% flipped, limit 5%), so it **may be used to block after an observation period**.
+  Until the fine-tuned model is uploaded to Hugging Face, the image ships the public guard-base model (observe only). Your own guardrail plugs into the same webhook contract.
 
 ### Detected kinds
 
@@ -88,8 +88,8 @@ repeats only the surname or part of an address is not restored. When the sidecar
 - **Unknown attacks.** The injection rules only know a fixed Korean and English vocabulary. On the dev split of eval set v1 ([`eval/injection/`](eval/injection/SOURCES.md),
   built from public datasets, 1,592 Korean attacks) they catch **8.7%** of attacks (Korean 5.9%, English 16.0%; forged role headers 2.9%, obfuscation 2.9%, indirect 5.1%)
   with a 2.7% false-positive rate (0% on ordinary business text, 9.2% on benign text containing trigger words) — not usable for blocking; observe only.
-  The fine-tuned classifier behind the guardrail webhook (D-128) does much better but is still one layer: on the sealed holdout at a 1% false-positive threshold it catches
-  97.5% of Korean and 93.8% of English attacks (Korean benign false positives 1.5%), 85.9% / 89.8% on the harder dev-eval split, and it falsely flags 5.3% of English benign text containing trigger words (holdout).
+  The fine-tuned classifier behind the guardrail webhook (D-128) does much better but is still one layer: on the sealed holdout, at the threshold chosen for 1% false positives on the dev split, it catches
+  97.5% of Korean and 93.8% of English attacks while flagging 1.5% of Korean and 5.3% of English benign text (2.3% overall); on the harder dev-eval split it catches 85.9% / 89.8%.
   Appending a fake verdict JSON to an attack flips at most 0.7% of its detections (the D-054 positive control; limit 5%; the pre-fine-tuning model: 8.9%). Holdout and dev share the same public attack families — observe real traffic before blocking.
 - **Output direction.** Personal data the model produces on its own reaches the user; it is counted (`pii_new`, `gateway_pii_new_total`), not masked.
 - **Restore failures are quiet.** If the model rewrites a fake value beyond recognition, the user receives the fake value (`x-gateway-pii`, `pii_suspect`, `gateway_pii_suspect_total` show it).
@@ -109,6 +109,14 @@ pytest -q && ruff check . && mypy
 python3 scripts/demo.py          # six scenes against a stub upstream, no Docker or provider needed
 python3 web/app.py               # side-by-side browser view (without / with the gateway)
 ```
+
+Release images (from 0.2.0): `ghcr.io/hongjinkong/llm-security-gateway:<version>` and `ghcr.io/hongjinkong/llm-security-gateway-detect:<version>` (detection sidecar), linux/amd64.
+A release is published only if the vulnerability scan finds no fixable HIGH/CRITICAL issue; images carry a keyless cosign signature and an SPDX SBOM attestation —
+verification commands are in [operations (Korean)](docs/operations.md#업그레이드) and in each GitHub release.
+
+Public demo (optional): the side-by-side page can be hosted for anyone with `web/Dockerfile`, which runs it in public mode (`WEB_PUBLIC=1`) — both arms pinned to the stub upstream
+(visitor input never reaches a provider), 8,192-byte bodies, per-visitor and total rate limits (set `WEB_CLIENT_IP_HEADER` to the header your proxy fills in), one request at a time so visitors never see each other's text, nothing written to disk.
+A Fly.io sample is in [`deploy/demo/fly.toml`](deploy/demo/fly.toml).
 
 Local trial with Docker — gateway plus stub upstream, nothing leaves your machine (fixed keys, local use only):
 
@@ -231,6 +239,7 @@ web/          browser demo
 Report vulnerabilities privately — see [`SECURITY.md`](SECURITY.md).
 
 For security reviewers there is a [security whitepaper](docs/security-whitepaper.md) (data flow, what is never stored, key handling, threat model, limits — Korean) and for legal teams a [legal position memo](docs/legal-position.md) (where the gateway sits under Korea's PIPA — **draft before lawyer review**, Korean).
+Support-contract terms are drafted in [pricing (Korean, draft)](docs/pricing.md); `scripts/poc_gate.py` checks the v1.0 criteria (suspect-residual and gateway 5xx rates below 0.1%) against two weeks of audit logs.
 For a PoC, run `python3 scripts/poc_report.py samples.jsonl` on customer sample JSONL to get per-kind detection counts, false-positive candidates (value shapes only), restore rate and processing time — no raw text enters the report (D-129).
 
 ## 7. License

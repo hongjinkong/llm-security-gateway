@@ -1,1 +1,3 @@
 gateway/dashboard.html text eol=lf
+# 데이터 파일은 SHA-256으로 고정한다(D-123·D-128) — Windows에서 받아도 줄 끝이 바뀌지 않게
+*.jsonl text eol=lf

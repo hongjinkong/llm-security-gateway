@@ -1,0 +1,15 @@
+# D-130: 올릴 것이 있다는 알림이다 — PR은 제안이고, 받아들일 때는 DECISIONS에 근거를 적는다(의존성·액션·베이스 이미지는 정확히 고정한다).
+version: 2
+updates:
+  - package-ecosystem: pip              # pyproject.toml, detect/requirements*.txt
+    directories: ["/", "/detect"]
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions   # SHA 고정 + 태그 주석을 함께 올린다
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker           # 다이제스트로 고정한 베이스 이미지
+    directories: ["/gateway", "/detect"]
+    schedule:
+      interval: weekly

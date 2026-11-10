@@ -8,7 +8,7 @@
 (`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard`). 이미지 기본 모델은 다섯 후보를 공개 평가셋 v1(D-123)로 재서 고른 `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base, INT8 641MB, Apache-2.0)다(D-127 §6) —
 판정 조작 문구 양성대조(D-054)에서 잡힌 공격의 8.9%가 뒤집혀 게이트웨이의 `block`에는 권하지 않는다(관측 전용). **기본으로 싣지 않는다** — 메모리가 약 1.2GiB 늘고(M2 물리 점유: NER만 0.6GiB → 함께 1.8GiB, 여는 동안 최대 2.6GiB) 창 하나(512토큰)가 M2에서 약 0.6초다.
 `DETECT_INJECTION_MODEL=horizon-guard-base-int8`로 켠다. **이어 학습한 모델 `injection-ko-small-int8`**(D-128, 아래 '이어 학습')은 봉인 홀드아웃 한국어 97.5%·영어 93.8%, 양성대조 최대 0.7%로 네 게이트를 넘어 채택됐다 —
-Hugging Face에 올라간 뒤 이미지 기본이 된다(그때까지 `models.json`에 `published: false`, 로컬 결과 폴더로만 싣는다). INT8 255MB, M2 스레드 4 p95 32토큰 17.8ms·510토큰 216.7ms(base의 약 1/3).
+Hugging Face에 올라간 뒤 이미지 기본이 된다(그때까지 `models.json`에 `published: false`, 로컬 결과 폴더로만 싣는다). INT8 268MB, M2 스레드 4 p95 32토큰 17.8ms·510토큰 216.7ms(base의 약 1/3).
 긴 텍스트는 512토큰 창을 128토큰 겹쳐 밀고 창들의 최댓값을 낸다. 텍스트마다 점수를 캐시한다(SHA-256 → 점수 4,096개, 원문 없음).
 
 ```
@@ -57,12 +57,12 @@ CI의 `detect` 워크플로가 `detect/`·`eval/ner/`·`eval/injection/`이 바�
 python3.12 -m venv .venv-train && .venv-train/bin/pip install -r detect/requirements-train.txt
 .venv-train/bin/python -m detect.fetch horizon-guard-base-src --dir models                        # 기준 가중치(1.23GB), small은 horizon-guard-small-src(563MB)
 .venv-train/bin/python -m detect.train --base horizon-guard-base-src --out models/injection-ko-base   # 기본 설정 = D-128 §2-2(시드·학습률·3 epoch·임베딩 동결), GPU 길이 512
-.venv-train/bin/python -m detect.train --base horizon-guard-small-src --out models/injection-ko-small --max-len 256 --batch 8 --accum 4   # 맥북(M2 8GB)용
+.venv-train/bin/python -m detect.train --base horizon-guard-small-src --out models/injection-ko-small --max-len 256 --batch 8 --accum 4 --device cpu   # 맥북(M2 8GB)용 — 채택 모델을 만든 명령. MPS(자동)는 메모리가 모자라 멈췄다(D-128 §6)
 .venv-detect/bin/python -m detect.evaluate_injection --model <models.json 이름> --dir models --exclude-train   # dev-eval(학습 그룹 뺌)로 운영 문턱·표
 ```
 
-결과 폴더에 safetensors·토크나이저·`onnx/model.onnx`(fp32)·`onnx/model_quantized.onnx`(INT8 — 임베딩 Gather만, 제작자와 같은 설정)·`manifest.json`(학습 설정·데이터 SHA-256·코드 커밋·파일 해시·양자화 확인)·`README.md`(모델 카드)·`train_log.json`이 남는다.
-같은 명령·시드·데이터·장치면 같은 결과가 나온다(장치가 다르면 점수 ±1%p 안을 재현으로 본다). 사이드카가 쓰려면 `models.json`에 그 이름(`task: injection`·`trained`·`threshold`·파일 해시)을 더하고 HF 저장소에 올린 뒤 `revision`을 채운다 — 게이트·수치는 DECISIONS D-128 §6.
+결과 폴더에 safetensors·토크나이저·`onnx/model.onnx`(fp32)·`onnx/model_quantized.onnx`(INT8 — 임베딩 Gather만, 제작자와 같은 설정)·`manifest.json`(학습 설정·데이터 SHA-256·코드 커밋과 커밋 전 변경 여부·스크립트 SHA-256·파일 해시·양자화 확인)·`README.md`(모델 카드)·`train_log.json`·기준 모델의 `LICENSE`·`NOTICE`(바꿨다는 표시를 덧붙인다)가 남는다. `tokenizer.json`은 기준 모델 파일 그대로다.
+재현 범위는 아직 재지 못했다 — 사전 등록한 기준(같은 명령·시드·데이터·장치면 같은 점수, 다른 장치면 ±1%p)을 같은 코드 재실행으로 확인한 적이 없고, 코드가 조금 다른 두 실행은 dev-eval 한국어 재현율이 4.5%p 달랐다(D-128 §6). 사이드카가 쓰려면 `models.json`에 그 이름(`task: injection`·`trained`·`threshold`·파일 해시)을 더하고 HF 저장소에 올린 뒤 `revision`을 채운다 — 게이트·수치는 DECISIONS D-128 §6.
 
 ## 출처
 

@@ -174,7 +174,9 @@
     "files": {
       "onnx/model_quantized.onnx": "61cd0741cdbfcc229e32e1de1392f352736d87d1e8b3c2b67ad9836bb7910d5d",
       "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
-      "config.json": "d6264037c9aa4b3d821c1c9a0329572033adbdb622788ecca91c3636066d9622"
+      "config.json": "d6264037c9aa4b3d821c1c9a0329572033adbdb622788ecca91c3636066d9622",
+      "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "NOTICE": "5ffe2383027c7510933df2e7055440edde8c96b67b7a58fb477f9632c72b9c14"
     }
   },
   "horizon-guard-base-int8": {
@@ -188,7 +190,9 @@
     "files": {
       "onnx/model_quantized.onnx": "682d805f93f823d5a1ac73bd55808719c5489f14846faf20b97fd40dfc28b4be",
       "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
-      "config.json": "34fbf08b5c26d800bb55d6f1de0d3a39c35eb8b5d4208c681361a20f93923f54"
+      "config.json": "34fbf08b5c26d800bb55d6f1de0d3a39c35eb8b5d4208c681361a20f93923f54",
+      "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "NOTICE": "40d6319291557f6ad5ddce4dc598d0fd21761c509461757c28962520ee5e3502"
     }
   },
   "pg2-86m": {
@@ -232,7 +236,9 @@
       "config.json": "34fbf08b5c26d800bb55d6f1de0d3a39c35eb8b5d4208c681361a20f93923f54",
       "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
       "tokenizer_config.json": "1d2f82c1341a79748e00efe82e67690f99d00b3c2a894f2b23128fd9d3519da3",
-      "special_tokens_map.json": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351"
+      "special_tokens_map.json": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351",
+      "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "NOTICE": "40d6319291557f6ad5ddce4dc598d0fd21761c509461757c28962520ee5e3502"
     }
   },
   "horizon-guard-small-src": {
@@ -246,7 +252,9 @@
       "config.json": "d6264037c9aa4b3d821c1c9a0329572033adbdb622788ecca91c3636066d9622",
       "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
       "tokenizer_config.json": "ea349495764b24570b4560fe2e4a557e5c0a47e6bce782c2409b1d6445cf8633",
-      "special_tokens_map.json": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351"
+      "special_tokens_map.json": "baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351",
+      "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "NOTICE": "5ffe2383027c7510933df2e7055440edde8c96b67b7a58fb477f9632c72b9c14"
     }
   },
   "injection-ko-small-int8": {
@@ -260,8 +268,10 @@
     "onnx": "onnx/model_quantized.onnx",
     "files": {
       "onnx/model_quantized.onnx": "7d87c2ea04987bfd2ff27115548828c58c3cc725eb598b831a703a19aae9b888",
-      "tokenizer.json": "d1a272a3b438756fbf53374131e92bc09db043909766241da5877441e6202379",
-      "config.json": "877ae4f8cd2bfde07b7ad238a7d01647cd93bb8290abf5952ed5d956a7dba7fa"
+      "tokenizer.json": "47834a7dbbb0c4324fe9569fe47955241594a9ee539c9e478755d6fbc51e5f46",
+      "config.json": "877ae4f8cd2bfde07b7ad238a7d01647cd93bb8290abf5952ed5d956a7dba7fa",
+      "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "NOTICE": "92692b6587bfd24b37965885214cc717d8d17b122192845cd91ee09d6609b0d5"
     },
     "threshold": 0.9833213367983539
   }

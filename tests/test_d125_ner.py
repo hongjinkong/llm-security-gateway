@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import tomllib
 from collections import Counter
 from pathlib import Path
 
@@ -117,3 +118,6 @@ def test_n6_sidecar_pins():
                  "--threads 4 --github", "--threads 2 --github", "docker build -f detect/Dockerfile"):
         assert step in ci, step
     assert re.findall(r"uses: (\S+)", ci) and all(re.search(r"@[0-9a-f]{40}$", u) for u in re.findall(r"uses: (\S+)", ci))   # 액션은 SHA로
+    # dependabot은 워크플로 안 `pip install`의 고정 값을 올리지 못한다(D-134 §7) — 사이드카 테스트도 pyproject와 같은 pytest로 돈다
+    dev = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["optional-dependencies"]["dev"]
+    assert re.findall(r"pytest==\S+", ci) == [p for p in dev if p.startswith("pytest==")]

@@ -2462,6 +2462,16 @@ PLAN 완료 기준의 '사이드카 꺼짐·켜짐 두 구성에서 전체 테�
   사이드카 이미지는 uvicorn 0.54로 실제로 떴고(`image` 작업의 `/health` 두 작업·`/v1/guard`), 게이트웨이 이미지는 빌드까지(`docker` 작업 — 게이트웨이의 uvicorn 0.54는 테스트가 스레드로 띄운다).
   받아들인 PR 여섯(#4·#5·#6·#8·#10·#12)은 푸시 2분 뒤 dependabot이 스스로 닫았다. 보류 넷은 열려 있고, #7·#11(FastAPI)은 새 main에 다시 맞춰져 `ci`가 실패한다(예상대로 — 고정 목록 테스트).
 
+### 7. 두 번째 묶음 — pytest 9.1.1 → 9.2.0(#14, 2026-11-10)
+
+- **받는다**. 개발 의존성뿐(이미지에 들지 않는다), 보안 공지 없음. 릴리스 노트의 깨지는 변경 셋을 대조했다 — `-c` 경로 검사(우리는 `-c`를 안 쓴다),
+  `parametrize`의 `indirect`·`ids`·`scope` 키워드 전용(전체 테스트가 모이고 통과 — 위치 인자로 넘긴 곳 없음), 플러그인 import 실패 종료 코드(해당 없음).
+  사용 중단 경고는 하나 — anyio의 pytest 플러그인이 `_pytest.python.CallSpec2`를 import한다(우리 코드가 아니다, pytest 10에서 빠진다 — anyio가 고칠 몫).
+- **PR이 놓친 곳**: dependabot은 `pyproject.toml`만 고쳤다 — `.github/workflows/detect.yml`의 `pip install … pytest==9.1.1`은 워크플로 안 명령이라 dependabot이 보지 못한다.
+  같이 올리고, `tests/test_d125_ner.py` N6에 '워크플로의 pytest 고정 값 = `pyproject.toml` dev의 pytest'를 넣었다(되돌리면 실패하는 것 확인).
+- **확인**: `.venv`(pytest 9.2.0, `pip check` 통과) 전체 `pytest` 929(+1 건너뜀)·`ruff`·`mypy` 통과, `.venv-detect`(pytest 9.2.0) 사이드카 테스트 23(+1 건너뜀) 통과 — 둘 다 올리기 전과 같은 수.
+  PR은 이 커밋이 푸시되면 dependabot이 스스로 닫는다.
+
 ## D-135. 이미지 빌드 때 Debian 보안 갱신 적용 + 베이스 다이제스트 올림 — 첫 릴리스 `v0.2.0`이 스캔 게이트에서 멈췄다 (2026-11-10, PLAN 20단계 R4)
 
 ### 1. 근거

@@ -92,6 +92,7 @@
 | 2026-11-10 | 20(R4 첫 시도) | D-135 | 사용자가 보류 PR 넷을 닫고 `v0.2.0`을 `30700da`에 태그 → `release`가 scan의 게이트(게이트웨이)에서 멈춤, **아무것도 올라가지 않음**(설계대로 — 스캔이 푸시 앞). 고칠 수 있는 HIGH 셋은 베이스 빌드(11-05) 뒤에 나온 Debian 보안 수정(apt DSA-6607·zlib DSA-6613, 파이썬 패키지 쪽 0) — 오늘의 베이스 다이제스트도 zlib는 옛 판이라(레지스트리 레이어의 dpkg 상태로 확인) 세 Dockerfile이 빌드 때 Debian 보안 갱신(`apt-get upgrade`)을 하고 다이제스트도 올림. 로컬 Docker amd64 빌드: zlib1g `+deb13u1`·apt 3.0.4, health ok·`healthy`, uid 10001. 새 테스트 S1(되돌리면 실패), pytest 929(+1)·ruff·mypy 통과 | 사용자: 커밋·푸시 → `ci`·`detect` 초록 → 태그 지우고 그 커밋에 다시 → Packages 공개 → "릴리스 냈다" |
 | 2026-11-10 | 20(R4) | D-130·D-135 | `59fa637`의 `ci`·`detect` 여섯 작업 초록 → 사용자가 태그를 다시 담 → `release` run `42751325343` **build·scan·publish 모두 성공**(6분): 게이트 둘 통과(목록은 미수정 HIGH 47·CRITICAL 0), GitHub 릴리스 `v0.2.0`(SBOM 둘), GHCR 이미지 둘(서명·SBOM 증명, 다이제스트는 D-130 §6) | 사용자: Packages 둘 Public → 알려 주면 세션이 익명 받기·서명 태그 확인. 그 뒤는 22단계(사용자 몫)와 주마다 dependabot·CI |
 | 2026-11-10 | 20(공개) | D-130 | 사용자가 Packages 둘을 Public으로 → 세션이 ghcr.io 익명으로 확인: manifest 200, `0.2.0`=`latest`=릴리스 다이제스트, referrers 색인에 서명·SBOM 증명 번들(신원 `release.yml@refs/tags/v0.2.0`·GitHub OIDC 발급자·대상 다이제스트 일치·Rekor 항목). **20단계 남은 일 없음** | 22단계 — 사용자 몫(디자인 파트너·가격 셋). 세션 일은 신호 뒤(HF 업로드·데모 주소·PoC 오탐 표)와 주마다 dependabot·CI |
+| 2026-11-10 | 22 대기(확인) | — | `74888fb`의 `ci` 네 작업 성공, 열린 PR 0(dependabot 새 묶음 없음), 신호 없음(HF 업로드·데모 주소·PoC 오탐 표). `gh api`(인증)로 `bdcd226`의 test 작업 로그를 읽음 — 3.12·3.14 모두 `930 passed`, 건너뜀 0(로컬 929+1 건너뜀은 키가 있을 때 피하는 실 호출 테스트) → W7 화면 확인이 CI에서 돈다(16-1 사용자 할 일 닫음). Private vulnerability reporting은 아직 꺼짐(API `enabled: false`) | 22단계 — 사용자 몫. 다음 `/next-step`: dependabot PR·CI 확인, 신호 대기 |
 
 ## 사용자 할 일
 
@@ -106,8 +107,8 @@
 - [x] (9단계 뒤, 선택) OpenAI SDK 점검 — 2026-10-30 세션이 처리했다(PyPI가 열려 있었다). 점검용 venv의 `python`은 3.9라 `/tmp/sdkvenv/bin/python -m pip install openai`로 깔아야 한다(`bin/pip`은 3.14 쪽). 8/8 통과.
 - [x] (14단계 전, 선택) Docker Desktop을 켜 두고 `kubectl`을 설치해 둔다 — 2026-10-31 확인: Docker 29.9.2 실행 중, kubectl v1.36.1 있음.
 - [ ] (선택) Docker Desktop 설정 → Kubernetes → Enable Kubernetes(`docker-desktop` 컨텍스트가 생긴다). kubectl은 `--dry-run=client`에도 서버 탐색이 필요해 컨텍스트가 없으면 `--validate=false`로도 실패한다(2026-10-31 확인). 14단계(D-121)는 클러스터 없이 kustomize 렌더 + 스키마 검증으로 끝냈다 — 켜 두면 다음 세션이 `kubectl apply -k deploy/k8s --dry-run=server`와 실제 배포를 확인한다.
-- [ ] (14단계 뒤) GitHub 저장소 Settings → Code security → **Private vulnerability reporting** 켜기 — `SECURITY.md`가 제보 경로로 가리킨다(켜기 전에는 그 링크가 열리지 않는다).
-- [ ] (16-1단계 커밋·푸시 뒤) GitHub Actions의 `test` 작업 로그에서 W7 테스트(`test_w7_traffic_script_one_round_matches_all_16_scenes`)를 본다 — CI가 이제 headless Chrome으로 대시보드 화면도 확인한다(`--no-sandbox`).
+- [ ] (14단계 뒤) GitHub 저장소 Settings → Code security → **Private vulnerability reporting** 켜기 — `SECURITY.md`가 제보 경로로 가리킨다(켜기 전에는 그 링크가 열리지 않는다). 2026-11-10 세션이 API로 확인: 아직 꺼짐 — 공개 이미지가 나갔으니 이제 켠다.
+- [x] (2026-11-10 세션이 `gh api`로 작업 로그를 읽음 — `bdcd226`의 test 3.12·3.14 모두 `930 passed`, 건너뜀 0: W7이 Chrome으로 화면 확인까지 돈다) (16-1단계 커밋·푸시 뒤) GitHub Actions의 `test` 작업 로그에서 W7 테스트(`test_w7_traffic_script_one_round_matches_all_16_scenes`)를 본다 — CI가 이제 headless Chrome으로 대시보드 화면도 확인한다(`--no-sandbox`).
   2026-11-01 세션이 GitHub API로 확인: run #7(`cf0ee1e`)은 **성공**(전체 75초 — test 3.14 64초·3.12 72초·docker 23초). 실행 화면이 '진행 중'으로 멈춰 보인 것은 페이지가 갱신되지 않은 것이다(새로고침).
   남은 것: 작업 로그는 인증이 필요해 세션이 읽지 못했다 — `Run pytest -q -rs` 단계 끝 줄이 `767 passed`면 화면 확인까지 돈 것, `766 passed, 1 skipped`와 `SKIPPED … Chrome을 실행하지 못했다`면 러너의 Chrome이 뜨지 못한 것이다(W7 대조는 했다 — 그 줄을 다음 세션에 붙여 준다).
 - [x] (2026-11-02 성공, 숫자는 D-125 §6) GitHub Actions에 새 `detect` 워크플로가 돈다(모델 약 160MB를 받고 x86에서 F1·지연을 잰다, 몇 분). 따로 할 일은 없다 — 다음 세션이 check-runs API의 `::notice` 주석(인증 없이 읽힌다)에서 x86 숫자를 읽어 D-125 §6 표에 옮긴다. 실패(빨간색)면 그 작업 로그의 마지막 줄을 다음 세션에 붙여 준다.

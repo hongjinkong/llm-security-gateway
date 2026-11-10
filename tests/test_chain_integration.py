@@ -184,7 +184,7 @@ def test_info_reports_version_code_and_detectors(mask_stack):
     from gateway.version import VERSION, code_fingerprint
     h = mask_stack.info()
     assert h["code"] == code_fingerprint()
-    assert h["version"] == VERSION == "0.2.0"          # pyproject.toml 버전(D-108·D-130). 설치(pip install -e .)한 환경이 전제다
+    assert h["version"] == VERSION == "0.2.1"          # pyproject.toml 버전(D-108·D-130). 설치(pip install -e .)한 환경이 전제다
     assert h["detectors"] == ["pii_mask"]
 
 

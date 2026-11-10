@@ -399,11 +399,12 @@ def test_r8_dashboard_sentences_for_guard_rows():
                    "가드레일 차단(점수 0.99) — 상류 호출 없음"]
 
 
-ADOPTED = "horizon-guard-base-int8"
+ADOPTED = "injection-ko-small-int8"      # D-128 이어 학습 모델 — HF에 올라간 뒤 이미지의 분류기가 됐다(D-136). 해시·문턱은 test_d128_train이 값으로 고정한다
+D127 = "horizon-guard-base-int8"         # D-127 채택(공개 모델) — 이제 비교 후보, 문서의 D-127 숫자가 이 파일의 숫자다
 
 
 def test_r9_injection_model_pins_and_the_adopted_name_agree():
-    """분류기 후보의 고정값(리비전·파일 SHA-256)과 채택 모델 이름이 이미지·CI·사이드카 테스트에서 같다. 채택 모델의 문턱은 dev 전체 오탐 1% 문턱(D-127 §6)."""
+    """분류기 후보의 고정값(리비전·파일 SHA-256)과 채택 모델 이름이 이미지·CI·사이드카 테스트에서 같다. D-127 채택 모델의 문턱은 dev 전체 오탐 1% 문턱(D-127 §6)."""
     models = json.loads((ROOT / "detect" / "models.json").read_text(encoding="utf-8"))
     inj = {n: m for n, m in models.items() if m.get("task") == "injection" and not m.get("trained")}     # D-128 학습 산출(trained)은 test_d128_train T6이 본다
     assert set(inj) == {"protectai-v2", "horizon-guard-small-int8", "horizon-guard-base-int8", "pg2-86m", "pg2-22m"}
@@ -411,13 +412,16 @@ def test_r9_injection_model_pins_and_the_adopted_name_agree():
         assert re.fullmatch(r"[0-9a-f]{40}", m["revision"]) and all(re.fullmatch(r"[0-9a-f]{64}", h) for h in m["files"].values()), name
         assert m.get("tokenizer", "tokenizer.json") in m["files"], name
         assert (m["onnx"] not in m["files"] and m["gated"] is True) if m.get("export") else m["onnx"] in m["files"], name
-    adopted = inj[ADOPTED]
-    assert adopted["files"][adopted["onnx"]] == "682d805f93f823d5a1ac73bd55808719c5489f14846faf20b97fd40dfc28b4be"
-    assert adopted["threshold"] == 0.9357725303620347 and adopted["license"] == "Apache-2.0" and not adopted.get("gated")
+    old = inj[D127]
+    assert old["files"][old["onnx"]] == "682d805f93f823d5a1ac73bd55808719c5489f14846faf20b97fd40dfc28b4be"
+    assert old["threshold"] == 0.9357725303620347 and old["license"] == "Apache-2.0" and not old.get("gated")
+    adopted = models[ADOPTED]
+    assert adopted["trained"] == "D-128" and adopted["published"] is True and adopted["license"] == "Apache-2.0" and not adopted.get("gated")
     assert f"ARG INJECTION_MODEL={ADOPTED}" in (ROOT / "detect" / "Dockerfile").read_text(encoding="utf-8")
     assert f'INJECTION = "{ADOPTED}"' in (ROOT / "detect" / "tests" / "test_detect.py").read_text(encoding="utf-8")
     ci = (ROOT / ".github" / "workflows" / "detect.yml").read_text(encoding="utf-8")
     assert f"evaluate_injection --model {ADOPTED}" in ci and f"bench --model {ADOPTED}" in ci
+    assert re.search(rf"python -m detect\.fetch [^\n]*\b{ADOPTED}\b", ci)          # CI가 고정 리비전에서 받아 해시를 맞춘다(D-136 P1)
     assert f"-e DETECT_INJECTION_MODEL={ADOPTED} detect:ci" in ci and "--memory-swap 3g" in ci and "OOMKilled" in ci     # 이미지를 실제로 띄워 본다
 
 

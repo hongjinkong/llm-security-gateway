@@ -37,7 +37,7 @@
 - [x] 17. 탐지 사이드카 + 한국어 PII NER(채택 게이트) — 게이트 미달, NER은 v1.0에서 뺀다(D-125)
 - [x] 17-1. 이름·주소 가림(정책에서 켬) — 사용자 결정(2026-11-02): 지연을 받아들이고 넣었다(D-126)
 - [x] 18. 인젝션 분류기(관측) + 가드레일 웹훅 — Horizon base 채택, 양성대조 미달로 관측 전용(D-127)
-- [x] 18-1. 인젝션 분류기 한국어 자체 파인튜닝 — 사용자 결정(2026-11-03): 관측 전용으로 두지 않고 차단에 쓸 수 있게 학습한다. (2026-11-04 D-128: small 이어 학습이 네 게이트를 넘어 채택. 2026-11-10 검토 워크플로 반영. 남은 것은 사용자 몫 — HF 업로드(그 뒤 세션이 기본값 교체). 2026-11-10 base 학습(학원 PC)·비교 끝 — dev-eval 한국어 90.4 대 85.9%지만 채택은 small 그대로(D-128 'base 비교'))
+- [x] 18-1. 인젝션 분류기 한국어 자체 파인튜닝 — 사용자 결정(2026-11-03): 관측 전용으로 두지 않고 차단에 쓸 수 있게 학습한다. (2026-11-04 D-128: small 이어 학습이 네 게이트를 넘어 채택. 2026-11-10 검토 워크플로 반영. 2026-11-10 사용자가 HF에 올림 → D-136 기본값 교체·0.2.1. 2026-11-10 base 학습(학원 PC)·비교 끝 — dev-eval 한국어 90.4 대 85.9%지만 채택은 small 그대로(D-128 'base 비교'))
 
 **F. 출시**
 - [x] 19. 보안 백서 + 법적 위치 메모 + PoC 키트 — 2026-11-04 D-129(남은 것은 사용자 몫: 변호사 검토·외부 백서 리뷰)
@@ -97,6 +97,7 @@
 | 2026-11-10 | 선택 항목(사용자와 함께) | D-128 | ① 공개 데모: 로컬 이미지 확인 → 사용자가 Fly에 배포 <https://llm-security-gateway-demo.fly.dev/>, 공개 주소로 `/` 200·가짜 전화 왕복 확인, README 두 언어 상단 링크. ② 학원 PC 사양 받음 → PLAN의 Windows 명령 `cu128` 색인에 torch 2.15.0이 없어 `cu132`로 고침 → 사용자가 base 학습해 가져옴 → dev-eval·양성대조(D-128 'base 비교': 한국어 90.4 대 85.9%, 한국어 오탐 0.9 대 0.4%, 출력 복사 유도 2.1%) — 채택은 small 그대로(시드 하나·홀드아웃 소진·지연 3배). ③ 가드레일까지 compose: detect가 기동 88초인데 이미지 시작 유예 30초라 gateway가 안 떴다 → `detect/Dockerfile` 180초, 가짜 이름·주소와 가드레일 기록만 확인. pytest 929·ruff 통과 | 남은 선택 항목: Kubernetes 켜기(사용자 GUI) → 라우터 키 정리 → `codex/*` 브랜치·저장소 설명 → 임시 폴더 → 결정 표 |
 | 2026-11-10 | 선택 항목(이어서) | D-121 | `14256e8` 푸시 — ci 다섯 작업 성공(detect 진행 중). ④ Kubernetes: 사용자가 켬 → 복사본으로 server dry-run·실제 적용·2/2 Ready·health·관리·인증 확인, 공개 이미지(amd64)는 Apple Silicon에서 사이드카가 Rosetta 임시 파일 오류로 재시작 → `docs/operations.md`에 로컬 빌드 방법. ⑥ `codex/*` 셋 삭제(main에 없는 커밋 0)·저장소 설명·홈페이지(데모). ⑦ 임시 폴더는 이미 비었음. ⑧ 결정 표 항목은 1단계 전 것이라 닫음. pytest 929·ruff 통과 | 사용자: 라우터 키 콘솔에서 지우기(그 뒤 세션이 `.env` 두 줄 삭제), Private vulnerability reporting 켜기, 디자인 파트너(나중에), HF 업로드 |
 | 2026-11-10 | 22 대기(확인) | D-134 §7 | `d2fec0e`의 `ci` 네 작업·`14256e8`의 `detect` 성공. 열린 PR 하나 — dependabot #14 pytest 9.1.1 → 9.2.0(개발 의존성, 보안 공지 없음): 릴리스 노트의 깨지는 변경 셋 대조, `pyproject.toml`과 PR이 놓친 `detect.yml` 고정 값을 함께 올리고 N6에 둘이 같은지 검사(되돌리면 실패 확인). `.venv` pytest 929(+1 건너뜀)·ruff·mypy·`pip check`, `.venv-detect` 사이드카 23(+1 건너뜀) 통과. 신호 없음(HF 업로드·PoC 오탐 표), Private vulnerability reporting 아직 꺼짐 | 사용자: 커밋·푸시(#14는 dependabot이 닫는다). 22단계 — 사용자 몫. 다음 `/next-step`: CI·dependabot PR 확인, 신호 대기 |
+| 2026-11-10 | 사용자 할 일(순서대로) | D-136 | `6b10155`의 `ci`·`detect` 작업 모두 성공(사이드카 pytest 9.2.0), #14는 dependabot이 닫음. ② Private vulnerability reporting: 세션이 `gh api -X PUT`(204) → `enabled: true`. ③ HF 업로드: 로그인 계정이 `hongjinseon123`(계획의 `hongjinkong/`은 403) → 사용자 선택으로 그 이름, 읽기 토큰 403 → Write 토큰·`hf auth login --force` → 공개 저장소 커밋 `78c7a9c6`. 세션이 LFS 해시 대조·`detect.fetch`로 리비전에서 받아 해시 일치 → **D-136**: `models.json` 리비전·`published: true`, 이미지 분류기 `injection-ko-small-int8`(base는 이미지에서 뺌, 싣기는 기본 꺼짐), CI `detect`·테스트 R9·T6·고지 표, 문서(README 둘·configuration·operations·detect/README·백서·compose·k8s·Dockerfile·설명서 HTML·PDF 22쪽), **버전 0.2.1**(CHANGELOG 절). 사이드카 테스트 23(+1)이 새 모델로 추론(영어·한국어 공격 1.0, 한국어 정상 0.0), pytest 929(+1)·ruff·mypy 통과 | 사용자: 커밋·푸시 → `ci`·`detect` 초록 → `git tag v0.2.1` 푸시 → 알려 주면 세션이 릴리스·이미지 확인. 그다음 ④ 변호사 검토 ⑤ 라우터 키 |
 
 ## 사용자 할 일
 
@@ -112,7 +113,7 @@
 - [x] (14단계 전, 선택) Docker Desktop을 켜 두고 `kubectl`을 설치해 둔다 — 2026-10-31 확인: Docker 29.9.2 실행 중, kubectl v1.36.1 있음.
 - [x] (선택 — **2026-11-10 끝**: 사용자가 켬(kubeadm 1노드 v1.36.1). 세션이 `deploy/k8s` 복사본(합성 `secret.env`·`[[clients]]` 해시 하나·레플리카 1)으로 `--dry-run=server` 여섯 객체 통과, 실제 적용 → 2/2 Ready 43초, health 200·관리 키 stats 200·틀린 관리 키 404·대시보드 200·틀린 클라이언트 키 401·사이드카 health ok, 시험 네임스페이스 지움.
   공개 이미지(amd64 하나)는 이 arm64 노드에서 Rosetta로 돌다 사이드카가 읽기 전용 루트에서 임시 파일을 못 만들어 재시작 반복 → 로컬 arm64 이미지로 바꿔 확인, `docs/operations.md` 이미지 항목에 적음) Docker Desktop 설정 → Kubernetes → Enable Kubernetes(`docker-desktop` 컨텍스트가 생긴다). kubectl은 `--dry-run=client`에도 서버 탐색이 필요해 컨텍스트가 없으면 `--validate=false`로도 실패한다(2026-10-31 확인). 14단계(D-121)는 클러스터 없이 kustomize 렌더 + 스키마 검증으로 끝냈다 — 켜 두면 다음 세션이 `kubectl apply -k deploy/k8s --dry-run=server`와 실제 배포를 확인한다.
-- [ ] (14단계 뒤) GitHub 저장소 Settings → Code security → **Private vulnerability reporting** 켜기 — `SECURITY.md`가 제보 경로로 가리킨다(켜기 전에는 그 링크가 열리지 않는다). 2026-11-10 세션이 API로 확인: 아직 꺼짐 — 공개 이미지가 나갔으니 이제 켠다.
+- [x] (14단계 뒤 — **2026-11-10 끝**: 사용자 요청으로 세션이 `gh api -X PUT …/private-vulnerability-reporting`(204) → 조회 `enabled: true`) GitHub 저장소 Settings → Code security → **Private vulnerability reporting** 켜기 — `SECURITY.md`가 제보 경로로 가리킨다(켜기 전에는 그 링크가 열리지 않는다).
 - [x] (2026-11-10 세션이 `gh api`로 작업 로그를 읽음 — `bdcd226`의 test 3.12·3.14 모두 `930 passed`, 건너뜀 0: W7이 Chrome으로 화면 확인까지 돈다) (16-1단계 커밋·푸시 뒤) GitHub Actions의 `test` 작업 로그에서 W7 테스트(`test_w7_traffic_script_one_round_matches_all_16_scenes`)를 본다 — CI가 이제 headless Chrome으로 대시보드 화면도 확인한다(`--no-sandbox`).
   2026-11-01 세션이 GitHub API로 확인: run #7(`cf0ee1e`)은 **성공**(전체 75초 — test 3.14 64초·3.12 72초·docker 23초). 실행 화면이 '진행 중'으로 멈춰 보인 것은 페이지가 갱신되지 않은 것이다(새로고침).
   남은 것: 작업 로그는 인증이 필요해 세션이 읽지 못했다 — `Run pytest -q -rs` 단계 끝 줄이 `767 passed`면 화면 확인까지 돈 것, `766 passed, 1 skipped`와 `SKIPPED … Chrome을 실행하지 못했다`면 러너의 Chrome이 뜨지 못한 것이다(W7 대조는 했다 — 그 줄을 다음 세션에 붙여 준다).
@@ -150,16 +151,18 @@
   (다섯째 줄이 `2.15.0+cu132 True NVIDIA GeForce RTX 5060 Ti`가 아니면 거기서 멈추고 출력을 다음 세션에 준다 — `False`면 CPU로 돌아 며칠 걸린다. 학습 첫 줄이 `장치 cuda`인지 본다.)
   끝나면 `models/injection-ko-base/` 폴더 전체(약 2.5GB — `model.safetensors`·`tokenizer.json`·`config.json`·`onnx/`·`manifest.json`·`README.md`·`train_log.json`)를 맥북의 같은 경로로 옮기고(USB·클라우드 드라이브) 다음 세션에 알려 준다 — 세션이 dev-eval·양성대조를 재서 small과 비교한다. **홀드아웃은 다시 열지 않는다**(두 번 열렸다 — D-128 §2-4). base를 채택하려면 새 홀드아웃을 먼저 만든다.
   (2026-11-10: 학습 스크립트가 기준 모델의 `LICENSE`·`NOTICE`도 받아 결과 폴더에 넣는다 — 위 `detect.fetch` 명령을 다시 돌리면 받는다. Windows에서 받아도 데이터 해시가 같도록 `.gitattributes`에 줄 끝을 고정했다.)
-- [ ] (18-1단계 뒤, 배포) 학습한 모델(`models/injection-ko-small-int8/`, 게이트 통과·채택 — D-128 §6, **gitignore라 맥북에만 있다 — 지우지 말 것**)을 Hugging Face에 올린다. 본인 터미널에서(`!`로 하지 않는다 — 토큰이 대화 기록에 남는다):
+- [x] (18-1단계 뒤, 배포 — **2026-11-10 끝**: 로그인 계정이 `hongjinseon123`이라 그 이름으로, 쓰기 토큰은 `hf auth login --force`로 바꿔야 했다 → D-136) 학습한 모델(`models/injection-ko-small-int8/`, 게이트 통과·채택 — D-128 §6, **gitignore라 맥북에만 있다 — 지우지 말 것**)을 Hugging Face에 올린다. 본인 터미널에서(`!`로 하지 않는다 — 토큰이 대화 기록에 남는다):
   ```
   .venv-train/bin/hf auth login                                   # 쓰기 토큰(이미 넣었으면 생략)
-  .venv-train/bin/hf upload hongjinkong/llm-gateway-injection-ko-small models/injection-ko-small-int8 . --commit-message "D-128 injection-ko-small-int8"
+  .venv-train/bin/hf upload hongjinseon123/llm-gateway-injection-ko-small models/injection-ko-small-int8 . --commit-message "D-128 injection-ko-small-int8"
   ```
   (`hf upload`가 저장소가 없으면 만든다(공개). 저장소가 고정한 `hf`(.venv-train)를 쓴다 — 이 판에는 `hf repo create`가 없다(`hf repos create`). 폴더 전체 약 1.4GB를 올린다 — manifest가 적은 파일이 모두 저장소에 있게.
   저장소 이름을 바꿨으면 `detect/models.json`의 `id`도 알려 준다.)
   **2026-11-10 리뷰 반영으로 폴더가 바뀌었다**: 기준 모델의 `LICENSE`·`NOTICE`(이어 학습으로 바꿨다는 표시 포함)를 넣었고, `tokenizer.json`을 기준 모델 파일로 되돌렸고(학습 길이 256이 박혀 있었다), `train_log.json`의 홈 폴더 경로를 지웠고,
   manifest·모델 카드의 '코드 커밋'을 사실대로 고쳤다. 가중치·ONNX는 그대로다. **이미 올렸다면 같은 명령으로 다시 올린다.**
   올린 뒤 다음 세션에 "올렸다"고 알려 주면 세션이 커밋 SHA를 읽어 `revision`을 채우고 `published: true`로 바꾼 뒤 이미지 기본(`ARG INJECTION_MODEL`)·CI `detect`·사이드카 테스트의 채택 이름을 새 모델로 바꾼다. 비공개 저장소는 지금 코드로는 받지 못한다(`detect.fetch`는 승인 저장소에만 토큰을 보내고 이미지 빌드·CI에 토큰 경로가 없다) — 꼭 비공개여야 하면 다음 세션에 알려 준다.
+- [ ] (D-136 뒤) **`v0.2.1` 릴리스** — 분류기 교체 커밋을 푸시하고 `ci`·`detect`가 초록이면(`detect`의 image 작업이 새 분류기를 받아 띄운다) 그 커밋에 태그를 단다:
+  `git tag v0.2.1 && git push origin v0.2.1`. 알려 주면 세션이 release run·이미지 둘·서명을 확인한다(D-130 §6과 같은 확인).
 - [ ] (19단계 뒤) `docs/legal-position.md`를 변호사에게 검토받는다(확인 항목 8개 표가 질문지다 — 2026-11-10 리뷰로 7·8번을 더했다) — 결과를 다음 세션에 주면 메모의 '우리 가정'을 고치고 '변호사 검토 전 초안' 표시를 바꾼다. `docs/security-whitepaper.md`는 외부 1인(보안 담당자)에게 읽혀 본다.
 - [x] (2026-11-10 세션이 GitHub API로 확인 — `c87db8d`의 `ci` 네 작업(test 3.12·3.14·docker·**secrets**)과 `detect` 두 작업(image·detect) 모두 성공, x86 숫자는 D-125·D-127 §6) (20단계 커밋·푸시 뒤) GitHub Actions의 `ci`에 새 작업 `secrets`(비밀 검사, gitleaks)가 생긴다 — 초록인지 본다. 이번 세션은 gitleaks를 직접 돌려 보지 못했다(외부 바이너리 실행이 막혔다).
   빨간색이면 그 작업 로그에서 걸린 파일·규칙 이름 줄을 다음 세션에 붙여 준다(값은 붙이지 않는다) — 합성 값이면 `.gitleaks.toml`에 좁게 더한다. `detect` 워크플로도 다시 돈다(모델 폴더에 LICENSE·NOTICE를 함께 받는다).
@@ -992,7 +995,7 @@ k8s는 사이드카 컨테이너의 readinessProbe로 파드 Ready를 묶는다,
 - [x] **게이트(기본값 — D-128에 사전 등록)**: 운영 문턱에서 ① 홀드아웃 한국어 재현율 ≥ 75%, ② 홀드아웃 한국어 정상 오탐 ≤ 1.5%, ③ 홀드아웃 영어 재현율이 base(55.1%)보다 3%p 넘게 떨어지지 않음,
   ④ D-054 6문구 각각 뒤집힘 ≤ 5%. 넷 다 넘으면 사이드카 기본 분류기를 새 모델로 바꾸고 문서의 '관측 전용'을 '차단에 써도 된다(관측 기간 뒤)'로 고친다. 못 넘으면 수치를 적고 관측 전용 유지,
   다음 손잡이(데이터·크기)를 결정에 적는다. (2026-11-04 **넷 다 통과 — small 채택**: ① 97.5% ② 1.49%(경계) ③ 93.8% ④ 최대 0.7%. 기본값 교체는 HF 업로드 뒤)
-- [ ] **배포**(남음 — 사용자 업로드 뒤): 모델 파일을 사용자의 HF 저장소에 올리고(사용자 몫 — 쓰기 토큰) `detect/models.json`에 리비전·SHA-256·`threshold`를 고정, 이미지 `ARG INJECTION_MODEL`·CI `detect` 워크플로·
+- [x] **배포**(2026-11-10 D-136 — 사용자가 `hongjinseon123/llm-gateway-injection-ko-small`에 올림, 커밋 `78c7a9c6`, 세션이 리비전·해시 확인 뒤 교체): 모델 파일을 사용자의 HF 저장소에 올리고(사용자 몫 — 쓰기 토큰) `detect/models.json`에 리비전·SHA-256·`threshold`를 고정, 이미지 `ARG INJECTION_MODEL`·CI `detect` 워크플로·
   `tests/test_d127_guard.py`의 채택 이름을 바꾼다. 라이선스: 기준 모델(Apache-2.0)과 학습 데이터 출처의 고지(CC BY 등)를 모델 카드와 `eval/injection/SOURCES.md`에.
 - [x] 문서: README 두 언어·operations '가드레일 웹훅'·configuration·detect/README·CHANGELOG·설명서 HTML·PDF의 숫자와 권고(관측 전용 여부). (2026-11-04 — '관측 기간 뒤 차단에 써도 된다', 기본값 교체는 업로드 뒤)
 

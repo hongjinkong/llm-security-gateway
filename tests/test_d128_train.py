@@ -150,10 +150,18 @@ def test_t6_models_json_pins_train_bases_and_trained_outputs():
     assert adopted["files"]["onnx/model_quantized.onnx"] == "7d87c2ea04987bfd2ff27115548828c58c3cc725eb598b831a703a19aae9b888"
     assert adopted["files"]["tokenizer.json"] == source["files"]["tokenizer.json"] and adopted["files"]["LICENSE"] == source["files"]["LICENSE"]
     assert adopted["files"]["NOTICE"] != source["files"]["NOTICE"]                              # '이어 학습으로 바꿨다'는 표시가 붙었다
+    # 사용자가 올린 저장소의 커밋(D-136 — 세션이 그 리비전에서 받아 다섯 파일의 해시를 맞췄다)
+    assert adopted["published"] is True and adopted["id"] == "hongjinseon123/llm-gateway-injection-ko-small"
+    assert adopted["revision"] == "78c7a9c6acefb3162258e63b7d958cc8f71ac118"
 
 
-def test_t6_fetch_refuses_a_model_that_is_not_uploaded_yet(tmp_path):
-    """아직 올리지 않은 산출물을 받으려 하면 빈 리비전 주소로 요청하지 않고 무엇을 할지 알려 준다."""
-    from detect.fetch import fetch
+def test_t6_fetch_refuses_a_model_that_is_not_uploaded_yet(tmp_path, monkeypatch):
+    """아직 올리지 않은 산출물(다음 학습 결과)을 받으려 하면 빈 리비전 주소로 요청하지 않고 무엇을 할지 알려 준다."""
+    import copy
+
+    from detect import fetch as f
+    pending = copy.deepcopy(f.MODELS["injection-ko-small-int8"]) | {"revision": "", "published": False}
+    monkeypatch.setitem(f.MODELS, "pending-int8", pending)
+    monkeypatch.setattr(f.urllib.request, "build_opener", lambda *a: pytest.fail("네트워크로 가면 안 된다"))
     with pytest.raises(SystemExit, match="아직 올리지 않은 모델"):
-        fetch("injection-ko-small-int8", tmp_path)
+        f.fetch("pending-int8", tmp_path)

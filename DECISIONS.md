@@ -2527,3 +2527,59 @@ PLAN 완료 기준의 '사이드카 꺼짐·켜짐 두 구성에서 전체 테�
 - **계획과 다른 점**: PLAN 사용자 할 일과 D-130 §6은 '베이스 다이제스트를 올린다'만 적었다 — 이번에는 그것으로 모자라 빌드 때 갱신을 더했다.
 - **S4**(같은 날, 사용자가 태그를 `59fa637`로 다시 단 뒤): `ci` 여섯 작업 초록 → `release` run `42751325343` build·scan·publish 모두 성공 — 게이트 둘 통과, 목록은 미수정 HIGH 47(51 → 47)·CRITICAL 0. 다이제스트는 D-130 §6.
 - **못 한 것**: 사이드카·데모 이미지의 로컬 빌드(사이드카는 CI `detect`의 image 작업이 빌드·기동한다), Trivy 로컬 실행.
+
+## D-136. 인젝션 분류기 기본값 교체 — Hugging Face에 올린 `injection-ko-small-int8`을 사이드카 이미지의 분류기로, 버전 0.2.1 (2026-11-10, PLAN 18-1 '배포')
+
+### 1. 근거
+
+- D-128 §2-5: 학습한 모델은 사용자의 HF 저장소에 올리고, **올라간 뒤(리비전·해시 확인 뒤)** 이미지 `ARG INJECTION_MODEL`·CI·사이드카 테스트의 채택 이름을 바꾼다.
+  사용자가 2026-11-10 `hongjinseon123/llm-gateway-injection-ko-small`에 올렸다(공개, 커밋 `78c7a9c6acefb3162258e63b7d958cc8f71ac118`).
+  계획의 `hongjinkong/` 네임스페이스는 HF 로그인 계정이 아니라(쓰기 권한 403) 사용자가 계정 이름으로 정했다 — `models.json`의 `id`를 바꿨다(모델 폴더 안의 링크는 GitHub 주소라 그대로).
+- 세션 확인: HF API의 파일 목록에서 LFS SHA-256(ONNX·tokenizer)이 `models.json`과 같고, `detect.fetch`로 그 리비전에서 목록의 다섯 파일(ONNX·tokenizer·config·LICENSE·NOTICE)을 받아 SHA-256이 모두 맞았다.
+- D-130 §5: 기본 분류기 교체는 이미지 내용을 바꾸므로 다시 릴리스한다(0.2.1).
+
+### 2. 결정
+
+1. `detect/models.json`의 `injection-ko-small-int8`: `revision` = 위 커밋, `published: true`.
+2. 사이드카 이미지의 분류기 파일을 `injection-ko-small-int8`로 바꾼다(`ARG INJECTION_MODEL`). `horizon-guard-base-int8`은 이미지에서 뺀다 — `--build-arg INJECTION_MODEL=horizon-guard-base-int8`로 넣을 수 있다.
+   **싣는 것은 여전히 기본 꺼짐**(`DETECT_INJECTION_MODEL` 비움) — 가드레일 웹훅은 정책·환경변수로 켜고, `observe`로 관측한 뒤 `block`(D-128 §6의 권고 그대로).
+3. CI `detect`: 받는 모델·평가(`evaluate_injection`)·지연(`bench`)·이미지 기동(`-e DETECT_INJECTION_MODEL=`)을 새 모델로.
+4. 테스트: 채택 이름(`tests/test_d127_guard.py` `ADOPTED`·`detect/tests` `INJECTION`)을 새 모델로. D-127 채택 모델(base)의 고정값 검사는 기록으로 남긴다.
+   `tests/test_d128_train.py`: 채택 모델의 리비전을 값으로 고정하고, '아직 올리지 않은 모델은 받지 않는다'는 가짜 항목으로 계속 검사한다(다음 학습 산출물에 쓰는 경로).
+5. 라이선스: `detect/THIRD_PARTY_NOTICES.md`의 분류기 행을 새 모델로 — 출처·리비전·Apache-2.0, 고지는 모델 폴더의 `LICENSE`·`NOTICE`(Horizon NOTICE 계승 + 이어 학습 표시 + 학습 데이터 출처는 `eval/injection/train/SOURCES.md`).
+6. 문서: '올라간 뒤 기본이 된다'·'배포판에 든 공개 모델(base)은 기록용' 문구를 '배포판에 든 분류기는 이어 학습 모델'로. README 두 언어·configuration·operations·`detect/README.md`·백서·배포 견본 주석(compose·k8s)·Dockerfile 주석·설명서(HTML·PDF)·CHANGELOG `0.2.1`.
+7. 버전 **0.2.1**(pyproject·테스트의 VERSION·k8s 견본 이미지 태그·README 상태 줄·운영 문서의 서명 확인 예시·설명서). 태그 `v0.2.1`은 사용자가 단다(CI 초록 뒤).
+
+### 3. 버린 대안
+
+- **이미지에 분류기 둘(base + 이어 학습)**: 쓰지 않을 641MB가 모든 설치에 붙는다. 비교가 필요하면 `--build-arg`로 빌드한다.
+- **이미지에서 분류기를 기본으로 싣기**: 모든 설치의 사이드카 메모리가 늘어난다 — 가드레일은 켜는 기능이다(D-127 §2).
+- **다음 기능과 묶어 나중에 릴리스**: 공개 이미지가 '막는 데 권하지 않는' base를 계속 싣는다. 채택 근거(D-128 게이트 넷)가 이미 있다.
+
+### 4. 완료 기준
+
+| # | 기준 | 어디서 |
+|---|---|---|
+| P1 | `models.json`의 리비전에서 받은 파일의 SHA-256이 목록과 같다 | 세션(`detect.fetch`) · CI `detect`(받기) |
+| P2 | 채택 이름이 이미지 ARG·CI(받기·평가·지연·이미지 기동)·사이드카 테스트에서 같다 | `tests/test_d127_guard.py` R9 |
+| P3 | 올라간 학습 산출물은 40자 리비전, 올리지 않은 항목은 받지 않는다 | `tests/test_d128_train.py` |
+| P4 | 이미지에 넣는 모델마다 고지 행(출처·리비전·라이선스) | `tests/test_d130_release.py` R3 |
+| P5 | 사이드카 분류기 테스트(C2~C11)가 새 모델로 통과 — 영어 공격은 문턱 0.9833 이상, 한국어 정상은 0.1 미만 | `.venv-detect` `DETECT_MODEL_DIR=models` |
+| P6 | 이미지를 띄워 `/health` 두 작업·`/v1/guard` block·OOM 없음, x86 메모리·지연 | CI `detect`(image·detect) |
+| P7 | 전체 `pytest`·`ruff check .`·`mypy` | 세션 |
+
+### 5. 한계
+
+- 모델 주소에 사용자의 HF 계정 이름이 든다 — 저장소를 옮기면 `id`·`revision`이 바뀐다(새 결정). 저장소를 지우면 이미지 빌드가 받지 못해 실패한다(이미 올린 이미지는 영향 없다).
+- 이미지 빌드·기동과 x86 메모리는 CI가 본다.
+
+### 6. 결과 (2026-11-10)
+
+- **P1**: HF API 파일 목록(공개, 커밋 `78c7a9c6…`, 2026-11-10T09:33:06Z)의 LFS SHA-256이 ONNX·tokenizer와 같고, `detect.fetch`로 그 리비전에서 받은 다섯 파일 모두 해시 일치(세션의 임시 폴더).
+- **P2~P4**: R9(채택 이름 = 이미지 ARG·CI 받기·평가·지연·이미지 기동·사이드카 테스트, D-127 base 고정값은 기록 검사로), T6(리비전 값 고정·`published: true`, 올리지 않은 항목 거절은 가짜 항목으로 — 네트워크로 가지 않는 것까지), R3(고지 행) 통과.
+- **P5**: `.venv-detect`, `DETECT_MODEL_DIR=models`(로컬 학습 폴더 — 같은 해시)로 사이드카 테스트 23 통과(+1 건너뜀 — torch 없는 학습 테스트), 분류기 테스트 C2~C11이 새 모델로 돈다.
+  점수: 영어 공격 문장 둘 1.0, 한국어 공격 1.0, 한국어 정상 0.0(문턱 0.9833) — CI 이미지 작업의 `/v1/guard` 문장도 1.0이라 `block`.
+- **P7**: 전체 `pytest` 929(+1 건너뜀)·`ruff check .`·`mypy` 통과(`.venv`는 0.2.1로 다시 편집 설치). 릴리스 노트 테스트가 0.2.0 절의 낱말("D-130")을 찾던 것을 '이 버전의 절이 CHANGELOG에 그대로 있다'로 바꿨다.
+  첫 전체 실행에서 `test_d117_kr_ids.py::test_k4…[brn-…]`가 한 번 실패했다 — 단독 25회·BRN 대체값 2만 개 재검출 모두 통과, 다음 전체 실행 둘은 통과(이 결정과 무관한 코드, 재현 못 함).
+- **문서**: README 두 언어·configuration·operations(분류기 두 항목·메모리·서명 확인 예시 0.2.1)·`detect/README.md`(소개·명령)·백서 6절·compose·k8s(toml·yaml — 이미지 태그 0.2.1)·Dockerfile 주석·설명서 HTML(일곱 곳) → PDF 22쪽(Chrome headless, 쪽수 그대로)·CHANGELOG `0.2.1`.
+- **못 한 것**: 이미지 빌드·기동·x86 메모리(CI `detect`), 태그 `v0.2.1`(사용자 — CI 초록 뒤). k8s 견본의 사이드카 메모리 권고(요청 2Gi·상한 3Gi)는 base로 정한 값 그대로 — small의 x86 실측(CI 주석)을 보고 줄일지 정한다.

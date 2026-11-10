@@ -37,7 +37,7 @@ spec:
       containers:
         - name: gateway
           # 릴리스 워크플로(D-130)가 올리는 주소다 — 운영에서는 태그 대신 릴리스 노트의 다이제스트(@sha256:…)로 고정하고 서명을 검증한다(docs/operations.md '업그레이드').
-          image: ghcr.io/hongjinkong/llm-security-gateway:0.2.0
+          image: ghcr.io/hongjinkong/llm-security-gateway:0.2.1
           # 워커는 1(WEB_CONCURRENCY 기본) — 지표·레이트리밋·볼트 상한이 프로세스 단위라 파드 수로 늘린다.
           ports:
             - name: http
@@ -85,7 +85,7 @@ spec:
               readOnly: true
         - name: detect
           # 탐지 사이드카(detect/Dockerfile — 모델은 빌드 때 받아 이미지 안에 있다). 릴리스 워크플로(D-130)가 올리는 주소다
-          image: ghcr.io/hongjinkong/llm-security-gateway-detect:0.2.0
+          image: ghcr.io/hongjinkong/llm-security-gateway-detect:0.2.1
           ports:
             - name: detect
               containerPort: 8081
@@ -95,11 +95,11 @@ spec:
               path: /health
               port: detect
             periodSeconds: 5
-          # 인젝션 분류기(가드레일 웹훅, D-127)는 이미지에 있지만 싣지 않는다. 켜려면 아래 env의 주석을 풀고 메모리를 요청 2Gi·상한 3Gi로 올린다
-          # (NER + 분류기 — M2 물리 점유 기동 직후 1.8GiB, 모델을 여는 동안 최대 2.6GiB), gateway.toml의 guard = "observe"
+          # 인젝션 분류기(가드레일 웹훅, D-127·D-136 — 한국어 이어 학습 모델)는 이미지에 있지만 싣지 않는다. 켜려면 아래 env의 주석을 풀고 메모리를 요청 2Gi·상한 3Gi로 올린다
+          # (base 분류기로 정한 넉넉한 값 — NER + base는 M2 물리 점유 기동 직후 1.8GiB·여는 동안 최대 2.6GiB, 이미지의 small은 더 가볍다), gateway.toml의 guard = "observe"
           # env:
           #   - name: DETECT_INJECTION_MODEL
-          #     value: horizon-guard-base-int8
+          #     value: injection-ko-small-int8
           # 잠정값(NER만): 모델 143MB + ONNX 런타임 — M2에서 기동 직후 물리 점유 약 590MiB, 요청 뒤 약 620MiB(D-126 §6), 한 번에 추론 하나(스레드 4)
           resources:
             requests:

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "llm-security-gateway"
-version = "0.2.0"
+version = "0.2.1"
 description = "LLM API 앞에 두는 자체 호스팅 프록시 — 밖으로 나가는 한국 개인정보를 같은 모양의 가짜 값으로 바꿔 보내고 응답에서 되돌린다"
 readme = "README.md"
 license = "Apache-2.0"

@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r detect/requirements.txt pytest==9.2.0 httpx==0.28.1
-      - run: python -m detect.fetch veil-ko-lite-int8 atonlee-small-int8 horizon-guard-base-int8 --dir models   # NER 정확도 최고·지연 최저, 인젝션 채택(D-127)
+      - run: python -m detect.fetch veil-ko-lite-int8 atonlee-small-int8 injection-ko-small-int8 --dir models   # NER 정확도 최고·지연 최저, 인젝션 채택(D-128·D-136)
       - run: lscpu | head -20   # 지연 숫자의 조건(러너마다 CPU가 다르다)
       - run: DETECT_MODEL_DIR=models python -m pytest -q -rs -p no:cacheprovider detect/tests
       # 기본 셸은 pipefail이 없다(bash -e) — 평가가 실패해도 tee가 성공으로 가리지 않게 켠다
@@ -38,9 +38,9 @@ jobs:
       - run: python -m detect.bench --model veil-ko-lite-int8 --dir models --threads 2 --github
       - run: python -m detect.bench --model atonlee-small-int8 --dir models --threads 4 --github
       - run: python -m detect.bench --model atonlee-small-int8 --dir models --threads 2 --github
-      - run: set -o pipefail; python -m detect.evaluate_injection --model horizon-guard-base-int8 --dir models --github | tee -a "$GITHUB_STEP_SUMMARY"
-      - run: python -m detect.bench --model horizon-guard-base-int8 --dir models --threads 4 --github
-      - run: python -m detect.bench --model horizon-guard-base-int8 --dir models --threads 2 --github
+      - run: set -o pipefail; python -m detect.evaluate_injection --model injection-ko-small-int8 --dir models --github | tee -a "$GITHUB_STEP_SUMMARY"
+      - run: python -m detect.bench --model injection-ko-small-int8 --dir models --threads 4 --github
+      - run: python -m detect.bench --model injection-ko-small-int8 --dir models --threads 2 --github
 
   image:
     runs-on: ubuntu-24.04
@@ -51,7 +51,7 @@ jobs:
       - run: docker build -f detect/Dockerfile -t detect:ci .   # 빌드 때 모델을 고정 리비전에서 받아 해시를 맞춘다
       # 이미지 그대로 띄워 본다(D-127 리뷰) — NER + 분류기(DETECT_INJECTION_MODEL)를 함께 싣고 /health 두 작업, /v1/guard 한 번, x86의 메모리(docker stats)
       - run: |
-          docker run -d --name detect -p 127.0.0.1:8081:8081 --memory 3g --memory-swap 3g -e DETECT_INJECTION_MODEL=horizon-guard-base-int8 detect:ci   # 스왑 없이 3GiB — 넘으면 OOM으로 빨개진다
+          docker run -d --name detect -p 127.0.0.1:8081:8081 --memory 3g --memory-swap 3g -e DETECT_INJECTION_MODEL=injection-ko-small-int8 detect:ci   # 스왑 없이 3GiB — 넘으면 OOM으로 빨개진다
           for i in $(seq 1 90); do curl -sf http://127.0.0.1:8081/health >/dev/null && break; sleep 2; done
           curl -sf http://127.0.0.1:8081/health | python3 -c "import json, sys; t = json.load(sys.stdin)['tasks']; assert set(t) == {'pii_ner', 'injection'}, t"
           curl -sf -X POST http://127.0.0.1:8081/v1/guard -H 'content-type: application/json' \

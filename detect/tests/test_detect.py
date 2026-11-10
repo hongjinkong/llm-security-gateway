@@ -210,7 +210,7 @@ def test_m7_decomposed_hangul_and_combining_marks(client):
 
 
 # --- 인젝션 분류기(D-127) ---------------------------------------------------------------------
-INJECTION = "horizon-guard-base-int8"
+INJECTION = "injection-ko-small-int8"
 need_classifier = pytest.mark.skipif(not (MODEL_DIR / INJECTION).exists(), reason=f"모델 폴더 없음: {MODEL_DIR / INJECTION}(python -m detect.fetch)")
 
 

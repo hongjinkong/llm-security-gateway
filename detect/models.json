@@ -259,11 +259,11 @@
   },
   "injection-ko-small-int8": {
     "task": "injection",
-    "id": "hongjinkong/llm-gateway-injection-ko-small",
-    "revision": "",
+    "id": "hongjinseon123/llm-gateway-injection-ko-small",
+    "revision": "78c7a9c6acefb3162258e63b7d958cc8f71ac118",
     "license": "Apache-2.0",
     "trained": "D-128",
-    "published": false,
+    "published": true,
     "base": "jhu-clsp/mmBERT-small(141M — 임베딩 밖 42M, 22×384) ← Horizon-Labs/prompt-injection-guard-small@5ed691c2를 eval/injection/train/으로 이어 학습(D-128, 시드 20261104·CPU·길이 256), INT8은 임베딩(Gather)만",
     "onnx": "onnx/model_quantized.onnx",
     "files": {

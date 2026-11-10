@@ -16,7 +16,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
-VERSION = "0.2.0"
+VERSION = "0.2.1"
 
 
 def text(rel: str) -> str:
@@ -219,7 +219,7 @@ def _notes(*args: str) -> subprocess.CompletedProcess[str]:
 
 def test_r3_release_notes_checks_the_version_and_prints_the_section():
     plain = _notes(VERSION)
-    assert plain.returncode == 0 and "D-130" in plain.stdout
+    assert plain.returncode == 0 and plain.stdout.strip() and plain.stdout.strip() in text("CHANGELOG.md")     # 이 버전의 절 그대로(버전마다 내용이 다르다)
     assert "\n## " not in plain.stdout and not plain.stdout.startswith("## ")     # 이 버전의 절만, 제목 줄 없이
     assert len(plain.stdout) < 100_000                                           # GitHub 릴리스 본문 상한(125,000자) 안
     wrong = _notes("9.9.9")

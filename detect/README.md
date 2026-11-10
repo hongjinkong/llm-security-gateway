@@ -5,10 +5,11 @@
 기본 모델은 측정한 다섯 가운데 F1이 합성 문장·실제 대화(KDPII) 둘 다 0.85를 넘은 유일한 `1T/veil-pii-ko-lite` INT8(0.963·0.895)이다 — x86 4 vCPU에서 510토큰 HTTP p95 201.5ms(AMD EPYC)~361ms(Intel Xeon)로
 처음의 '+40ms' 게이트는 넘지 못했다(D-125). 빠른 모델(KoELECTRA-small)은 실제 대화에서 많이 틀린다(KDPII 정밀도 0.45·재현율 0.55). 수치와 근거는 [`DECISIONS.md`](../DECISIONS.md)의 D-125·D-126.
 같은 사이드카의 둘째 작업은 **인젝션 분류기**다(D-127) — 텍스트 하나에 인젝션 점수(0~1)를 내고, 게이트웨이의 가드레일 웹훅 계약(`POST /v1/guard`)을 구현한다
-(`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard`). 이미지 기본 모델은 다섯 후보를 공개 평가셋 v1(D-123)로 재서 고른 `Horizon-Labs/prompt-injection-guard-base`(mmBERT-base, INT8 641MB, Apache-2.0)다(D-127 §6) —
-판정 조작 문구 양성대조(D-054)에서 잡힌 공격의 8.9%가 뒤집혀 게이트웨이의 `block`에는 권하지 않는다(관측 전용). **기본으로 싣지 않는다** — 메모리가 약 1.2GiB 늘고(M2 물리 점유: NER만 0.6GiB → 함께 1.8GiB, 여는 동안 최대 2.6GiB) 창 하나(512토큰)가 M2에서 약 0.6초다.
-`DETECT_INJECTION_MODEL=horizon-guard-base-int8`로 켠다. **이어 학습한 모델 `injection-ko-small-int8`**(D-128, 아래 '이어 학습')은 봉인 홀드아웃 한국어 97.5%·영어 93.8%, 양성대조 최대 0.7%로 네 게이트를 넘어 채택됐다 —
-Hugging Face에 올라간 뒤 이미지 기본이 된다(그때까지 `models.json`에 `published: false`, 로컬 결과 폴더로만 싣는다). INT8 268MB, M2 스레드 4 p95 32토큰 17.8ms·510토큰 216.7ms(base의 약 1/3).
+(`GATEWAY_GUARD_URL=http://127.0.0.1:8081/v1/guard`). 이미지에 든 분류기는 **이어 학습한 `injection-ko-small-int8`**(D-128, 아래 '이어 학습' — 0.2.1부터, D-136)이다 —
+`Horizon-Labs/prompt-injection-guard-small`(mmBERT-small)을 한국어 중심 데이터로 이어 학습해 봉인 홀드아웃 한국어 97.5%·영어 93.8%, 판정 조작 문구 양성대조(D-054) 최대 0.7%로 네 게이트를 넘었다 —
+관측 기간 뒤 `block`에 써도 된다. 파일은 Hugging Face 공개 저장소 `hongjinseon123/llm-gateway-injection-ko-small`의 고정 리비전에서 받는다. INT8 268MB, M2 스레드 4 p95 32토큰 17.8ms·510토큰 216.7ms.
+**기본으로 싣지 않는다** — 메모리가 약 0.7~1.2GiB 늘어난다. `DETECT_INJECTION_MODEL=injection-ko-small-int8`로 켠다. 이어 학습 전 D-127 채택 모델 `horizon-guard-base-int8`(mmBERT-base, INT8 641MB)은
+양성대조에서 8.9%가 뒤집혀 `block`에 권하지 않는다 — 이미지에는 없고 `--build-arg INJECTION_MODEL=horizon-guard-base-int8`로 넣는다.
 긴 텍스트는 512토큰 창을 128토큰 겹쳐 밀고 창들의 최댓값을 낸다. 텍스트마다 점수를 캐시한다(SHA-256 → 점수 4,096개, 원문 없음).
 
 ```
@@ -31,13 +32,13 @@ GET  /health     → {"status": "ok", "tasks": {"pii_ner": {"model", "revision",
 
 ```bash
 python3.12 -m venv .venv-detect && .venv-detect/bin/pip install -r detect/requirements.txt pytest httpx
-.venv-detect/bin/python -m detect.fetch veil-ko-lite-int8 atonlee-small-int8 horizon-guard-base-int8 --dir models    # 고정 리비전에서 받아 SHA-256 확인
+.venv-detect/bin/python -m detect.fetch veil-ko-lite-int8 atonlee-small-int8 injection-ko-small-int8 --dir models    # 고정 리비전에서 받아 SHA-256 확인
 DETECT_MODEL_DIR=models .venv-detect/bin/python -m pytest -q detect/tests                    # 디코더·HTTP 계약
 .venv-detect/bin/python -m detect.evaluate --model atonlee-small-int8 --dir models           # F1: 합성 200문장 + KDPII test
 .venv-detect/bin/python -m detect.bench --model atonlee-small-int8 --dir models              # 지연: 32~510토큰 HTTP p50·p95
-.venv-detect/bin/python -m detect.evaluate_injection --model horizon-guard-base-int8 --dir models            # 인젝션: dev 언어·유형별 + recall@FPR(전체·깨끗한 부분집합)
-.venv-detect/bin/python -m detect.evaluate_injection --model horizon-guard-base-int8 --dir models --control  # D-054 양성대조(조작 문구 6종)
-.venv-detect/bin/python -m detect.bench --model horizon-guard-base-int8 --dir models          # 분류기 지연(같은 버킷)
+.venv-detect/bin/python -m detect.evaluate_injection --model injection-ko-small-int8 --dir models            # 인젝션: dev 언어·유형별 + recall@FPR(전체·깨끗한 부분집합)
+.venv-detect/bin/python -m detect.evaluate_injection --model injection-ko-small-int8 --dir models --control  # D-054 양성대조(조작 문구 6종)
+.venv-detect/bin/python -m detect.bench --model injection-ko-small-int8 --dir models          # 분류기 지연(같은 버킷)
 docker build -f detect/Dockerfile --build-arg MODEL=veil-ko-lite-int8 .                       # 이미지(빌드 때 두 모델을 받는다 — INJECTION_MODEL=로 비우면 분류기 없음)
 ```
 

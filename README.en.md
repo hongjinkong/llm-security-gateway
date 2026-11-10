@@ -10,7 +10,7 @@ You do not change app or model code — only the client's `base_url` and API key
 The detectors target Korean identifiers (resident registration numbers, foreign registration numbers, passports, driver's licenses, Korean phone numbers, business and bank numbers)
 plus cards, emails and API keys. Operator messages default to Korean; set `GATEWAY_LANG=en` for English. The operations and API documents under `docs/` are in Korean.
 
-> **Status**: 0.2.0, following the commercialization plan ([`PLAN.md`](PLAN.md), Korean). Decisions are recorded in [`DECISIONS.md`](DECISIONS.md) from D-108.
+> **Status**: 0.2.1, following the commercialization plan ([`PLAN.md`](PLAN.md), Korean). Decisions are recorded in [`DECISIONS.md`](DECISIONS.md) from D-108.
 
 ## 1. What it does
 
@@ -40,8 +40,8 @@ upstream  OpenAI · Anthropic · OpenAI-compatible servers (Ollama, vLLM, …)
 - **Injection is not blocked by default.** There are two rules (instruction override and role switch, with Korean and English vocabulary), and they match benign sentences too ("ignore the instructions in the PDF and summarize").
   Hits are recorded in the audit log (`would_block`); operators opt in with `GATEWAY_INJECTION=block`. An injection classifier in the detect sidecar can be turned on as a **guardrail webhook**
   (`GATEWAY_GUARD=observe|block`, off by default). A public classifier (`Horizon-Labs/prompt-injection-guard-small`) fine-tuned on Korean data (D-128) catches 97.5% of Korean and 93.8% of English attacks in the sealed holdout
-  at the threshold chosen for 1% benign false positives on the dev split (2.3% on holdout benign text; at 1% holdout false positives: 90.6% / 84.1%. The rules: 5.9% on dev; the public guard-base model shipped in the image: 61.7%) and passes the verdict-forging control (at most 0.7% flipped, limit 5%), so it **may be used to block after an observation period**.
-  Until the fine-tuned model is uploaded to Hugging Face, the image ships the public guard-base model (observe only). Your own guardrail plugs into the same webhook contract.
+  at the threshold chosen for 1% benign false positives on the dev split (2.3% on holdout benign text; at 1% holdout false positives: 90.6% / 84.1%. The rules: 5.9% on dev; the public guard-base model before fine-tuning: 61.7%) and passes the verdict-forging control (at most 0.7% flipped, limit 5%), so it **may be used to block after an observation period**.
+  From 0.2.1 the sidecar image ships this model (a pinned revision of a public Hugging Face repository, D-136 — loading it stays off by default). Your own guardrail plugs into the same webhook contract.
 
 ### Detected kinds
 

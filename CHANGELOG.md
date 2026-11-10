@@ -1,5 +1,14 @@
 # 변경 기록
 
+## 0.2.1 — 2026-11-10
+
+- 인젝션 분류기 교체(D-136): 탐지 사이드카 이미지에 든 분류기가 한국어로 이어 학습한 `injection-ko-small-int8`이다(D-128 — 봉인 홀드아웃 한국어 공격 97.5%·영어 93.8%,
+  판정 조작 문구 양성대조 최대 0.7%, 운영 문턱 0.9833). 빌드 때 Hugging Face 공개 저장소 `hongjinseon123/llm-gateway-injection-ko-small`의 고정 리비전(`78c7a9c6`)에서 받아 SHA-256을 맞춘다.
+  싣는 것은 여전히 기본 꺼짐(`DETECT_INJECTION_MODEL=injection-ko-small-int8`로 켠다) — `observe`로 실제 트래픽을 본 뒤 `block`에 써도 된다. 이미지의 분류기 파일이 641MB에서 268MB로 줄었다.
+  **바뀐 것**: `DETECT_INJECTION_MODEL=horizon-guard-base-int8`로 켜던 설치는 이름을 바꾼다 — 그 모델은 이미지에 없다(없는 이름이면 사이드카가 뜨지 않는다; `--build-arg INJECTION_MODEL=horizon-guard-base-int8`로 빌드하면 든다).
+  이미지의 고지(`/licenses/THIRD_PARTY_NOTICES.md`)와 모델 폴더의 LICENSE·NOTICE도 새 모델의 것이다. k8s 견본의 이미지 태그 0.2.1.
+- 개발 의존성 pytest 9.2.0(D-134 §7) — CI 사이드카 작업의 고정 값도 함께, 둘이 같은지 테스트가 본다.
+
 ## 0.2.0 — 2026-11-10
 
 - 릴리스 공정(D-130): 태그 `v<버전>`을 푸시하면 `.github/workflows/release.yml`이 태그 = `pyproject.toml` 버전 = 이 파일의 절을 확인한 뒤 이미지 둘

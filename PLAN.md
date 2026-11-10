@@ -93,6 +93,7 @@
 | 2026-11-10 | 20(R4) | D-130·D-135 | `59fa637`의 `ci`·`detect` 여섯 작업 초록 → 사용자가 태그를 다시 담 → `release` run `42751325343` **build·scan·publish 모두 성공**(6분): 게이트 둘 통과(목록은 미수정 HIGH 47·CRITICAL 0), GitHub 릴리스 `v0.2.0`(SBOM 둘), GHCR 이미지 둘(서명·SBOM 증명, 다이제스트는 D-130 §6) | 사용자: Packages 둘 Public → 알려 주면 세션이 익명 받기·서명 태그 확인. 그 뒤는 22단계(사용자 몫)와 주마다 dependabot·CI |
 | 2026-11-10 | 20(공개) | D-130 | 사용자가 Packages 둘을 Public으로 → 세션이 ghcr.io 익명으로 확인: manifest 200, `0.2.0`=`latest`=릴리스 다이제스트, referrers 색인에 서명·SBOM 증명 번들(신원 `release.yml@refs/tags/v0.2.0`·GitHub OIDC 발급자·대상 다이제스트 일치·Rekor 항목). **20단계 남은 일 없음** | 22단계 — 사용자 몫(디자인 파트너·가격 셋). 세션 일은 신호 뒤(HF 업로드·데모 주소·PoC 오탐 표)와 주마다 dependabot·CI |
 | 2026-11-10 | 22 대기(확인) | — | `74888fb`의 `ci` 네 작업 성공, 열린 PR 0(dependabot 새 묶음 없음), 신호 없음(HF 업로드·데모 주소·PoC 오탐 표). `gh api`(인증)로 `bdcd226`의 test 작업 로그를 읽음 — 3.12·3.14 모두 `930 passed`, 건너뜀 0(로컬 929+1 건너뜀은 키가 있을 때 피하는 실 호출 테스트) → W7 화면 확인이 CI에서 돈다(16-1 사용자 할 일 닫음). Private vulnerability reporting은 아직 꺼짐(API `enabled: false`) | 22단계 — 사용자 몫. 다음 `/next-step`: dependabot PR·CI 확인, 신호 대기 |
+| 2026-11-10 | 22 대기(확인) | — | `dd654ee`의 `ci` 네 작업(secrets·docker·test 3.12·3.14) 성공, test 로그 둘 다 `930 passed`. 열린 PR 0, 신호 없음, Private vulnerability reporting 아직 꺼짐 | 22단계 — 사용자 몫. 다음 `/next-step`: dependabot PR·CI 확인, 신호 대기 |
 
 ## 사용자 할 일
 

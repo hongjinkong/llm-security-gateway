@@ -1,6 +1,6 @@
 # 탐지 사이드카 이미지(D-125·D-127). 게이트웨이 이미지와 의존성을 나눈다 — onnxruntime·모델은 여기에만 있다. 베이스는 게이트웨이와 같은 다이제스트다.
 # python:3.12-slim 멀티 아키텍처 인덱스, 2026-11-10 조회(Python 3.12.16, Debian 13.7)
-FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 # 베이스를 빌드한 뒤 나온 Debian 보안 갱신을 적용한다(D-135, 게이트웨이 이미지와 같다). 목록은 같은 층에서 지운다
 RUN apt-get update \

@@ -4,7 +4,7 @@ huggingface_hub==2.4.0
 numpy==2.5.4
 onnx==1.23.2
 onnx-ir==1.1.0
-onnxruntime==1.31.1
+onnxruntime==1.32.0
 onnxscript==0.7.2
 safetensors==0.8.0
 tokenizers==0.23.3
